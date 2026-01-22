@@ -1,0 +1,192 @@
+(undo-tree-save-format-version . 1)
+"184c395ac1d5bae9305265dd2e29991db6ad19ed"
+[nil nil nil nil (26802 48488 26815 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 5276 . 5277) (nil fontified nil 1 . 5277) (1 . 5277) (t 26802 48488 0 0)) nil (26802 54107 710978 0) 0 nil])
+([nil nil ((#(";;;; lumen/data/errors.lisp" 0 5 (face font-lock-comment-delimiter-face fontified t) 5 27 (face font-lock-comment-face fontified t)) . 1)) nil (26802 54107 710976 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 1)) nil (26802 54107 710975 0) 0 nil])
+([nil nil ((22 . 23)) nil (26802 54107 710974 0) 0 nil])
+([nil nil ((351 . 352)) nil (26802 54107 710970 0) 0 nil])
+([nil nil ((#("(defun map-db-error (condition)
+  \"Retourne **un objet** condition Lumen (ne le signale pas).\"
+  (labels ((mk (class &key msg constraint sqlstate)
+             (make-condition class
+                             :message   (or msg (%coerce-message condition))
+                             :constraint constraint
+                             :sqlstate  sqlstate)))
+    (let* ((msg (%coerce-message condition))
+           (st  (%maybe-sqlstate condition)))
+      (cond
+        ;; --- Constraint violations (SQLSTATE 23xxx)
+        ((typep condition 'cl-postgres-error:unique-violation)
+         (mk 'db-constraint-violation :constraint :unique :sqlstate \"23505\" :msg msg))
+        ((typep condition 'cl-postgres-error:not-null-violation)
+         (mk 'db-constraint-violation :constraint :not-null :sqlstate \"23502\" :msg msg))
+        ((typep condition 'cl-postgres-error:foreign-key-violation)
+         (mk 'db-constraint-violation :constraint :foreign-key :sqlstate \"23503\" :msg msg))
+        ((typep condition 'cl-postgres-error:check-violation)
+         (mk 'db-constraint-violation :constraint :check :sqlstate \"23514\" :msg msg))
+
+        ;; --- Concurrency / retryable
+        ((typep condition 'cl-postgres-error:deadlock-detected)
+         (mk 'db-deadlock-retryable :sqlstate \"40P01\" :msg msg))
+        ((typep condition 'cl-postgres-error:serialization-failure)
+         (mk 'db-serialization-retryable :sqlstate \"40001\" :msg msg))
+        ((typep condition 'cl-postgres-error:lock-not-available)
+         (mk 'db-deadlock-retryable :sqlstate \"55P03\" :msg msg))
+
+        ;; --- Timeouts / cancellations / admin
+        ((typep condition 'cl-postgres-error:query-canceled)
+         (mk 'db-timeout :sqlstate \"57014\" :msg msg))
+        ((typep condition 'cl-postgres-error:admin-shutdown)
+         (mk 'db-timeout :sqlstate \"57P01\" :msg msg))
+        ((typep condition 'postmodern:database-connection-error)
+         (mk 'db-timeout :msg msg))  ;; panne réseau → retry possible selon contexte
+
+        ;; --- Fallback
+        (t (make-condition 'db-error :message msg :sqlstate st))))))
+" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 19 (face font-lock-function-name-face fontified t) 19 34 (fontified t) 34 94 (face font-lock-doc-face fontified t) 94 98 (fontified t) 98 104 (face font-lock-keyword-face fontified t) 104 117 (fontified t) 117 121 (face font-lock-type-face fontified t) 121 211 (fontified t) 211 219 (face font-lock-builtin-face fontified t) 219 288 (fontified t) 288 290 (face font-lock-builtin-face fontified t) 290 299 (face font-lock-builtin-face fontified t) 299 311 (fontified t) 311 340 (fontified t) 340 349 (face font-lock-builtin-face fontified t) 349 368 (fontified t) 368 372 (face font-lock-keyword-face fontified t) 372 461 (fontified t) 461 465 (face font-lock-keyword-face fontified t) 465 474 (fontified t) 474 477 (face font-lock-comment-delimiter-face fontified t) 477 520 (face font-lock-comment-face fontified t) 520 621 (fontified t) 621 632 (face font-lock-builtin-face fontified t) 632 633 (fontified t) 633 640 (face font-lock-builtin-face fontified t) 640 641 (fontified t) 641 650 (face font-lock-builtin-face fontified t) 650 651 (fontified t) 651 658 (face font-lock-string-face fontified t) 658 659 (fontified t) 659 663 (face font-lock-builtin-face fontified t) 663 773 (fontified t) 773 784 (face font-lock-builtin-face fontified t) 784 785 (fontified t) 785 794 (face font-lock-builtin-face fontified t) 794 795 (fontified t) 795 804 (face font-lock-builtin-face fontified t) 804 805 (fontified t) 805 812 (face font-lock-string-face fontified t) 812 813 (fontified t) 813 817 (face font-lock-builtin-face fontified t) 817 930 (fontified t) 930 941 (face font-lock-builtin-face fontified t) 941 942 (fontified t) 942 954 (face font-lock-builtin-face fontified t) 954 955 (fontified t) 955 964 (face font-lock-builtin-face fontified t) 964 965 (fontified t) 965 972 (face font-lock-string-face fontified t) 972 973 (fontified t) 973 977 (face font-lock-builtin-face fontified t) 977 1084 (fontified t) 1084 1095 (face font-lock-builtin-face fontified t) 1095 1096 (fontified t) 1096 1102 (face font-lock-builtin-face fontified t) 1102 1103 (fontified t) 1103 1112 (face font-lock-builtin-face fontified t) 1112 1113 (fontified t) 1113 1120 (face font-lock-string-face fontified t) 1120 1121 (fontified t) 1121 1125 (face font-lock-builtin-face fontified t) 1125 1141 (fontified t) 1141 1144 (face font-lock-comment-delimiter-face fontified t) 1144 1172 (face font-lock-comment-face fontified t) 1172 1272 (fontified t) 1272 1281 (face font-lock-builtin-face fontified t) 1281 1282 (fontified t) 1282 1289 (face font-lock-string-face fontified t) 1289 1290 (fontified t) 1290 1294 (face font-lock-builtin-face fontified t) 1294 1410 (fontified t) 1410 1419 (face font-lock-builtin-face fontified t) 1419 1420 (fontified t) 1420 1427 (face font-lock-string-face fontified t) 1427 1428 (fontified t) 1428 1432 (face font-lock-builtin-face fontified t) 1432 1540 (fontified t) 1540 1549 (face font-lock-builtin-face fontified t) 1549 1550 (fontified t) 1550 1557 (face font-lock-string-face fontified t) 1557 1558 (fontified t) 1558 1562 (face font-lock-builtin-face fontified t) 1562 1578 (fontified t) 1578 1581 (face font-lock-comment-delimiter-face fontified t) 1581 1618 (face font-lock-comment-face fontified t) 1618 1704 (fontified t) 1704 1713 (face font-lock-builtin-face fontified t) 1713 1714 (fontified t) 1714 1721 (face font-lock-string-face fontified t) 1721 1722 (fontified t) 1722 1726 (face font-lock-builtin-face fontified t) 1726 1811 (fontified t) 1811 1819 (fontified t) 1819 1828 (face font-lock-builtin-face fontified t) 1828 1829 (fontified t) 1829 1836 (face font-lock-string-face fontified t) 1836 1837 (fontified t) 1837 1841 (face font-lock-builtin-face fontified t) 1841 1848 (fontified t) 1848 1938 (fontified t) 1938 1942 (face font-lock-builtin-face fontified t) 1942 1950 (fontified t) 1950 1953 (face font-lock-comment-delimiter-face fontified t) 1953 1998 (face font-lock-comment-face fontified t) 1998 2007 (fontified t) 2007 2010 (face font-lock-comment-delimiter-face fontified t) 2010 2023 (face font-lock-comment-face fontified t) 2023 2060 (fontified t) 2060 2068 (face font-lock-builtin-face fontified t) 2068 2073 (fontified t) 2073 2082 (face font-lock-builtin-face fontified t) 2082 2092 (fontified t)) . -2730) (undo-tree-id5 . -2092) (undo-tree-id6 . -670) 4822 (t 26802 54107 0 0)) nil (26807 58583 627308 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5076 . 5077) (nil fontified nil 2730 . 5077) (2730 . 5077)) nil (26807 58583 627305 0) 0 nil])
+([nil nil ((5077 . 5078)) nil (26807 58583 627304 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5492 . 5493) (nil fontified nil 5078 . 5493) (5078 . 5493)) nil (26807 58583 627303 0) 0 nil])
+([nil nil ((#("
+(defun translate-db-error (condition)
+  \"Mappe et **signale** la condition Lumen correspondante.\"
+  (error (map-db-error condition)))
+" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 26 (face font-lock-function-name-face fontified t) 26 41 (fontified t) 41 98 (face font-lock-doc-face fontified t) 98 102 (fontified t) 102 107 (face font-lock-warning-face fontified t) 107 135 (fontified t)) . -5493) (undo-tree-id0 . -135) (undo-tree-id1 . -135) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -135) 5628) nil (26807 58583 627300 0) 0 nil])
+([nil nil ((3416 . 3418) (t 26807 58583 0 0)) nil (26807 58643 913914 0) 0 nil])
+([nil nil ((#("(in-package :cl-user)
+
+(defpackage :lumen.data.errors
+  (:use :cl)
+  (:export
+   ;; conditions Lumen
+   :db-error :db-constraint-violation :db-not-found
+   :db-deadlock-retryable :db-timeout :db-serialization-retryable
+   ;; API
+   :map-db-error :translate-db-error :retryable-db-error-p
+   :db-error-message :db-error-constraint :db-error-sqlstate))
+
+(in-package :lumen.data.errors)
+
+;;; ----------------------------------------------------------------------------
+;;; Conditions Lumen
+;;; ----------------------------------------------------------------------------
+(define-condition db-error (error)
+  ((message   :initarg :message   :reader db-error-message)
+   (sqlstate  :initarg :sqlstate  :reader db-error-sqlstate :initform nil))
+  (:report (lambda (c s)
+             (format s \"DB error: ~@[SQLSTATE=~a ~]~a\"
+                     (db-error-sqlstate c)
+                     (db-error-message c)))))
+
+(define-condition db-constraint-violation (db-error)
+  ((constraint :initarg :constraint :reader db-error-constraint))
+  (:report (lambda (c s)
+             (format s \"Constraint violation~@[ (~a)~]~@[ SQLSTATE=~a~]: ~a\"
+                     (db-error-constraint c)
+                     (db-error-sqlstate c)
+                     (db-error-message c)))))
+
+(define-condition db-not-found (db-error) ())
+
+(define-condition db-deadlock-retryable (db-error) ()
+  (:report (lambda (c s)
+             (format s \"Deadlock / lock contention (retryable)~@[ SQLSTATE=~a~]: ~a\"
+                     (db-error-sqlstate c)
+                     (db-error-message c)))))
+
+(define-condition db-serialization-retryable (db-error) ()
+  (:report (lambda (c s)
+             (format s \"Serialization failure (retryable)~@[ SQLSTATE=~a~]: ~a\"
+                     (db-error-sqlstate c)
+                     (db-error-message c)))))
+
+(define-condition db-timeout (db-error) ()
+  (:report (lambda (c s)
+             (format s \"Timeout / query canceled~@[ SQLSTATE=~a~]: ~a\"
+                     (db-error-sqlstate c)
+                     (db-error-message c)))))
+
+;;; ----------------------------------------------------------------------------
+;;; Helpers
+;;; ----------------------------------------------------------------------------
+(defun %coerce-message (c)
+  (with-output-to-string (s) (princ c s)))
+
+(defun %maybe-sqlstate (c)
+  \"Essaye de récupérer le SQLSTATE si disponible. Si non, NIL.
+cl-postgres encode généralement le code dans la classe de condition,
+mais on garde ce hook pour extensions.\"
+  (declare (ignore c))
+  nil)
+
+;;; ----------------------------------------------------------------------------
+;;; Mapping cl-postgres/postmodern → Lumen
+;;; ----------------------------------------------------------------------------
+(defun map-db-error (condition)
+  \"Mappe une condition DB en **condition Lumen** ou NIL si ignorable (warning/notice).
+Ne **signale** rien — retourne un objet condition ou NIL.\"
+  (labels ((mk (class &key msg constraint sqlstate)
+             (make-condition class
+                             :message   (or msg (%coerce-message condition))
+                             :constraint constraint
+                             :sqlstate  sqlstate)))
+    (let* ((msg (%coerce-message condition))
+           (st  (%maybe-sqlstate condition)))
+      (cond
+        ;; --- Notices / Warnings : on les ignore (pas d'erreur)
+        ((typep condition 'cl-postgres:postgresql-warning) nil)
+        ;;((typep condition 'cl-postgres:postgresql-notice)  nil)
+
+        ;; --- Constraint violations (SQLSTATE 23xxx)
+        ((typep condition 'cl-postgres-error:unique-violation)
+         (mk 'db-constraint-violation :constraint :unique :sqlstate \"23505\" :msg msg))
+        ((typep condition 'cl-postgres-error:not-null-violation)
+         (mk 'db-constraint-violation :constraint :not-null :sqlstate \"23502\" :msg msg))
+        ((typep condition 'cl-postgres-error:foreign-key-violation)
+         (mk 'db-constraint-violation :constraint :foreign-key :sqlstate \"23503\" :msg msg))
+        ((typep condition 'cl-postgres-error:check-violation)
+         (mk 'db-constraint-violation :constraint :check :sqlstate \"23514\" :msg msg))
+
+        ;; --- Concurrency / retryable
+        ((typep condition 'cl-postgres-error:deadlock-detected)
+         (mk 'db-deadlock-retryable :sqlstate \"40P01\" :msg msg))
+        ((typep condition 'cl-postgres-error:serialization-failure)
+         (mk 'db-serialization-retryable :sqlstate \"40001\" :msg msg))
+        ((typep condition 'cl-postgres-error:lock-not-available)
+         (mk 'db-deadlock-retryable :sqlstate \"55P03\" :msg msg))
+
+        ;; --- Timeouts / cancellations / admin
+        ((typep condition 'cl-postgres-error:query-canceled)
+         (mk 'db-timeout :sqlstate \"57014\" :msg msg))
+        ((typep condition 'cl-postgres-error:admin-shutdown)
+         (mk 'db-timeout :sqlstate \"57P01\" :msg msg))
+        ((typep condition 'postmodern:database-connection-error)
+         (mk 'db-timeout :msg msg))  ;; panne réseau
+
+        ;; --- Fallback générique
+        (t (make-condition 'db-error :message msg :sqlstate st))))))
+
+(defun translate-db-error (condition)
+  \"Mappe et **signale** une erreur Lumen seulement si non-ignorable.
+WARNING/NOTICE sont loggués puis ignorés.\"
+  (let ((mapped (map-db-error condition)))
+    (cond
+      ((null mapped)
+       ;; Option : log discret au besoin
+       (format *trace-output* \"~&[DB][IGNORED] ~a~%\" condition)
+       (values))              ; ↩︎ rien à signaler
+      (t
+       (error mapped)))))
+
+(defun retryable-db-error-p (thing)
+  \"Vrai si l'objet (ou la condition runtime) correspond à une erreur retryable.\"
+  (typep (etypecase thing
+           (db-error thing)
+           (condition (map-db-error thing)))
+         '(or db-deadlock-retryable db-serialization-retryable db-timeout)))
+" 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 20 (face font-lock-builtin-face fontified t) 20 24 (fontified t) 24 34 (face font-lock-keyword-face fontified t) 34 35 (fontified t) 35 53 (face font-lock-type-face fontified t) 53 57 (fontified t) 57 61 (face font-lock-builtin-face fontified t) 61 62 (fontified t) 62 65 (face font-lock-builtin-face fontified t) 65 70 (fontified t) 70 77 (face font-lock-builtin-face fontified t) 77 81 (fontified t) 81 84 (face font-lock-comment-delimiter-face fontified t) 84 101 (face font-lock-comment-face fontified t) 101 104 (fontified t) 104 113 (face font-lock-builtin-face fontified t) 113 114 (fontified t) 114 138 (face font-lock-builtin-face fontified t) 138 139 (fontified t) 139 152 (face font-lock-builtin-face fontified t) 152 156 (fontified t) 156 178 (face font-lock-builtin-face fontified t) 178 179 (fontified t) 179 190 (face font-lock-builtin-face fontified t) 190 191 (fontified t) 191 218 (face font-lock-builtin-face fontified t) 218 222 (fontified t) 222 225 (face font-lock-comment-delimiter-face fontified t) 225 229 (face font-lock-comment-face fontified t) 229 232 (fontified t) 232 245 (face font-lock-builtin-face fontified t) 245 246 (fontified t) 246 265 (face font-lock-builtin-face fontified t) 265 266 (fontified t) 266 287 (face font-lock-builtin-face fontified t) 287 291 (fontified t) 291 308 (face font-lock-builtin-face fontified t) 308 309 (fontified t) 309 329 (face font-lock-builtin-face fontified t) 329 330 (fontified t) 330 348 (face font-lock-builtin-face fontified t) 348 353 (fontified t) 353 363 (face font-lock-keyword-face fontified t) 363 364 (fontified t) 364 382 (face font-lock-builtin-face fontified t) 382 385 (fontified t) 385 389 (face font-lock-comment-delimiter-face fontified t) 389 466 (face font-lock-comment-face fontified t) 466 470 (face font-lock-comment-delimiter-face fontified t) 470 487 (face font-lock-comment-face fontified t) 487 491 (face font-lock-comment-delimiter-face fontified t) 491 568 (face font-lock-comment-face fontified t) 568 569 (fontified t) 569 585 (face font-lock-keyword-face fontified t) 585 586 (fontified t) 586 594 (face font-lock-function-name-face fontified t) 594 596 (fontified t) 596 601 (face font-lock-warning-face fontified t) 601 617 (fontified t) 617 625 (face font-lock-builtin-face fontified t) 625 626 (fontified t) 626 634 (face font-lock-builtin-face fontified t) 634 637 (fontified t) 637 644 (face font-lock-builtin-face fontified t) 644 677 (fontified t) 677 685 (face font-lock-builtin-face fontified t) 685 686 (fontified t) 686 695 (face font-lock-builtin-face fontified t) 695 697 (fontified t) 697 704 (face font-lock-builtin-face fontified t) 704 723 (fontified t) 723 732 (face font-lock-builtin-face fontified t) 732 742 (fontified t) 742 749 (face font-lock-builtin-face fontified t) 749 751 (fontified t) 751 757 (face font-lock-keyword-face fontified t) 757 787 (fontified t) 787 818 (face font-lock-string-face fontified t) 818 910 (fontified t) 910 926 (face font-lock-keyword-face fontified t) 926 927 (fontified t) 927 950 (face font-lock-function-name-face fontified t) 950 977 (fontified t) 977 985 (face font-lock-builtin-face fontified t) 985 986 (fontified t) 986 997 (face font-lock-builtin-face fontified t) 997 998 (fontified t) 998 1005 (face font-lock-builtin-face fontified t) 1005 1031 (fontified t) 1031 1038 (face font-lock-builtin-face fontified t) 1038 1040 (fontified t) 1040 1046 (face font-lock-keyword-face fontified t) 1046 1076 (fontified t) 1076 1129 (face font-lock-string-face fontified t) 1129 1266 (fontified t) 1266 1282 (face font-lock-keyword-face fontified t) 1282 1283 (fontified t) 1283 1295 (face font-lock-function-name-face fontified t) 1295 1313 (fontified t) 1313 1329 (face font-lock-keyword-face fontified t) 1329 1330 (fontified t) 1330 1351 (face font-lock-function-name-face fontified t) 1351 1369 (fontified t) 1369 1376 (face font-lock-builtin-face fontified t) 1376 1378 (fontified t) 1378 1384 (face font-lock-keyword-face fontified t) 1384 1414 (fontified t) 1414 1475 (face font-lock-string-face fontified t) 1475 1500 (fontified t) 1500 1519 (fontified t) 1519 5788 (fontified nil)) . 1) (undo-tree-id0 . -5788) (undo-tree-id1 . -5788) (t 26807 58643 0 0)) nil (26976 63773 10606 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6045 . 6046) (nil fontified nil 1 . 6046) (1 . 6046)) nil (26976 63773 10592 0) 0 nil])
+([nil current ((6046 . 6047)) nil (26976 63773 10587 0) 0 nil])
+nil

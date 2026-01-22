@@ -1,0 +1,169 @@
+(undo-tree-save-format-version . 1)
+"51e92aa0c9c3834119e36f4a78797dcbe41d5b0a"
+[nil nil nil nil (26798 57467 892797 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 2577 . 2578) (nil fontified nil 1 . 2578) (1 . 2578) (t . -1)) nil (26798 57467 892796 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1188 . 1189) (nil fontified nil 1188 . 1189) (nil fontified nil 1166 . 1188) (nil fontified nil 1165 . 1166) (nil fontified nil 1155 . 1165) (nil fontified nil 1153 . 1155) (nil fontified nil 1150 . 1153) (nil fontified nil 1149 . 1150) (nil fontified nil 1136 . 1149) (nil fontified nil 1135 . 1136) (nil fontified nil 1131 . 1135) (nil fontified nil 1130 . 1131) (nil fontified nil 1121 . 1130) (nil fontified nil 1117 . 1121) (nil fontified nil 1116 . 1117) (nil fontified nil 1111 . 1116) (nil fontified nil 1107 . 1111) (nil fontified nil 1099 . 1107) (nil fontified nil 1095 . 1099) (nil fontified nil 1087 . 1095) (nil fontified nil 1084 . 1087) (nil fontified nil 1080 . 1084) (nil fontified nil 1054 . 1080) (nil fontified nil 1050 . 1054) (nil fontified nil 1038 . 1050) (nil fontified nil 1035 . 1038) (nil fontified nil 1023 . 1035) (nil fontified nil 1020 . 1023) (nil fontified nil 1016 . 1020) (nil fontified nil 1011 . 1016) (nil fontified nil 1008 . 1011) (nil fontified nil 1003 . 1008) (nil fontified nil 1000 . 1003) (nil fontified nil 996 . 1000) (nil fontified nil 981 . 996) (nil fontified nil 980 . 981) (nil fontified nil 973 . 980) (nil fontified nil 972 . 973) (nil fontified nil 960 . 972) (nil fontified nil 959 . 960) (nil fontified nil 948 . 959) (nil fontified nil 945 . 948) (nil fontified nil 937 . 945) (nil fontified nil 934 . 937) (nil fontified nil 930 . 934) (nil fontified nil 916 . 930) (nil fontified nil 915 . 916) (nil fontified nil 899 . 915) (nil fontified nil 896 . 899) (nil fontified nil 880 . 896) (nil fontified nil 877 . 880) (nil fontified nil 872 . 877) (nil fontified nil 860 . 872) (nil fontified nil 859 . 860) (nil fontified nil 854 . 859) (nil fontified nil 853 . 854) (nil fontified nil 846 . 853) (nil fontified nil 845 . 846) (nil fontified nil 840 . 845) (nil fontified nil 839 . 840) (nil fontified nil 833 . 839) (nil fontified nil 828 . 833) (nil fontified nil 807 . 828) (nil fontified nil 806 . 807) (nil fontified nil 797 . 806) (nil fontified nil 796 . 797) (nil fontified nil 788 . 796) (nil fontified nil 787 . 788) (nil fontified nil 759 . 787) (nil fontified nil 754 . 759) (nil fontified nil 741 . 754) (nil fontified nil 740 . 741) (nil fontified nil 730 . 740) (nil fontified nil 729 . 730) (nil fontified nil 722 . 729) (nil fontified nil 721 . 722) (nil fontified nil 715 . 721) (nil fontified nil 714 . 715) (nil fontified nil 703 . 714) (nil fontified nil 702 . 703) (nil fontified nil 684 . 702) (nil fontified nil 683 . 684) (nil fontified nil 676 . 683) (nil fontified nil 671 . 676) (nil fontified nil 660 . 671) (nil fontified nil 659 . 660) (nil fontified nil 648 . 659) (nil fontified nil 647 . 648) (nil fontified nil 632 . 647) (nil fontified nil 631 . 632) (nil fontified nil 619 . 631) (nil fontified nil 614 . 619) (nil fontified nil 598 . 614) (nil fontified nil 597 . 598) (nil fontified nil 580 . 597) (nil fontified nil 579 . 580) (nil fontified nil 565 . 579) (nil fontified nil 564 . 565) (nil fontified nil 553 . 564) (nil fontified nil 552 . 553) (nil fontified nil 541 . 552) (nil fontified nil 540 . 541) (nil fontified nil 529 . 540) (nil fontified nil 528 . 529) (nil fontified nil 518 . 528) (nil fontified nil 517 . 518) (nil fontified nil 508 . 517) (nil fontified nil 507 . 508) (nil fontified nil 489 . 507) (nil fontified nil 488 . 489) (nil fontified nil 475 . 488) (nil fontified nil 474 . 475) (nil fontified nil 461 . 474) (nil fontified nil 460 . 461) (nil fontified nil 448 . 460) (nil fontified nil 447 . 448) (nil fontified nil 434 . 447) (nil fontified nil 433 . 434) (nil fontified nil 422 . 433) (nil fontified nil 421 . 422) (nil fontified nil 402 . 421) (nil fontified nil 401 . 402) (nil fontified nil 389 . 401) (nil fontified nil 384 . 389) (nil fontified nil 367 . 384) (nil fontified nil 366 . 367) (nil fontified nil 350 . 366) (nil fontified nil 349 . 350) (nil fontified nil 337 . 349) (nil fontified nil 332 . 337) (nil fontified nil 315 . 332) (nil fontified nil 312 . 315) (nil fontified nil 296 . 312) (nil fontified nil 295 . 296) (nil fontified nil 281 . 295) (nil fontified nil 280 . 281) (nil fontified nil 267 . 280) (nil fontified nil 266 . 267) (nil fontified nil 262 . 266) (nil fontified nil 261 . 262) (nil fontified nil 258 . 261) (nil fontified nil 257 . 258) (nil fontified nil 245 . 257) (nil fontified nil 244 . 245) (nil fontified nil 232 . 244) (nil fontified nil 227 . 232) (nil fontified nil 218 . 227) (nil fontified nil 217 . 218) (nil fontified nil 209 . 217) (nil fontified nil 208 . 209) (nil fontified nil 198 . 208) (nil fontified nil 197 . 198) (nil fontified nil 185 . 197) (nil fontified nil 184 . 185) (nil fontified nil 172 . 184) (nil fontified nil 171 . 172) (nil fontified nil 158 . 171) (nil fontified nil 154 . 158) (nil fontified nil 142 . 154) (nil fontified nil 141 . 142) (nil fontified nil 131 . 141) (nil fontified nil 130 . 131) (nil fontified nil 121 . 130) (nil fontified nil 120 . 121) (nil fontified nil 112 . 120) (nil fontified nil 111 . 112) (nil fontified nil 95 . 111) (nil fontified nil 94 . 95) (nil fontified nil 82 . 94) (nil fontified nil 77 . 82) (nil fontified nil 66 . 77) (nil fontified nil 65 . 66) (nil fontified nil 62 . 65) (nil fontified nil 61 . 62) (nil fontified nil 57 . 61) (nil fontified nil 53 . 57) (nil fontified nil 31 . 53) (nil fontified nil 30 . 31) (nil fontified nil 20 . 30) (nil fontified nil 19 . 20) (nil fontified nil 16 . 19) (nil fontified nil 13 . 16) (nil fontified nil 12 . 13) (nil fontified nil 2 . 12) (nil fontified nil 1 . 2) (1 . 1189)) nil (26798 57467 892792 0) 0 nil])
+([nil nil ((1189 . 1191)) nil (26798 57467 892780 0) 0 nil])
+([nil nil ((#("middleware" 0 10 (face font-lock-type-face fontified t)) . -43) (undo-tree-id42 . -10) 53) nil (26798 57467 892779 0) 0 nil])
+([nil nil ((43 . 44)) nil (26798 57467 892778 0) 0 nil])
+([nil nil ((#("a" 0 1 (face font-lock-type-face fontified t)) . -43) (undo-tree-id41 . -1) 44) nil (26798 57467 892778 0) 0 nil])
+([nil nil ((43 . 46)) nil (26798 57467 892777 0) 0 nil])
+([nil nil ((43 . 44)) nil (26798 57467 892776 0) 0 nil])
+([nil nil ((#("middleware" 0 10 (face font-lock-builtin-face fontified t)) . -1172) (undo-tree-id40 . -10) 1182) nil (26798 57467 892776 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1175 . 1176) (nil fontified nil 1172 . 1176) (1172 . 1176)) nil (26798 57467 892775 0) 0 nil])
+([nil nil ((#("
+  (:import-from :lumen.core.body :parse-urlencoded)
+  (:import-from :lumen.core.session :session-id :session-data :session-get :session-set! :session-del! :verify-signed-sid :sign-sid :store-get :store-put! :store-del! :rand-bytes :*session-ttl* :*session-cookie* :*secure-cookie*)" 0 4 (fontified t) 4 16 (face font-lock-builtin-face fontified t) 16 17 (fontified t) 17 33 (face font-lock-builtin-face fontified t) 33 34 (fontified t) 34 51 (face font-lock-builtin-face fontified t) 51 56 (fontified t) 56 68 (face font-lock-builtin-face fontified t) 68 69 (fontified t) 69 88 (face font-lock-builtin-face fontified t) 88 89 (fontified t) 89 100 (face font-lock-builtin-face fontified t) 100 101 (fontified t) 101 114 (face font-lock-builtin-face fontified t) 114 115 (fontified t) 115 127 (face font-lock-builtin-face fontified t) 127 128 (fontified t) 128 141 (face font-lock-builtin-face fontified t) 141 142 (fontified t) 142 155 (face font-lock-builtin-face fontified t) 155 156 (fontified t) 156 174 (face font-lock-builtin-face fontified t) 174 175 (fontified t) 175 184 (face font-lock-builtin-face fontified t) 184 185 (fontified t) 185 195 (face font-lock-builtin-face fontified t) 195 196 (fontified t) 196 207 (face font-lock-builtin-face fontified t) 207 208 (fontified t) 208 219 (face font-lock-builtin-face fontified t) 219 220 (fontified t) 220 231 (face font-lock-builtin-face fontified t) 231 232 (fontified t) 232 246 (face font-lock-builtin-face fontified t) 246 247 (fontified t) 247 264 (face font-lock-builtin-face fontified t) 264 265 (fontified t) 265 281 (face font-lock-builtin-face fontified t) 281 282 (fontified t)) . -327) (undo-tree-id39 . -282) 609) nil (26798 57467 892774 0) 0 nil])
+([nil nil ((#(":define-middleware :my-compose :*app* :logger :json-only :query-parser
+	   :parse-query-string-to-alist :*debug* :set-app! :*pipeline-signature*
+	   :named :->mw :static :cors :static-many
+	   ;; Erreur Handlers
+   :*error-handler* :error-wrapper
+   ;; Cookies
+   :request-id :set-cookie! :cookie :cookies-parser
+   ;; ETag
+   :etag
+   ;; Compression
+   :compression
+   :last-modified-conditional
+   ;; Session
+	   :session
+   :csrf
+	   :auth-jwt
+	   :https-redirect" 0 18 (face font-lock-builtin-face fontified t) 18 19 (fontified t) 19 30 (face font-lock-builtin-face fontified t) 30 31 (fontified t) 31 37 (face font-lock-builtin-face fontified t) 37 38 (fontified t) 38 45 (face font-lock-builtin-face fontified t) 45 46 (fontified t) 46 56 (face font-lock-builtin-face fontified t) 56 57 (fontified t) 57 70 (face font-lock-builtin-face fontified t) 70 75 (fontified t) 75 103 (face font-lock-builtin-face fontified t) 103 104 (fontified t) 104 112 (face font-lock-builtin-face fontified t) 112 113 (fontified t) 113 122 (face font-lock-builtin-face fontified t) 122 123 (fontified t) 123 144 (face font-lock-builtin-face fontified t) 144 149 (fontified t) 149 155 (face font-lock-builtin-face fontified t) 155 156 (fontified t) 156 161 (face font-lock-builtin-face fontified t) 161 162 (fontified t) 162 169 (face font-lock-builtin-face fontified t) 169 170 (fontified t) 170 175 (face font-lock-builtin-face fontified t) 175 176 (fontified t) 176 188 (face font-lock-builtin-face fontified t) 188 193 (fontified t) 193 196 (face font-lock-comment-delimiter-face fontified t) 196 212 (face font-lock-comment-face fontified t) 212 215 (fontified t) 215 231 (face font-lock-builtin-face fontified t) 231 232 (fontified t) 232 246 (face font-lock-builtin-face fontified t) 246 250 (fontified t) 250 253 (face font-lock-comment-delimiter-face fontified t) 253 261 (face font-lock-comment-face fontified t) 261 264 (fontified t) 264 275 (face font-lock-builtin-face fontified t) 275 276 (fontified t) 276 288 (face font-lock-builtin-face fontified t) 288 289 (fontified t) 289 296 (face font-lock-builtin-face fontified t) 296 297 (fontified t) 297 312 (face font-lock-builtin-face fontified t) 312 316 (fontified t) 316 319 (face font-lock-comment-delimiter-face fontified t) 319 324 (face font-lock-comment-face fontified t) 324 327 (fontified t) 327 332 (face font-lock-builtin-face fontified t) 332 336 (fontified t) 336 339 (face font-lock-comment-delimiter-face fontified t) 339 351 (face font-lock-comment-face fontified t) 351 354 (fontified t) 354 366 (face font-lock-builtin-face fontified t) 366 370 (fontified t) 370 396 (face font-lock-builtin-face fontified t) 396 400 (fontified t) 400 403 (face font-lock-comment-delimiter-face fontified t) 403 411 (face font-lock-comment-face fontified t) 411 415 (fontified t) 415 423 (face font-lock-builtin-face fontified t) 423 427 (fontified t) 427 432 (face font-lock-builtin-face fontified t) 432 433 (fontified t) 433 437 (fontified t) 437 446 (face font-lock-builtin-face fontified t) 446 447 (fontified t) 447 451 (fontified t) 451 452 (face font-lock-builtin-face fontified t) 452 465 (face font-lock-builtin-face fontified t) 465 466 (face font-lock-builtin-face fontified t rear-nonsticky t)) . -396) (undo-tree-id38 . -466) 862) nil (26798 57467 892773 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -578) (undo-tree-id37 . -1) 579) nil (26798 57467 892772 0) 0 nil])
+([nil nil ((852 . 860) (782 . 792) (730 . 740) (700 . 710) (674 . 684) (625 . 627) 578) nil (26798 57467 892771 0) 0 nil])
+([nil nil ((836 . 844) (#(" " 0 1 (fontified nil)) . 836) (835 . 836)) nil (26798 57467 892770 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -891) (undo-tree-id36 . -1) 892) nil (26798 57467 892769 0) 0 nil])
+([nil nil ((1124 . 1132) (1053 . 1063) (1001 . 1011) (972 . 982) (923 . 925) 892) nil (26798 57467 892768 0) 0 nil])
+([nil nil ((1107 . 1115) (#(" " 0 1 (fontified nil)) . 1107) (1106 . 1107)) nil (26798 57467 892767 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1163) (undo-tree-id35 . -1) 1164) nil (26798 57467 892767 0) 0 nil])
+([nil nil ((1218 . 1224) (1188 . 1190) 1164) nil (26798 57467 892766 0) 0 nil])
+([nil nil ((1171 . 1172)) nil (26798 57467 892765 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1318) (undo-tree-id34 . -1) 1319) nil (26798 57467 892764 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . -1431) (undo-tree-id33 . -1) 1432) nil (26798 57467 892763 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . 1431)) nil (26798 57467 892762 0) 0 nil])
+([nil nil ((2159 . 2160) (2079 . 2082) (2040 . 2048) (1978 . 1986) (1925 . 1933) (1892 . 1900) (1862 . 1863) (1753 . 1759) (1735 . 1739) (1690 . 1692) (1632 . 1634) (1578 . 1580) (1535 . 1540) (1480 . 1482) 1432) nil (26798 57467 892761 0) 0 nil])
+([nil nil ((384 . 387)) nil (26798 57467 892760 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 400 . 401) (nil fontified nil 387 . 401) (387 . 401)) nil (26798 57467 892760 0) 0 nil])
+([nil nil ((388 . 400)) nil (26798 57467 892759 0) 0 nil])
+([nil nil ((400 . 401)) nil (26798 57467 892759 0) 0 nil])
+([nil nil ((401 . 402)) nil (26798 57467 892758 0) 0 nil])
+([nil nil ((408 . 413)) nil (26798 57467 892758 0) 0 nil])
+([nil nil ((#(":" 0 1 (face font-lock-builtin-face rear-nonsticky t fontified t)) . -419) (undo-tree-id32 . -1) 420) nil (26798 57467 892757 0) 0 nil])
+([nil nil ((419 . 420)) nil (26798 57467 892756 0) 0 nil])
+([nil nil ((420 . 422)) nil (26798 57467 892756 0) 0 nil])
+([nil nil ((#(":" 0 1 (fontified t)) . -420) (undo-tree-id30 . -1) (#("e" 0 1 (face font-lock-builtin-face fontified t)) . -421) (undo-tree-id31 . -1) 422) nil (26798 57467 892755 0) 0 nil])
+([nil nil ((420 . 422)) nil (26798 57467 892754 0) 0 nil])
+([nil nil ((#("d" 0 1 (fontified t)) . -420) (undo-tree-id28 . -1) (#("e" 0 1 (fontified t)) . -421) (undo-tree-id29 . -1) 422) nil (26798 57467 892753 0) 0 nil])
+([nil nil ((420 . 426)) nil (26798 57467 892751 0) 0 nil])
+([nil nil ((420 . 429) (#(":defro" 0 6 (face font-lock-builtin-face fontified t)) . -420) (undo-tree-id27 . -6) 426) nil (26798 57467 892751 0) 0 nil])
+([nil nil ((429 . 430)) nil (26798 57467 892750 0) 0 nil])
+([nil nil ((2336 . 2337)) nil (26798 57467 892749 0) 0 nil])
+([nil nil ((#("lumen.router:*" 0 14 (fontified t)) . -2323) (undo-tree-id26 . -14) 2337) nil (26798 57467 892749 0) 0 nil])
+([nil nil ((3034 . 3037) (2974 . 2979) (2916 . 2919) (2852 . 2855) (2794 . 2797) (2732 . 2735) (2642 . 2648) (2615 . 2621) (2551 . 2552) (2514 . 2518) (2457 . 2459) (2414 . 2419) (2359 . 2361) 2322) nil (26798 57467 892747 0) 0 nil])
+([nil nil ((#("lumen.router:" 0 13 (fontified t)) . -1479) (undo-tree-id25 . -13) 1492) nil (26798 57467 892746 0) 0 nil])
+([nil nil ((#("lumen.router:" 0 13 (fontified t)) . -3138) (undo-tree-id24 . -13) 3151) nil (26798 57467 892745 0) 0 nil])
+([nil nil ((3188 . 3190) (3163 . 3165) 3137) nil (26798 57467 892743 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -2306) (undo-tree-id23 . -1) 2307) nil (26798 57467 892742 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -3133) (undo-tree-id22 . -1) 3134) nil (26798 57467 892741 0) 0 nil])
+([nil nil ((#("
+(defparameter *jwt-secret* \"change-me\")
+(defparameter *access-ttl* (* 15 60)) ; 15 minutes
+(defparameter *refresh-ttl* (* 14 24 3600)) ; 14 jours
+
+(defun issue-access (user-id &key role scopes)
+  (lumen.core.jwt:jwt-encode `((:sub . ,user-id)
+			       (:role . ,role)
+			       (:scopes . ,scopes)
+			       (:iat . ,(truncate (get-universal-time)))
+			       (:exp . ,(+ (truncate (get-universal-time))
+					   *access-ttl*)))
+			     :secret *jwt-secret*))
+
+(defun issue-refresh (user-id)
+  (lumen.core.jwt:jwt-encode `((:sub . ,user-id)
+			       (:typ . \"refresh\")
+			       (:iat . ,(truncate (get-universal-time)))
+			       (:exp . ,(+ (truncate (get-universal-time))
+					   *refresh-ttl*)))
+			     :secret *jwt-secret*))" 0 1 (fontified t) 1 2 (fontified t) 2 14 (face font-lock-keyword-face fontified t) 14 15 (fontified t) 15 27 (face font-lock-variable-name-face fontified t) 27 28 (fontified t) 28 39 (face font-lock-string-face fontified t) 39 41 (fontified t) 41 42 (fontified t) 42 54 (face font-lock-keyword-face fontified t) 54 55 (fontified t) 55 67 (face font-lock-variable-name-face fontified t) 67 79 (fontified t) 79 92 (face font-lock-comment-face fontified t) 92 93 (fontified t) 93 105 (face font-lock-keyword-face fontified t) 105 106 (fontified t) 106 119 (face font-lock-variable-name-face fontified t) 119 136 (fontified t) 136 147 (face font-lock-comment-face fontified t) 147 148 (fontified t) 148 149 (fontified t) 149 154 (face font-lock-keyword-face fontified t) 154 155 (fontified t) 155 167 (face font-lock-function-name-face fontified t) 167 177 (fontified t) 177 181 (face font-lock-type-face fontified t) 181 195 (fontified t) 195 197 (fontified t) 197 227 (fontified t) 227 231 (face font-lock-builtin-face fontified t) 231 254 (fontified t) 254 255 (fontified t) 255 260 (face font-lock-builtin-face fontified t) 260 280 (fontified t) 280 281 (fontified t) 281 288 (face font-lock-builtin-face fontified t) 288 310 (fontified t) 310 311 (fontified t) 311 315 (face font-lock-builtin-face fontified t) 315 352 (fontified t) 352 362 (fontified t) 362 363 (fontified t) 363 367 (face font-lock-builtin-face fontified t) 367 414 (fontified t) 414 430 (fontified t) 430 438 (fontified t) 438 445 (face font-lock-builtin-face fontified t) 445 461 (fontified t) 461 462 (fontified t) 462 463 (fontified t) 463 468 (face font-lock-keyword-face fontified t) 468 469 (fontified t) 469 482 (face font-lock-function-name-face fontified t) 482 493 (fontified t) 493 525 (fontified t) 525 529 (face font-lock-builtin-face fontified t) 529 552 (fontified t) 552 553 (fontified t) 553 557 (face font-lock-builtin-face fontified t) 557 560 (fontified t) 560 569 (face font-lock-string-face fontified t) 569 581 (fontified t) 581 582 (fontified t) 582 586 (face font-lock-builtin-face fontified t) 586 623 (fontified t) 623 633 (fontified t) 633 634 (fontified t) 634 638 (face font-lock-builtin-face fontified t) 638 702 (fontified t) 702 710 (fontified t) 710 717 (face font-lock-builtin-face fontified t) 717 732 (fontified t)) . 476) (undo-tree-id21 . -732)) nil (26798 57467 892740 0) 0 nil])
+([nil nil ((#("
+(defun %aget (alist key)
+  (or (cdr (assoc key alist))
+      (cdr (assoc (if (keywordp key) (string-downcase (string key)) key) alist :test #'string=))))" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 9 (face font-lock-function-name-face fontified t) 9 13 (face font-lock-function-name-face fontified t) 13 26 (fontified t) 26 62 (fontified t) 62 75 (fontified t) 75 77 (face font-lock-keyword-face fontified t) 77 135 (fontified t) 135 140 (face font-lock-builtin-face fontified t) 140 154 (fontified t)) . 477) (undo-tree-id20 . -154)) nil (26798 57467 892739 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1171 . 1172) (nil fontified nil 1080 . 1172) (nil fontified nil 1077 . 1080) (nil fontified nil 1044 . 1077) (nil fontified nil 1029 . 1044) (nil fontified nil 1028 . 1029) (nil fontified nil 1023 . 1028) (nil fontified nil 909 . 1023) (nil fontified nil 905 . 909) (nil fontified nil 897 . 905) (nil fontified nil 884 . 897) (nil fontified nil 883 . 884) (nil fontified nil 878 . 883) (nil fontified nil 867 . 878) (nil fontified nil 857 . 867) (nil fontified nil 856 . 857) (nil fontified nil 849 . 856) (nil fontified nil 848 . 849) (nil fontified nil 843 . 848) (nil fontified nil 831 . 843) (nil fontified nil 820 . 831) (nil fontified nil 814 . 820) (nil fontified nil 809 . 814) (nil fontified nil 758 . 809) (nil fontified nil 749 . 758) (nil fontified nil 679 . 749) (nil fontified nil 661 . 679) (nil fontified nil 660 . 661) (nil fontified nil 655 . 660) (nil fontified nil 622 . 655) (nil fontified nil 618 . 622) (nil fontified nil 610 . 618) (nil fontified nil 603 . 610) (nil fontified nil 575 . 603) (nil fontified nil 562 . 575) (nil fontified nil 543 . 562) (nil fontified nil 540 . 543) (nil fontified nil 532 . 540) (nil fontified nil 522 . 532) (nil fontified nil 521 . 522) (nil fontified nil 516 . 521) (nil fontified nil 477 . 516) (477 . 1172)) nil (26798 57467 892737 0) 0 nil])
+([nil nil ((#(";; Suppose l’existence de my.repo:find-user-by-email → alist { :id :role :pw-salt :pw-iters :pw-hash [:scopes] }" 0 3 (face font-lock-comment-delimiter-face fontified t) 3 112 (face font-lock-comment-face fontified t)) . 1174) (undo-tree-id19 . -112) 1286) nil (26798 57467 892734 0) 0 nil])
+([nil nil ((#("(defroute POST \"/auth/login\" (req)
+  (let* ((form (or (lumen.core.http:ctx-get req :json)
+		   (lumen.core.http:ctx-get req :form)))
+	 (email (or (aget form :email) (aget form \"email\")))
+	 (pwd (or (aget form :password) (aget form \"password\")))
+	 (user (my.repo:find-user-by-email email)))
+    (if (and user
+	     (lumen.core.auth:verify-password pwd (aget user :pw-salt) (aget user :pw-iters) (aget user :pw-hash)))
+	(let* ((uid (aget user :id))
+	       (role (aget user :role))
+	       (scopes (or (aget user :scopes) '(\"basic\")))
+	       (access (issue-access uid :role role :scopes scopes))
+	       (refresh (issue-refresh uid)))
+	  (lumen.core.http:respond-json `((:access . ,access) (:refresh . ,refresh))))
+	(lumen.core.http:respond-json '((:error . ((:type . \"auth\") (:message . \"invalid credentials\")))) :status 401))))" 0 15 (fontified t) 15 26 (face font-lock-string-face fontified t) 26 28 (face font-lock-string-face fontified t) 28 35 (fontified t) 35 37 (fontified t) 37 38 (fontified t) 38 42 (face font-lock-keyword-face fontified t) 42 83 (fontified t) 83 88 (face font-lock-builtin-face fontified t) 88 95 (fontified t) 95 124 (fontified t) 124 129 (face font-lock-builtin-face fontified t) 129 135 (fontified t) 135 157 (fontified t) 157 163 (face font-lock-builtin-face fontified t) 163 176 (fontified t) 176 183 (face font-lock-string-face fontified t) 183 189 (fontified t) 189 209 (fontified t) 209 218 (face font-lock-builtin-face fontified t) 218 231 (fontified t) 231 241 (face font-lock-string-face fontified t) 241 247 (fontified t) 247 294 (fontified t) 294 295 (fontified t) 295 297 (face font-lock-keyword-face fontified t) 297 314 (fontified t) 314 362 (fontified t) 362 370 (face font-lock-builtin-face fontified t) 370 383 (fontified t) 383 392 (face font-lock-builtin-face fontified t) 392 405 (fontified t) 405 413 (face font-lock-builtin-face fontified t) 413 418 (fontified t) 418 419 (fontified t) 419 423 (face font-lock-keyword-face fontified t) 423 440 (fontified t) 440 441 (fontified t) 441 444 (face font-lock-builtin-face fontified t) 444 447 (fontified t) 447 455 (fontified t) 455 472 (fontified t) 472 477 (face font-lock-builtin-face fontified t) 477 486 (fontified t) 486 488 (fontified t) 488 511 (fontified t) 511 518 (face font-lock-builtin-face fontified t) 518 522 (fontified t) 522 529 (face font-lock-string-face fontified t) 529 533 (fontified t) 533 541 (fontified t) 541 567 (fontified t) 567 572 (face font-lock-builtin-face fontified t) 572 578 (fontified t) 578 585 (face font-lock-builtin-face fontified t) 585 603 (fontified t) 603 605 (fontified t) 605 619 (fontified t) 619 624 (fontified t) 624 637 (fontified t) 637 653 (fontified t) 653 654 (fontified t) 654 670 (fontified t) 670 677 (face font-lock-builtin-face fontified t) 677 690 (fontified t) 690 694 (face font-lock-builtin-face fontified t) 694 698 (face font-lock-builtin-face fontified t) 698 714 (fontified t) 714 715 (fontified t) 715 748 (fontified t) 748 754 (face font-lock-builtin-face fontified t) 754 759 (fontified t) 759 764 (face font-lock-builtin-face fontified t) 764 767 (fontified t) 767 773 (face font-lock-string-face fontified t) 773 776 (fontified t) 776 784 (face font-lock-builtin-face fontified t) 784 787 (fontified t) 787 803 (face font-lock-string-face fontified t) 803 808 (face font-lock-string-face fontified t) 808 813 (fontified t) 813 820 (face font-lock-builtin-face fontified t) 820 828 (fontified t)) . -1175) (undo-tree-id18 . -828) 2003) nil (26798 57467 892732 0) 0 nil])
+([nil nil ((#("
+(defroute POST \"/auth/refresh\" (req)
+  (let* ((body (or (lumen.core.http:ctx-get req :json)
+		   (lumen.core.http:ctx-get req :form)))
+	 (tok (or (aget body :refresh) (aget body \"refresh\"))))
+    (multiple-value-bind (payload _)
+	(lumen.core.jwt:jwt-decode tok :secret *jwt-secret* :verify t)
+      (declare (ignore _))
+      (if (and payload (string= (or (aget payload :typ) (aget payload \"typ\")) \"refresh\"))
+	  (let* ((uid (or (aget payload :sub) (aget payload \"sub\")))
+		 (role (or (aget payload :role) (aget payload \"role\")))
+		 (scopes (or (aget payload :scopes) (aget payload \"scopes\")))
+		 (access (issue-access uid :role role :scopes scopes)))
+	    (lumen.core.http:respond-json `((:access . ,access))))
+	  (lumen.core.http:respond-json '((:error . ((:type . \"auth\") (:message . \"invalid refresh\")))) :status 401)))))" 0 1 (fontified t) 1 7 (fontified t) 7 16 (fontified t) 16 31 (face font-lock-string-face fontified t) 31 38 (fontified t) 38 40 (fontified t) 40 41 (fontified t) 41 45 (face font-lock-keyword-face fontified t) 45 86 (fontified t) 86 91 (face font-lock-builtin-face fontified t) 91 98 (fontified t) 98 127 (fontified t) 127 132 (face font-lock-builtin-face fontified t) 132 138 (fontified t) 138 158 (fontified t) 158 166 (face font-lock-builtin-face fontified t) 166 179 (fontified t) 179 188 (face font-lock-string-face fontified t) 188 197 (fontified t) 197 198 (fontified t) 198 217 (face font-lock-keyword-face fontified t) 217 228 (fontified t) 228 229 (fontified t) 229 231 (fontified t) 231 262 (fontified t) 262 269 (face font-lock-builtin-face fontified t) 269 283 (fontified t) 283 290 (face font-lock-builtin-face fontified t) 290 300 (fontified t) 300 301 (fontified t) 301 308 (face font-lock-keyword-face fontified t) 308 327 (fontified t) 327 328 (fontified t) 328 330 (face font-lock-keyword-face fontified t) 330 371 (fontified t) 371 375 (face font-lock-builtin-face fontified t) 375 391 (fontified t) 391 396 (face font-lock-string-face fontified t) 396 399 (fontified t) 399 402 (face font-lock-string-face fontified t) 402 408 (face font-lock-string-face fontified t) 408 411 (fontified t) 411 414 (fontified t) 414 415 (fontified t) 415 419 (face font-lock-keyword-face fontified t) 419 438 (fontified t) 438 444 (fontified t) 444 448 (face font-lock-builtin-face fontified t) 448 464 (fontified t) 464 469 (face font-lock-string-face fontified t) 469 471 (fontified t) 471 476 (fontified t) 476 490 (fontified t) 490 500 (fontified t) 500 505 (face font-lock-builtin-face fontified t) 505 521 (fontified t) 521 527 (face font-lock-string-face fontified t) 527 534 (fontified t) 534 557 (fontified t) 557 560 (fontified t) 560 567 (face font-lock-builtin-face fontified t) 567 583 (fontified t) 583 591 (face font-lock-string-face fontified t) 591 595 (fontified t) 595 598 (fontified t) 598 624 (fontified t) 624 625 (face font-lock-builtin-face fontified t) 625 626 (face font-lock-builtin-face fontified t) 626 627 (face font-lock-builtin-face fontified t) 627 629 (face font-lock-builtin-face fontified t) 629 635 (fontified t) 635 642 (face font-lock-builtin-face fontified t) 642 658 (fontified t) 658 671 (fontified t) 671 691 (fontified t) 691 698 (face font-lock-builtin-face fontified t) 698 705 (fontified t) 705 713 (fontified t) 713 716 (fontified t) 716 749 (fontified t) 749 750 (face font-lock-builtin-face fontified t) 750 755 (face font-lock-builtin-face fontified t) 755 760 (fontified t) 760 765 (face font-lock-builtin-face fontified t) 765 768 (fontified t) 768 774 (face font-lock-string-face fontified t) 774 777 (fontified t) 777 785 (face font-lock-builtin-face fontified t) 785 788 (fontified t) 788 805 (face font-lock-string-face fontified t) 805 810 (fontified t) 810 817 (face font-lock-builtin-face fontified t) 817 826 (fontified t)) . -1176) (undo-tree-id16 . -84) (undo-tree-id17 . -826) 2002) nil (26798 57467 892731 0) 0 nil])
+([nil nil ((#("(defroute GET \"/me\" (req)
+  (declare (ignore req))
+  (lumen.core.http:respond-json '((:ok . t))))" 0 14 (fontified t) 14 19 (face font-lock-string-face fontified t) 19 26 (fontified t) 26 28 (fontified t) 28 29 (fontified t) 29 36 (face font-lock-keyword-face fontified t) 36 53 (fontified t) 53 86 (fontified t) 86 89 (face font-lock-builtin-face fontified t) 89 96 (fontified t) 96 97 (fontified t rear-nonsticky t)) . -1178) (undo-tree-id15 . -97) 1275) nil (26798 57467 892730 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1173) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (#("
+" 0 1 (fontified t)) . -1174) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (#("
+" 0 1 (fontified t)) . -1175) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (#("
+" 0 1 (fontified t)) . -1176) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (#("
+" 0 1 (fontified t)) . -1177) (undo-tree-id13 . -1) (undo-tree-id14 . -1) 1178) nil (26798 57467 892728 0) 0 nil])
+([nil nil ((442 . 443)) nil (26798 57467 892700 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 455 . 456) (nil fontified nil 443 . 456) (443 . 456)) nil (26798 57467 892700 0) 0 nil])
+([nil nil ((456 . 457)) nil (26798 57467 892699 0) 0 nil])
+([nil nil ((457 . 458)) nil (26798 57467 892698 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 472 . 473) (nil fontified nil 458 . 473) (458 . 473)) nil (26798 57467 892694 0) 0 nil])
+([nil nil ((683 . 685) (t 26798 57467 0 0)) nil (26798 61392 578116 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1490 . 1491) (nil fontified nil 685 . 1491) (685 . 1491)) nil (26798 61392 578115 0) 0 nil])
+([nil nil ((#("lumen.core.auth:" 0 16 (fontified t)) . -1265) (undo-tree-id46 . -16) 1281) nil (26798 61392 578114 0) 0 nil])
+([nil nil ((#("
+(defun pbkdf2-hmac-sha256 (password salt iterations dklen)
+  (ironclad:pbkdf2-hash-password
+   :password (trivial-utf-8:string-to-utf-8-bytes password)
+   :salt salt :iterations iterations :hash :sha256 :dk-length dklen))
+
+(defun hash-password (plain &key (iters *pbkdf2-iters*) (salt (rand-bytes 16)))
+  (values salt iters (pbkdf2-hmac-sha256 plain salt iters 32)))
+
+(defun verify-password (plain salt iters stored-dk)
+  (let ((dk (pbkdf2-hmac-sha256 plain salt iters (length stored-dk))))
+    (equalp dk stored-dk)))" 0 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 26 (face font-lock-function-name-face fontified t) 26 96 (fontified t) 96 105 (face font-lock-builtin-face fontified t) 105 156 (fontified t) 156 161 (face font-lock-builtin-face fontified t) 161 167 (fontified t) 167 178 (face font-lock-builtin-face fontified t) 178 190 (fontified t) 190 195 (face font-lock-builtin-face fontified t) 195 196 (fontified t) 196 203 (face font-lock-builtin-face fontified t) 203 204 (fontified t) 204 214 (face font-lock-builtin-face fontified t) 214 225 (fontified t) 225 230 (face font-lock-keyword-face fontified t) 230 231 (fontified t) 231 244 (face font-lock-function-name-face fontified t) 244 252 (fontified t) 252 256 (face font-lock-type-face fontified t) 256 370 (fontified t) 370 375 (face font-lock-keyword-face fontified t) 375 376 (fontified t) 376 391 (face font-lock-function-name-face fontified t) 391 424 (fontified t) 424 427 (face font-lock-keyword-face fontified t) 427 518 (fontified t) 518 519 (fontified t rear-nonsticky t)) . 1476) (undo-tree-id45 . -519)) nil (26798 61392 578112 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1475) (undo-tree-id43 . -1) (undo-tree-id44 . -1) 1476) nil (26798 61392 578108 0) 0 nil])
+([nil nil ((544 . 546) (t 26798 61392 0 0)) nil (26798 64721 887670 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1141 . 1142) (nil fontified nil 546 . 1142) (546 . 1142)) nil (26798 64721 887666 0) 0 nil])
+([nil current ((#(" :wrap nil" 0 1 (fontified t) 1 6 (face font-lock-builtin-face fontified t) 6 10 (fontified t)) . -1053) (undo-tree-id0 . -10) 1063 (t 26798 64721 0 0)) nil (26812 51560 682998 0) 0 nil])
+nil

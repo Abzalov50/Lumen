@@ -1,0 +1,46 @@
+(in-package :lumen.test)
+
+(def-suite :validate-suite)
+(in-suite :validate-suite)
+
+(defun %unique-email? (value _data)
+  "Exemple de check custom : refuse exists@site.tld"
+  (declare (ignore _data))
+  (if (and value (string= value "exists@site.tld"))
+      (values nil :taken)
+      (values t nil)))
+
+(test ok-flow
+  (cfg-set! :auth/password-min 8)
+  (multiple-value-bind (data errs)
+      (validate '((:email . "a@b.com") (:password . "secr3t!!") (:age . "15") (:role . "user") (:noise . "x"))
+        (permit  :email :password :age :role)     ; supprime :noise
+        (coerce  :age :int)
+        (required :email :password)
+        (string  :email :min 5 :max 200 :format :email)
+        (string  :password :min 8)
+        (number  :age :min 13 :max 120)
+        (enum    :role '("user" "admin"))
+        (custom  :email #'%unique-email?))
+    (is (equal '(:age :email :password :role)
+               (sort (mapcar #'car data) #'string< :key (lambda (x) (string-downcase (symbol-name x))))))
+    (is (= 15 (cdr (assoc :age data))))
+    (is (null errs))))
+
+(test errors-flow
+  (multiple-value-bind (_ errs)
+      (validate '((:email . "bad@@x") (:password . "short") (:age . "7") (:role . "root"))
+        (permit :email :password :age :role)
+        (coerce :age :int)
+        (required :email :password)
+        (string :email :format :email)
+        (string :password :min 8)
+        (number :age :min 13 :max 120)
+        (enum :role '("user" "admin"))
+        (custom :email #'%unique-email?))
+    (declare (ignore _))
+    ;; on teste juste la présence des erreurs clés (pas le texte exact)
+    (is (assoc :email errs))
+    (is (assoc :password errs))
+    (is (assoc :age errs))
+    (is (assoc :role errs))))

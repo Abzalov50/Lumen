@@ -1,0 +1,36 @@
+(undo-tree-save-format-version . 1)
+"56adae05d657fcdbd15f872c79adab5c28f71ec0"
+[nil nil nil nil (26790 8273 400436 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 1002 . 1003) (nil fontified nil 1 . 1003) (1 . 1003) (t 26790 8273 0 0)) nil (26795 10843 509194 0) 0 nil])
+([nil nil ((#("(defun remount-app ()
+  \"Recompose la pile et remonte les routes de myapp.
+  Adapte si tu renommes les fonctions.\"
+  ;; 1) nettoyer routes si besoin
+  (when (fboundp 'lumen.core.router:clear-routes)
+    (lumen.core.router:clear-routes))
+  ;; 2) (re)définir les routes de l'app
+  (when (fboundp 'myapp::%define-routes)
+    (myapp::%define-routes))
+  ;; 3) recomposer la pile
+  (when (fboundp 'myapp::%compose-pipeline)
+    (myapp::%compose-pipeline))
+  t)
+
+(defun refresh (&key restart-server)
+  \"Recharge le code + remonte l'app. Optionnellement redémarre le serveur.\"
+  (format t \"~&[dev] Refresh start...~%\")
+  (reload-lumen)
+  (remount-app)
+  (when restart-server
+    (ignore-errors (myapp:halt))
+    (myapp:boot))
+  (format t \"[dev] Refresh done.~%\")
+  t)" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 18 (face font-lock-function-name-face fontified t) 18 24 (fontified t) 24 114 (face font-lock-doc-face fontified t) 114 117 (fontified t) 117 120 (face font-lock-comment-delimiter-face fontified t) 120 149 (face font-lock-comment-face fontified t) 149 152 (fontified t) 152 156 (face font-lock-keyword-face fontified t) 156 239 (fontified t) 239 242 (face font-lock-comment-delimiter-face fontified t) 242 277 (face font-lock-comment-face fontified t) 277 280 (fontified t) 280 284 (face font-lock-keyword-face fontified t) 284 349 (fontified t) 349 352 (face font-lock-comment-delimiter-face fontified t) 352 374 (face font-lock-comment-face fontified t) 374 377 (fontified t) 377 381 (face font-lock-keyword-face fontified t) 381 457 (fontified t) 457 462 (face font-lock-keyword-face fontified t) 462 463 (fontified t) 463 470 (face font-lock-function-name-face fontified t) 470 472 (fontified t) 472 476 (face font-lock-type-face fontified t) 476 495 (fontified t) 495 568 (face font-lock-doc-face fontified t) 568 581 (fontified t) 581 609 (face font-lock-string-face fontified t) 609 647 (fontified t) 647 651 (face font-lock-keyword-face fontified t) 651 672 (fontified t) 672 685 (face font-lock-keyword-face fontified t) 685 730 (fontified t) 730 753 (face font-lock-string-face fontified t) 753 759 (fontified t)) . 243) (undo-tree-id4 . -759) 1002) nil (26795 10843 509192 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -241) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (#("
+" 0 1 (fontified t)) . -242) (undo-tree-id2 . -1) (undo-tree-id3 . -1) 243) nil (26795 10843 509188 0) 0 nil])
+([nil nil ((1 . 3) (t 26795 10843 0 0)) nil (26795 11875 797326 0) 0 nil])
+([nil nil ((3 . 4)) nil (26795 11875 797325 0) 0 nil])
+([nil nil ((245 . 247)) nil (26795 11875 797323 0) 0 nil])
+([nil current ((247 . 248)) nil (26795 11875 797320 0) 0 nil])
+nil

@@ -1,0 +1,66 @@
+(undo-tree-save-format-version . 1)
+"96731eb42011bc99f36e99aaebb0c8750a3a5c36"
+[nil nil nil nil (26803 37084 632517 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 2068 . 2069) (nil fontified nil 1 . 2069) (1 . 2069) (t . -1)) nil (26803 37084 632516 0) 0 nil])
+([nil nil ((808 . 811)) nil (26803 37084 632515 0) 0 nil])
+([nil nil ((#("lumen" 0 5 (face font-lock-string-face fontified t)) . 811)) nil (26803 37084 632515 0) 0 nil])
+([nil nil ((#("_" 0 1 (face font-lock-string-face fontified t)) . 811)) nil (26803 37084 632514 0) 0 nil])
+([nil nil ((815 . 816)) nil (26803 37084 632514 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 820 . 821) (nil fontified nil 816 . 821) (816 . 821)) nil (26803 37084 632513 0) 0 nil])
+([nil nil ((949 . 959)) nil (26803 37084 632513 0) 0 nil])
+([nil nil ((#("user" 0 4 (face font-lock-builtin-face fontified t)) . -38) (undo-tree-id3 . -4) 42) nil (26803 37084 632512 0) 0 nil])
+([nil nil ((#("-" 0 1 (face font-lock-builtin-face fontified t)) . -37) (undo-tree-id1 . -1) (undo-tree-id2 . -1) 38) nil (26803 37084 632511 0) 0 nil])
+([nil nil ((38 . 39)) nil (26803 37084 632508 0) 0 nil])
+([nil nil ((#("*" 0 1 (fontified t)) . -38) (undo-tree-id0 . -1) 39) nil (26803 37084 632507 0) 0 nil])
+([nil nil ((38 . 39)) nil (26803 37084 632494 0) 0 nil])
+([nil nil ((#("        " 0 8 (fontified nil)) . -343) (360 . 361)) nil (26803 37084 632491 0) 0 nil])
+([nil nil ((1193 . 1198) (t 26803 37084 0 0)) nil (26803 38853 801443 0) 0 nil])
+([nil nil ((1198 . 1205)) nil (26803 38853 801443 0) 0 nil])
+([nil nil ((1205 . 1206)) nil (26803 38853 801442 0) 0 nil])
+([nil nil ((1206 . 1207)) nil (26803 38853 801442 0) 0 nil])
+([nil nil ((1207 . 1208)) nil (26803 38853 801441 0) 0 nil])
+([nil nil ((1208 . 1209)) nil (26803 38853 801441 0) 0 nil])
+([nil nil ((1209 . 1210)) nil (26803 38853 801440 0) 0 nil])
+([nil nil ((#(" " 0 1 (face font-lock-string-face fontified t)) . -1209) (undo-tree-id0 . -1) 1210) nil (26803 38853 801439 0) 0 nil])
+([nil nil ((1209 . 1210)) nil (26803 38853 801499 0) 0 nil])
+([nil nil ((1210 . 1217)) nil (26803 38897 434589 0) 0 nil] [nil nil ((#("~" 0 1 (face font-lock-string-face fontified t)) . -1209) (1210 . 1249)) ((#("c:/Users/ARNOLD N'GORAN/AppData/Roaming" 0 39 (face font-lock-string-face fontified nil)) . 1210) (undo-tree-id1 . -39) (1209 . 1210)) (26803 38853 801422 0) 0 nil])
+([nil nil ((#("E" 0 1 (face font-lock-string-face fontified t)) . -1215) (undo-tree-id5 . -1) (#("X" 0 1 (face font-lock-string-face fontified t)) . -1216) (undo-tree-id6 . -1) 1217) nil (26803 38897 434588 0) 0 nil])
+nil
+([nil nil ((1215 . 1216)) nil (26803 38897 434584 0) 0 nil])
+([nil nil ((1216 . 1219)) nil (26803 38897 434584 0) 0 nil])
+([nil nil ((1219 . 1220)) nil (26803 38897 434583 0) 0 nil])
+([nil nil ((1220 . 1225)) nil (26803 38897 434583 0) 0 nil])
+([nil nil ((1225 . 1226)) nil (26803 38897 434582 0) 0 nil])
+([nil nil ((1226 . 1232)) nil (26803 38897 434582 0) 0 nil])
+([nil nil ((1226 . 1241) (#("pomo:*" 0 6 (fontified t)) . -1226) (undo-tree-id2 . -6) (undo-tree-id3 . -6) (undo-tree-id4 . -6) 1232) nil (26803 38897 434580 0) 0 nil])
+([nil nil ((1241 . 1242)) nil (26803 38897 434561 0) 0 nil])
+([nil nil ((#("(format t \"~&CONN DB: ~A~%\" pomo:*database*)" 0 10 (fontified t) 10 11 (face font-lock-string-face fontified t) 11 27 (face font-lock-string-face fontified t) 27 28 (fontified t) 28 44 (fontified t)) . 1198) (undo-tree-id8 . -28) (undo-tree-id9 . -28) (undo-tree-id10 . -44) (undo-tree-id11 . -44) (undo-tree-id12 . -44) (undo-tree-id13 . -44) (undo-tree-id14 . -44) (undo-tree-id15 . -44) (undo-tree-id16 . -44) (undo-tree-id17 . -44) (undo-tree-id18 . -44) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -44) (t 26803 38897 0 0)) nil (26803 38931 600984 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 1193) (undo-tree-id7 . -1)) nil (26803 38931 600967 0) 0 nil])
+([nil nil ((1192 . 1194)) nil (26803 38931 600958 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1237 . 1238) (nil fontified nil 1222 . 1238) (nil fontified nil 1221 . 1222) (nil fontified nil 1205 . 1221) (nil fontified nil 1204 . 1205) (nil fontified nil 1194 . 1204) (1194 . 1238)) nil (26803 38931 600954 0) 0 nil])
+([nil nil ((2052 . 2053) (#(" " 0 1 (fontified nil)) . -2018) (2052 . 2053) (t 26803 38931 0 0)) nil (26803 42708 963535 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2495 . 2496) (nil fontified nil 2053 . 2496) (2053 . 2496)) nil (26803 42708 963534 0) 0 nil])
+([nil nil ((#("
+(defmacro with-rollback (&body body)
+  \"Exécute BODY dans une transaction annulée à la fin.\"
+  `(lumen.data.db:with-tx ()
+     (unwind-protect
+          (progn ,@body)
+       (ignore-errors
+         ;; rollback explicite si la macro with-tx n’a pas déjà tout rollback
+        (postmodern:query \"rollback\")))))" 0 1 (fontified t) 1 2 (fontified t) 2 10 (face font-lock-keyword-face fontified t) 10 11 (fontified t) 11 24 (face font-lock-function-name-face fontified t) 24 26 (fontified t) 26 31 (face font-lock-type-face fontified t) 31 40 (fontified t) 40 41 (face font-lock-doc-face fontified t) 41 92 (face font-lock-doc-face fontified t) 92 93 (face font-lock-doc-face fontified t) 93 98 (fontified t) 98 119 (face font-lock-keyword-face fontified t) 119 129 (fontified t) 129 143 (face font-lock-keyword-face fontified t) 143 155 (fontified t) 155 160 (face font-lock-keyword-face fontified t) 160 177 (fontified t) 177 190 (face font-lock-keyword-face fontified t) 190 200 (fontified t) 200 203 (face font-lock-comment-delimiter-face fontified t) 203 269 (face font-lock-comment-face fontified t) 269 295 (fontified t) 295 296 (face font-lock-string-face fontified t) 296 304 (face font-lock-string-face fontified t) 304 305 (face font-lock-string-face fontified t) 305 310 (fontified t)) . 1741) (undo-tree-id41 . -310) (undo-tree-id42 . -85) (undo-tree-id43 . -143) (undo-tree-id44 . -310) (undo-tree-id45 . -310)) nil (26803 42708 963533 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1740) (undo-tree-id30 . -1) (undo-tree-id31 . -1) (undo-tree-id32 . -1) (undo-tree-id33 . -1) (undo-tree-id34 . -1) (undo-tree-id35 . -1) (undo-tree-id36 . -1) (undo-tree-id37 . -1) (undo-tree-id38 . -1) (undo-tree-id39 . -1) (undo-tree-id40 . -1) 1741) nil (26803 42708 963526 0) 0 nil])
+([nil nil ((#("(defmacro with-rollback (&body body)
+  \"Ouvre une transaction explicite et fait ROLLBACK à la fin.
+N'imbrique pas with-tx ici pour éviter les commits implicites.\"
+  `(progn
+     ;; Ouvre une transaction réelle pour ce bloc de test
+     (lumen.data.db:exec \"BEGIN\")
+     (unwind-protect
+          (progn ,@body)
+       ;; Toujours annuler, ignorer les erreurs si la txn a déjà été close
+       (ignore-errors (lumen.data.db:exec \"ROLLBACK\")))))" 0 1 (fontified t) 1 9 (face font-lock-keyword-face fontified t) 9 10 (fontified t) 10 23 (face font-lock-function-name-face fontified t) 23 25 (fontified t) 25 30 (face font-lock-type-face fontified t) 30 39 (fontified t) 39 162 (face font-lock-doc-face fontified t) 162 167 (fontified t) 167 172 (face font-lock-keyword-face fontified t) 172 178 (fontified t) 178 181 (face font-lock-comment-delimiter-face fontified t) 181 231 (face font-lock-comment-face fontified t) 231 256 (fontified t) 256 263 (face font-lock-string-face fontified t) 263 271 (fontified t) 271 285 (face font-lock-keyword-face fontified t) 285 297 (fontified t) 297 302 (face font-lock-keyword-face fontified t) 302 318 (fontified t) 318 321 (face font-lock-comment-delimiter-face fontified t) 321 386 (face font-lock-comment-face fontified t) 386 394 (fontified t) 394 407 (face font-lock-keyword-face fontified t) 407 428 (fontified t) 428 438 (face font-lock-string-face fontified t) 438 442 (fontified t) 442 443 (fontified t rear-nonsticky t)) . -1742) (undo-tree-id46 . -285) (undo-tree-id47 . -443) 2185 (t 26803 42708 0 0)) nil (26803 43161 580157 0) 0 nil])
+([nil current ((nil rear-nonsticky nil 2092 . 2093) (nil fontified nil 1742 . 2093) (1742 . 2093)) nil (26803 43161 580141 0) 0 nil])
+nil

@@ -1,0 +1,206 @@
+(undo-tree-save-format-version . 1)
+"17534492a6bc6234e9177bb15a776ac4f02cfbc1"
+[nil nil nil nil (26798 57467 720239 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 1077 . 1078) (nil fontified nil 1 . 1078) (1 . 1078) (t . -1)) nil (26798 57467 720239 0) 0 nil])
+([nil nil ((190 . 191)) nil (26798 57467 720238 0) 0 nil])
+([nil nil ((191 . 193)) nil (26798 57467 720238 0) 0 nil])
+([nil nil ((193 . 194)) nil (26798 57467 720237 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 312 . 313) (nil fontified nil 194 . 313) (194 . 313)) nil (26798 57467 720237 0) 0 nil])
+([nil nil ((#("te" 0 2 (face font-lock-comment-face fontified t)) . -206) (undo-tree-id2 . -2) 208) nil (26798 57467 720236 0) 0 nil])
+([nil nil ((#(" " 0 1 (face font-lock-comment-face fontified t)) . -205) (undo-tree-id0 . -1) (undo-tree-id1 . -1) 206) nil (26798 57467 720234 0) 0 nil])
+([nil nil ((1198 . 1199)) nil (26798 57467 720219 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1921 . 1922) (nil fontified nil 1199 . 1922) (1199 . 1922)) nil (26798 57467 720219 0) 0 nil])
+([nil nil ((1198 . 1199)) nil (26798 57467 720218 0) 0 nil])
+([nil nil ((1199 . 1201)) nil (26798 57467 720218 0) 0 nil])
+([nil nil ((1201 . 1202)) nil (26798 57467 720217 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1232 . 1233) (nil fontified nil 1202 . 1233) (1202 . 1233)) nil (26798 57467 720217 0) 0 nil])
+([nil nil ((1208 . 1211)) nil (26798 57467 720216 0) 0 nil])
+([nil nil ((1211 . 1212)) nil (26798 57467 720215 0) 0 nil])
+([nil nil ((1961 . 1962)) nil (26798 57467 720210 0) 0 nil])
+([nil nil ((1305 . 1306) (t 26798 57467 0 0)) nil (26798 61394 287673 0) 0 nil])
+([nil nil ((1306 . 1309)) nil (26798 61394 287672 0) 0 nil])
+([nil nil ((#("o" 0 1 (fontified t)) . -1308) (undo-tree-id6 . -1) 1309) nil (26798 61394 287672 0) 0 nil])
+([nil nil ((1308 . 1310)) nil (26798 61394 287669 0) 0 nil])
+([nil nil ((1306 . 1317) (#("scop" 0 4 (fontified t)) . -1306) (undo-tree-id5 . -4) 1310) nil (26798 61394 287668 0) 0 nil])
+([nil nil ((1318 . 1326) (#(" " 0 1 (fontified nil)) . 1318) (1317 . 1318)) nil (26798 61394 287667 0) 0 nil])
+([nil nil ((1348 . 1356) (#(" " 0 1 (fontified nil)) . 1347) (undo-tree-id4 . -1) (1348 . 1349)) nil (26798 61394 287666 0) 0 nil])
+([nil nil ((1712 . 1713)) nil (26798 61394 287664 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1733 . 1734) (nil fontified nil 1726 . 1734) (nil fontified nil 1713 . 1726) (1713 . 1734)) nil (26798 61394 287664 0) 0 nil])
+([nil nil ((1734 . 1736)) nil (26798 61394 287663 0) 0 nil])
+([nil nil ((1728 . 1739) (#("scopes-m" 0 5 (fontified t) 5 6 (rear-nonsticky t fontified t) 6 8 (fontified t)) . -1728) (undo-tree-id3 . -8) 1736) nil (26798 61394 287662 0) 0 nil])
+([nil nil ((#("allow" 0 5 (face font-lock-builtin-face fontified t)) . 1721)) nil (26798 61394 287652 0) 0 nil])
+([nil nil ((1721 . 1725)) nil (26798 61394 287648 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -1267) (undo-tree-id12 . -4) 1271 (t 26798 61394 0 0)) nil (26811 59703 543036 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1274 . 1275) (nil fontified nil 1267 . 1275) (1267 . 1275)) nil (26811 59703 543035 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -1412) (undo-tree-id11 . -4) 1416) nil (26811 59703 543034 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1419 . 1420) (nil fontified nil 1412 . 1420) (1412 . 1420)) nil (26811 59703 543033 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -1030) (undo-tree-id10 . -4) 1034) nil (26811 59703 543032 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1037 . 1038) (nil fontified nil 1030 . 1038) (1030 . 1038)) nil (26811 59703 543031 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -1103) (undo-tree-id9 . -4) 1107) nil (26811 59703 543030 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1110 . 1111) (nil fontified nil 1103 . 1111) (1103 . 1111)) nil (26811 59703 543029 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -779) (undo-tree-id8 . -4) 783) nil (26811 59703 543023 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 786 . 787) (nil fontified nil 779 . 787) (779 . 787)) nil (26811 59703 543020 0) 0 nil])
+([nil nil ((#("path" 0 4 (fontified t)) . -846) (undo-tree-id7 . -4) 850) nil (26811 59703 543016 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 853 . 854) (nil fontified nil 846 . 854) (846 . 854)) nil (26811 59703 543015 0) 0 nil])
+([nil nil ((1366 . 1367)) nil (26811 59703 543014 0) 0 nil])
+([nil nil ((1367 . 1376)) nil (26811 59703 543013 0) 0 nil])
+([nil nil ((1995 . 1998)) nil (26811 59703 543013 0) 0 nil])
+([nil nil ((1998 . 1999)) nil (26811 59703 543012 0) 0 nil])
+([nil nil ((1999 . 2008)) nil (26811 59703 543012 0) 0 nil])
+([nil nil ((#("e" 0 1 (fontified t)) . -2001) (undo-tree-id0 . -1) (#("q" 0 1 (fontified t)) . -2002) (undo-tree-id1 . -1) (#("u" 0 1 (fontified t)) . -2003) (undo-tree-id2 . -1) (#("i" 0 1 (fontified t)) . -2004) (undo-tree-id3 . -1) (#("r" 0 1 (fontified t)) . -2005) (undo-tree-id4 . -1) (#("e" 0 1 (fontified t)) . -2006) (undo-tree-id5 . -1) (#("d" 0 1 (fontified t)) . -2007) (undo-tree-id6 . -1) 2008) nil (26811 59703 543009 0) 0 nil])
+([nil nil ((2001 . 2009)) nil (26811 59703 542981 0) 0 nil])
+([nil nil ((2009 . 2023)) nil (26811 59703 542981 0) 0 nil])
+([nil nil ((2023 . 2033)) nil (26811 59703 542980 0) 0 nil])
+([nil nil ((2033 . 2047)) nil (26811 59703 542980 0) 0 nil])
+([nil nil ((2075 . 2080)) nil (26811 59703 542979 0) 0 nil])
+([nil nil ((2080 . 2081)) nil (26811 59703 542979 0) 0 nil])
+([nil nil ((2081 . 2089)) nil (26811 59703 542978 0) 0 nil])
+([nil nil ((2089 . 2090)) nil (26811 59703 542978 0) 0 nil])
+([nil nil ((2090 . 2091)) nil (26811 59703 542976 0) 0 nil])
+([nil nil ((2100 . 2102)) nil (26811 59703 542965 0) 0 nil])
+([nil nil ((1253 . 1254) (t 26811 59703 0 0)) nil (26818 58316 162543 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2624 . 2625) (nil fontified nil 1254 . 2625) (1254 . 2625)) nil (26818 58316 162541 0) 0 nil])
+([nil nil ((#("
+(defmacro defguarded (method path-arg (req) (&key required roles scopes scopes-mode
+					   rate-cap rate-refill route-key)
+		      &body body)
+  `(lumen.core.router:defroute ,method ,path-arg (,req)
+     (with-guards (,req
+                   ,@(when required `((lumen.core.middleware:auth-required)))
+                   ,@(when roles    `((lumen.core.middleware:roles-allowed ,roles)))
+                   ,@(when scopes   `((lumen.core.middleware:auth-jwt :required-p t :scopes-allow ,scopes :scopes-mode ,scopes-mode)))
+                   ,@(when rate-cap `((lumen.core.middleware:rate-limit
+                                        :capacity ,rate-cap :refill-per-sec ,(or rate-refill 1)
+                                        :route-key (if ,route-key
+						       ,route-key
+						       ,(format nil \"~A ~A\" method (getf path-arg :path)))))))
+       ,@body)))" 0 1 (fontified t) 1 2 (fontified t) 2 10 (face font-lock-keyword-face fontified t) 10 11 (fontified t) 11 21 (face font-lock-function-name-face fontified t) 21 46 (fontified t) 46 50 (face font-lock-type-face fontified t) 50 133 (fontified t) 133 138 (face font-lock-type-face fontified t) 138 207 (fontified t) 207 218 (face font-lock-keyword-face fontified t) 218 247 (fontified t) 247 248 (face font-lock-keyword-face fontified t) 248 251 (face font-lock-keyword-face fontified t) 251 303 (fontified t) 303 325 (fontified t) 325 329 (face font-lock-keyword-face fontified t) 329 410 (fontified t) 410 414 (face font-lock-keyword-face fontified t) 414 458 (fontified t) 458 469 (face font-lock-builtin-face fontified t) 469 472 (fontified t) 472 485 (face font-lock-builtin-face fontified t) 485 494 (fontified t) 494 506 (face font-lock-builtin-face fontified t) 506 545 (fontified t) 545 549 (face font-lock-keyword-face fontified t) 549 635 (fontified t) 635 644 (face font-lock-builtin-face fontified t) 644 655 (fontified t) 655 670 (face font-lock-builtin-face fontified t) 670 731 (fontified t) 731 741 (face font-lock-builtin-face fontified t) 741 743 (fontified t) 743 745 (face font-lock-keyword-face fontified t) 745 807 (fontified t) 807 814 (face font-lock-string-face fontified t) 814 837 (fontified t) 837 842 (face font-lock-builtin-face fontified t) 842 866 (fontified t)) . -2625) (undo-tree-id0 . -224) (undo-tree-id1 . -561) (undo-tree-id2 . -727) (undo-tree-id3 . -547) (undo-tree-id4 . -547) (undo-tree-id5 . -547) (undo-tree-id6 . -866) (undo-tree-id7 . -547) (undo-tree-id8 . -547) (undo-tree-id9 . -547) (undo-tree-id10 . -547) (undo-tree-id11 . -547) (undo-tree-id12 . -547) (undo-tree-id13 . -23) (undo-tree-id14 . -23) (undo-tree-id15 . -690) (undo-tree-id16 . -690) (undo-tree-id17 . -690) (undo-tree-id18 . -690) (undo-tree-id19 . -850) 3491) nil (26818 58316 162537 0) 0 nil])
+([nil nil ((2180 . 2188) (#(" " 0 1 (fontified nil)) . -2166) (2180 . 2181) (t 26818 58316 0 0)) nil (26819 52100 159013 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2208 . 2209) (nil fontified nil 2201 . 2209) (nil fontified nil 2188 . 2201) (2188 . 2209)) nil (26819 52100 159012 0) 0 nil])
+([nil nil ((#("scopes" 0 6 (face font-lock-builtin-face fontified t)) . -2189) (undo-tree-id31 . -6) (undo-tree-id32 . -1) 2195) nil (26819 52100 159012 0) 0 nil])
+([nil nil ((2189 . 2194)) nil (26819 52100 159009 0) 0 nil])
+([nil nil ((#("scopes" 0 5 (fontified t) 5 6 (rear-nonsticky t fontified t)) . -2202) (undo-tree-id20 . -6) (undo-tree-id21 . -2) (undo-tree-id22 . -2) (undo-tree-id23 . -2) (undo-tree-id24 . -2) (undo-tree-id25 . -2) (undo-tree-id26 . -2) (undo-tree-id27 . -6) (undo-tree-id28 . -6) (undo-tree-id29 . -6) (undo-tree-id30 . -6) 2208) nil (26819 52100 159008 0) 0 nil])
+([nil nil ((2202 . 2207)) nil (26819 52100 158990 0) 0 nil])
+([nil nil ((1213 . 1215) (t 26819 52100 0 0)) nil (26819 54733 898083 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1742 . 1743) (nil fontified nil 1215 . 1743) (1215 . 1743)) nil (26819 54733 898082 0) 0 nil])
+([nil nil ((#("
+
+;; Route protégée: exige un JWT valide (401 sinon)
+(defmacro defprotected (method path-arg (req) &body body)
+  `(lumen.core.router:defroute ,method ,path-arg (,req)
+     (with-guards (,req (lumen.core.middleware:auth-required))
+       ,@body)))
+
+;; Route avec rôles autorisés (401 si absent, 403 si rôle interdit)
+(defmacro defroles (method path-arg (req) roles &body body)
+  `(lumen.core.router:defroute ,method ,path-arg (,req)
+     (with-guards (,req (lumen.core.middleware:roles-allowed ,roles))
+       ,@body)))" 0 2 (fontified t) 2 5 (face font-lock-comment-delimiter-face fontified t) 5 53 (face font-lock-comment-face fontified t) 53 54 (fontified t) 54 62 (face font-lock-keyword-face fontified t) 62 63 (fontified t) 63 75 (face font-lock-function-name-face fontified t) 75 99 (fontified t) 99 104 (face font-lock-type-face fontified t) 104 173 (fontified t) 173 184 (face font-lock-keyword-face fontified t) 184 248 (fontified t) 248 251 (face font-lock-comment-delimiter-face fontified t) 251 316 (face font-lock-comment-face fontified t) 316 317 (fontified t) 317 325 (face font-lock-keyword-face fontified t) 325 326 (fontified t) 326 334 (face font-lock-function-name-face fontified t) 334 364 (fontified t) 364 369 (face font-lock-type-face fontified t) 369 438 (fontified t) 438 449 (face font-lock-keyword-face fontified t) 449 502 (fontified t) 502 518 (fontified t)) . 695) (undo-tree-id33 . -518)) nil (26819 54733 898081 0) 0 nil])
+([nil nil ((1265 . 1266)) nil (26819 54733 898072 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3791 . 3792) (nil fontified nil 1266 . 3792) (1266 . 3792)) nil (26819 54733 898071 0) 0 nil])
+([nil nil ((3792 . 3794)) nil (26819 54733 898070 0) 0 nil])
+([nil nil ((3794 . 3796)) nil (26819 54733 898069 0) 0 nil])
+([nil nil ((5196 . 5198)) nil (26819 54733 898068 0) 0 nil])
+([nil nil ((5198 . 5199)) nil (26819 54733 898064 0) 0 nil])
+([nil nil ((697 . 698) (t 26819 54733 0 0)) nil (26819 54801 662422 0) 0 nil])
+([nil nil ((1266 . 1267) (t 26819 54801 0 0)) nil (26974 16326 413316 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3968 . 3969) (nil fontified nil 1267 . 3969) (1267 . 3969)) nil (26974 16326 413316 0) 0 nil])
+([nil nil ((3969 . 3971)) nil (26974 16326 413315 0) 0 nil])
+([nil nil ((3971 . 3973)) nil (26974 16326 413314 0) 0 nil])
+([nil nil ((6501 . 6503)) nil (26974 16326 413314 0) 0 nil])
+([nil nil ((6503 . 6504)) nil (26974 16326 413313 0) 0 nil])
+([nil nil ((#("
+#|
+(defmacro defguarded (method path-arg (req)
+                      (&key required roles scopes scopes-mode
+                            rate-cap rate-refill route-key)
+                      &body body)
+  (let ((rk (gensym \"ROUTEKEY\")))
+    `(lumen.core.router:defroute ,method ,path-arg (,req)
+       (let* ((,rk (or ,route-key
+                       (multiple-value-bind (host-spec real-path)
+                           (%parse-route-args ,path-arg)
+                         (declare (ignore host-spec))
+                         (format nil \"~A ~A\" ,(string-upcase (string method)) real-path)))))
+         (with-guards (,req
+                       ,@(when required `((lumen.core.middleware:auth-required)))
+                       ,@(when roles    `((lumen.core.middleware:roles-allowed ,roles)))
+                       ,@(when scopes   `((lumen.core.middleware:auth-jwt
+                                           :required-p t
+					   :roles-allow ,roles
+                                            :scopes-allow ,scopes
+                                            :scopes-mode ,scopes-mode)))
+                       ,@(when rate-cap `((lumen.core.middleware:rate-limit
+                                            :capacity ,rate-cap
+                                            :refill-per-sec ,(or rate-refill 1)
+                                            :route-key ,rk))))
+           ,@body)))))
+|#
+" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 524 (face font-lock-comment-face fontified t) 524 600 (face font-lock-comment-face fontified t) 600 770 (face font-lock-comment-face fontified t) 770 799 (face font-lock-comment-face fontified t) 799 1403 (face font-lock-comment-face fontified t) 1403 1405 (face font-lock-comment-delimiter-face fontified t) 1405 1406 (fontified t)) . -6504) (undo-tree-id0 . -1317) (undo-tree-id1 . -1406) (undo-tree-id2 . -48) (undo-tree-id3 . -1406) (undo-tree-id4 . -1406) (undo-tree-id5 . -1406) (undo-tree-id6 . -1406) (undo-tree-id7 . -1406) (undo-tree-id8 . -1406) (undo-tree-id9 . -1406) (undo-tree-id10 . -1406) (undo-tree-id11 . -1406) (undo-tree-id12 . -1173) (undo-tree-id13 . -296) (undo-tree-id14 . -238) (undo-tree-id15 . -600) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1097) (undo-tree-id19 . -1406) 7910) nil (26974 16326 413310 0) 0 nil])
+([nil nil ((6504 . 6505) (t 26974 16326 0 0)) nil (26981 9694 247558 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 7164 . 7165) (nil fontified nil 7141 . 7165) (nil fontified nil 7122 . 7141) (nil fontified nil 7117 . 7122) (nil fontified nil 7050 . 7117) (nil fontified nil 7047 . 7050) (nil fontified nil 7026 . 7047) (nil fontified nil 7006 . 7026) (nil fontified nil 6986 . 7006) (nil fontified nil 6965 . 6986) (nil fontified nil 6960 . 6965) (nil fontified nil 6927 . 6960) (nil fontified nil 6924 . 6927) (nil fontified nil 6910 . 6924) (nil fontified nil 6904 . 6910) (nil fontified nil 6890 . 6904) (nil fontified nil 6883 . 6890) (nil fontified nil 6878 . 6883) (nil fontified nil 6874 . 6878) (nil fontified nil 6848 . 6874) (nil fontified nil 6845 . 6848) (nil fontified nil 6837 . 6845) (nil fontified nil 6828 . 6837) (nil fontified nil 6822 . 6828) (nil fontified nil 6803 . 6822) (nil fontified nil 6800 . 6803) (nil fontified nil 6741 . 6800) (nil fontified nil 6602 . 6741) (nil fontified nil 6593 . 6602) (nil fontified nil 6588 . 6593) (nil fontified nil 6552 . 6588) (nil fontified nil 6548 . 6552) (nil fontified nil 6528 . 6548) (nil fontified nil 6515 . 6528) (nil fontified nil 6514 . 6515) (nil fontified nil 6506 . 6514) (nil fontified nil 6505 . 6506) (6505 . 7165)) nil (26981 9694 247556 0) 0 nil])
+([nil nil ((#("
+#|
+(defmacro defguarded (method path-arg (req)
+                      (&key required roles scopes scopes-mode
+                            ;; rate limit
+                            rate-cap rate-refill route-key
+                            ;; options auth-jwt avancées
+                            admin-bypass-roles? admin-bypass-scopes? admin-roles
+                            allow-query-token? qs-keys
+                            secret leeway-sec)
+                      &body body)
+  \"Route protégée paramétrable par JWT (rôles, scopes, bypass admin, etc.).\"
+  (let* ((rk (gensym \"ROUTEKEY\"))
+         ;; required effectif : si rôles ou scopes présents, on force le JWT requis
+         (required-effective (or required (not (null roles)) (not (null scopes)))))
+    `(lumen.core.router:defroute ,method ,path-arg (,req)
+       (let* ((,rk (or ,route-key
+                       (multiple-value-bind (host-spec real-path)
+                           (%parse-route-args ,path-arg)
+                         (declare (ignore host-spec))
+                         (format nil \"~A ~A\" ,(string-upcase (string method)) real-path)))))
+         (with-guards
+           (,req
+            ;; -------- Auth unique et configurée ----------
+            (lumen.core.middleware:auth-jwt
+             :required-p ,(if required-effective t nil)
+             ,@(when roles      `(:roles-allow ,roles))
+             ,@(when scopes     `(:scopes-allow ,scopes))
+             ,@(when scopes-mode `(:scopes-mode ,scopes-mode))
+             ;; bypass admin, liste des rôles admin
+             ,@(when admin-roles           `(:admin-roles ,admin-roles))
+             ,@(when (not (null admin-bypass-roles?))
+                 `(:admin-bypass-roles-p ,admin-bypass-roles?))
+             ,@(when (not (null admin-bypass-scopes?))
+                 `(:admin-bypass-scopes-p ,admin-bypass-scopes?))
+             ;; QS token pour SSE, etc.
+             ,@(when (not (null allow-query-token?))
+                 `(:allow-query-token-p ,allow-query-token?))
+             ,@(when qs-keys `(:qs-keys ,qs-keys))
+             ;; crypto / horloge
+             ,@(when secret     `(:secret ,secret :secret-supplied-p t))
+             ,@(when leeway-sec `(:leeway-sec ,leeway-sec)))
+            ;; -------- Rate limit éventuel ----------
+            ,@(when rate-cap
+                `((lumen.core.middleware:rate-limit
+                   :capacity ,rate-cap
+                   :refill-per-sec ,(or rate-refill 1)
+                   :route-key ,rk))))
+           ,@body)))))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 604 (face font-lock-comment-face fontified t) 604 680 (face font-lock-comment-face fontified t) 680 2180 (face font-lock-comment-face fontified t) 2180 2240 (face font-lock-comment-face fontified t) 2240 2531 (face font-lock-comment-face fontified t) 2531 2533 (face font-lock-comment-delimiter-face fontified t)) . 3970) (undo-tree-id2 . -2533)) nil (26981 9694 247552 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 3970)) nil (26981 9694 247550 0) 0 nil])
+([nil nil ((4631 . 4633)) nil (26981 9694 247550 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6043 . 6044) (nil fontified nil 4633 . 6044) (4633 . 6044)) nil (26981 9694 247549 0) 0 nil])
+([nil nil ((3970 . 3971)) nil (26981 9694 247548 0) 0 nil])
+([nil nil ((3971 . 3973)) nil (26981 9694 247548 0) 0 nil])
+([nil nil ((4635 . 4637)) nil (26981 9694 247547 0) 0 nil])
+([nil nil ((#("{" 0 1 (face font-lock-comment-face fontified t)) . -4636) (undo-tree-id1 . -1) 4637) nil (26981 9694 247547 0) 0 nil])
+([nil nil ((#("|" 0 1 (face font-lock-comment-face fontified t)) . -4635) (undo-tree-id0 . -1) 4636) nil (26981 9694 247544 0) 0 nil])
+([nil nil ((4635 . 4637)) nil (26981 9694 247530 0) 0 nil])
+([nil nil ((4637 . 4638)) nil (26981 9694 247528 0) 0 nil])
+([nil nil ((6050 . 6051)) nil (26981 9694 247525 0) 0 nil])
+([nil nil ((#("Nouveaux c" 0 10 (face font-lock-comment-face fontified t)) . -4768) (undo-tree-id3 . -10) 4778 (t 26981 9694 0 0)) nil (26981 62335 535740 0) 0 nil])
+([nil current ((4768 . 4769)) nil (26981 62335 535728 0) 0 nil])
+nil

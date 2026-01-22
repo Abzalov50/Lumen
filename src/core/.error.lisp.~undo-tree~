@@ -1,0 +1,43 @@
+(undo-tree-save-format-version . 1)
+"8661fda6fb06a4b4933f110fcadc48a9728292b8"
+[nil nil nil nil (26790 8106 136039 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 723 . 724) (nil fontified nil 1 . 724) (1 . 724) (t . -1)) nil (26790 8106 136038 0) 0 nil])
+([nil nil ((49 . 50) (47 . 48)) nil (26790 8106 136037 0) 0 nil])
+([nil nil ((61 . 63) (#(" " 0 1 (fontified nil)) . 60) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (61 . 62)) nil (26790 8106 136036 0) 0 nil])
+([nil nil ((119 . 120)) nil (26790 8106 136019 0) 0 nil])
+([nil nil ((17 . 18)) nil (26790 8106 136019 0) 0 nil])
+([nil nil ((294 . 296) (241 . 244) (192 . 194) 155) nil (26790 8106 136018 0) 0 nil])
+([nil nil ((437 . 439) 381) nil (26790 8106 136017 0) 0 nil])
+([nil nil ((685 . 691) (649 . 654) (588 . 593) (572 . 576) (547 . 551) (533 . 535) 503) nil (26790 8106 136016 0) 0 nil])
+([nil nil ((765 . 766)) nil (26790 8106 136012 0) 0 nil])
+([nil nil ((378 . 380) (t 26790 8106 0 0)) nil (26976 11389 327389 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 519 . 520) (nil fontified nil 380 . 520) (380 . 520)) nil (26976 11389 327389 0) 0 nil])
+([nil nil ((118 . 119)) nil (26976 11389 327388 0) 0 nil])
+([nil nil ((119 . 120)) nil (26976 11389 327387 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 136 . 137) (nil fontified nil 120 . 137) (120 . 137)) nil (26976 11389 327383 0) 0 nil])
+([nil nil ((927 . 928) (t 26976 11389 0 0)) nil (26976 59200 755848 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1165 . 1166) (nil fontified nil 928 . 1166) (928 . 1166)) nil (26976 59200 755846 0) 0 nil])
+([nil nil ((1166 . 1167)) nil (26976 59233 516517 0) 0 nil])
+([nil nil ((137 . 138) (t 26976 59200 0 0)) nil (26976 59246 695686 0) 0 nil] [nil nil ((#("
+(define-condition db-safe-business-error (" 0 1 (fontified t) 1 2 (fontified t) 2 18 (face font-lock-keyword-face fontified t) 18 19 (fontified t) 19 41 (face font-lock-function-name-face fontified t) 41 43 (fontified t)) . 927) (undo-tree-id0 . -43) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -21) (undo-tree-id4 . -21) (undo-tree-id5 . -21) (undo-tree-id6 . -21) (undo-tree-id7 . -21) (undo-tree-id8 . -21) (undo-tree-id9 . -19) (undo-tree-id10 . -41) (undo-tree-id11 . -41) (undo-tree-id12 . -19) (undo-tree-id13 . -1) (undo-tree-id14 . -19) (undo-tree-id15 . -41) (undo-tree-id16 . -41) (undo-tree-id17 . -41) (undo-tree-id18 . -41) (undo-tree-id19 . -41) (undo-tree-id20 . -41) (undo-tree-id21 . -41) (undo-tree-id22 . -41) (undo-tree-id23 . -43) (undo-tree-id24 . -43) (undo-tree-id25 . -43) (undo-tree-id26 . -43) (undo-tree-id27 . -19) (undo-tree-id28 . -43) (t 26976 59200 0 0)) ((927 . 970)) (26976 59233 515896 0) 0 nil])
+([nil nil ((138 . 139)) nil (26976 59246 695685 0) 0 nil])
+nil
+([nil nil ((nil rear-nonsticky nil 160 . 161) (nil fontified nil 139 . 161) (139 . 161)) nil (26976 59246 695681 0) 0 nil])
+([nil nil ((563 . 565) (t 26976 59246 0 0)) nil (26977 8068 57773 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1025 . 1026) (nil fontified nil 565 . 1026) (565 . 1026)) nil (26977 8068 57773 0) 0 nil])
+([nil nil ((1025 . 1028)) nil (26977 8068 57772 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1115 . 1116) (nil fontified nil 1115 . 1116) (nil fontified nil 1044 . 1115) (nil fontified nil 1043 . 1044) (nil fontified nil 1029 . 1043) (nil fontified nil 1028 . 1029) (1028 . 1116)) nil (26977 8068 57771 0) 0 nil])
+([nil nil ((#("
+(define-condition application-error (error)
+  ()
+  (:documentation \"Erreur métier qui ne doit pas être capturée comme une erreur système.\"))" 0 1 (fontified t) 1 2 (fontified t) 2 18 (face font-lock-keyword-face fontified t) 18 19 (fontified t) 19 36 (face font-lock-function-name-face fontified t) 36 38 (fontified t) 38 43 (face font-lock-warning-face fontified t) 43 50 (fontified t) 50 53 (fontified t) 53 67 (face font-lock-builtin-face fontified t) 67 68 (fontified t) 68 139 (face font-lock-doc-face fontified t) 139 141 (fontified t)) . 422) (undo-tree-id2 . -141)) nil (26977 8068 57770 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 422)) nil (26977 8068 57769 0) 0 nil])
+([nil nil ((119 . 122) (#(" " 0 1 (fontified nil)) . 118) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (119 . 120)) nil (26977 8068 57768 0) 0 nil])
+([nil nil ((164 . 168)) nil (26977 8068 57755 0) 0 nil])
+([nil nil ((168 . 169)) nil (26977 8068 57754 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 193 . 194) (nil fontified nil 169 . 194) (169 . 194)) nil (26977 8068 57753 0) 0 nil])
+([nil nil ((194 . 195)) nil (26977 8068 57752 0) 0 nil])
+([nil nil ((195 . 196)) nil (26977 8068 57751 0) 0 nil])
+([nil current ((nil rear-nonsticky nil 217 . 218) (nil fontified nil 196 . 218) (196 . 218)) nil (26977 8068 57747 0) 0 nil])
+nil

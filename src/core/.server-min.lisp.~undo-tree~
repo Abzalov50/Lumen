@@ -1,0 +1,338 @@
+(undo-tree-save-format-version . 1)
+"c65d59bff11152e0486e5a258483d7a8b7f11649"
+[nil nil nil nil (26791 18540 780491 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 1692 . 1693) (nil fontified nil 1 . 1693) (1 . 1693) (t . -1)) nil (26791 18540 780488 0) 0 nil])
+([nil nil ((29 . 30) (t 26791 18540 0 0)) nil (26791 18673 779082 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 304 . 305) (nil fontified nil 304 . 305) (nil fontified nil 286 . 304) (nil fontified nil 285 . 286) (nil fontified nil 275 . 285) (nil fontified nil 270 . 275) (nil fontified nil 265 . 270) (nil fontified nil 264 . 265) (nil fontified nil 258 . 264) (nil fontified nil 257 . 258) (nil fontified nil 250 . 257) (nil fontified nil 245 . 250) (nil fontified nil 229 . 245) (nil fontified nil 228 . 229) (nil fontified nil 211 . 228) (nil fontified nil 210 . 211) (nil fontified nil 198 . 210) (nil fontified nil 193 . 198) (nil fontified nil 183 . 193) (nil fontified nil 182 . 183) (nil fontified nil 169 . 182) (nil fontified nil 168 . 169) (nil fontified nil 156 . 168) (nil fontified nil 155 . 156) (nil fontified nil 146 . 155) (nil fontified nil 145 . 146) (nil fontified nil 137 . 145) (nil fontified nil 136 . 137) (nil fontified nil 120 . 136) (nil fontified nil 119 . 120) (nil fontified nil 107 . 119) (nil fontified nil 102 . 107) (nil fontified nil 91 . 102) (nil fontified nil 90 . 91) (nil fontified nil 87 . 90) (nil fontified nil 86 . 87) (nil fontified nil 82 . 86) (nil fontified nil 78 . 82) (nil fontified nil 60 . 78) (nil fontified nil 59 . 60) (nil fontified nil 49 . 59) (nil fontified nil 45 . 49) (nil fontified nil 42 . 45) (nil fontified nil 41 . 42) (nil fontified nil 31 . 41) (nil fontified nil 30 . 31) (30 . 305)) nil (26791 18673 779080 0) 0 nil])
+([nil nil ((#("lumen.core." 0 11 (face font-lock-type-face fontified t)) . -61) (undo-tree-id27 . -11) 72) nil (26791 18673 779076 0) 0 nil])
+([nil nil ((#("server" 0 6 (face font-lock-type-face fontified t)) . 61)) nil (26791 18673 779075 0) 0 nil])
+([nil nil ((61 . 65)) nil (26791 18673 779075 0) 0 nil])
+([nil nil ((61 . 67)) nil (26791 18673 779074 0) 0 nil])
+([nil nil ((#(":lumen.core.server" 0 18 (face font-lock-builtin-face fontified t)) . -279) (undo-tree-id18 . -18) (undo-tree-id19 . -18) (undo-tree-id20 . -18) (undo-tree-id21 . -18) (undo-tree-id22 . -18) (undo-tree-id23 . -18) (undo-tree-id24 . -18) (undo-tree-id25 . -18) (undo-tree-id26 . -18) 297) nil (26791 18673 779073 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 289 . 290) (nil fontified nil 279 . 290) (279 . 290)) nil (26791 18673 779064 0) 0 nil])
+([nil nil ((#("
+  (:import-from :lumen.core.http :request :response :resp-status :resp-headers :resp-body)
+  (:import-from :lumen.core.error :*error-handler*)" 0 4 (fontified t) 4 16 (face font-lock-builtin-face fontified t) 16 17 (fontified t) 17 33 (face font-lock-builtin-face fontified t) 33 34 (fontified t) 34 42 (face font-lock-builtin-face fontified t) 42 43 (fontified t) 43 52 (face font-lock-builtin-face fontified t) 52 53 (fontified t) 53 65 (face font-lock-builtin-face fontified t) 65 66 (fontified t) 66 79 (face font-lock-builtin-face fontified t) 79 80 (fontified t) 80 90 (face font-lock-builtin-face fontified t) 90 95 (fontified t) 95 107 (face font-lock-builtin-face fontified t) 107 108 (fontified t) 108 125 (face font-lock-builtin-face fontified t) 125 126 (fontified t) 126 142 (face font-lock-builtin-face fontified t) 142 143 (fontified t)) . 96) (undo-tree-id0 . -143) (undo-tree-id1 . -5) (undo-tree-id2 . -5) (undo-tree-id3 . -95) (undo-tree-id4 . -95) (undo-tree-id5 . -95) (undo-tree-id6 . -95) (undo-tree-id7 . -95) (undo-tree-id8 . -95) (undo-tree-id9 . -95) (undo-tree-id10 . -95) (undo-tree-id11 . -95) (undo-tree-id12 . -95) (undo-tree-id13 . -143) (undo-tree-id14 . -143) (undo-tree-id15 . -143) (undo-tree-id16 . -143) (undo-tree-id17 . -143)) nil (26791 19151 301134 0) 0 nil])
+([nil nil ((#("defvar *server-socket* nil)
+(defvar *accept-thread* nil)
+
+(defun %read-and-discard-headers (s)
+  \"Lit la ligne de requête + les en-têtes et s'arrête à la ligne vide.\"
+  (ignore-errors (read-line s nil nil)) ; request line
+  (loop for line = (read-line s nil nil)
+        while (and line (> (length line) 0)) do (values)))
+
+(defun %write-plain-response (s)
+  \"Écrit une réponse HTTP 1.1 minimale en CHAÎNES UNIQUEMENT.\"
+  (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+        (body \"ok\"))
+    ;; Tout en chaînes, sur le *même* flux.
+    (write-string head s)
+    (write-string body s)
+    (finish-output s)))
+
+(defun handle-connection (socket client)
+  (declare (ignore socket))
+  (let ((s (usocket:socket-stream client))) ; <-- flux caractère
+    (unwind-protect
+         (progn
+           (%read-and-discard-headers s)
+           (%write-plain-response s))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun accept-loop (socket)
+  (loop
+    (multiple-value-bind (client addr port) (usocket:socket-accept socket)
+      (declare (ignore addr port))
+      (bt:make-thread (lambda () (handle-connection socket client))
+                      :name \"lumen-client-min\"))))
+
+(defun start-min (&key (port 8080))
+  (when *server-socket* (ignore-errors (usocket:socket-close *server-socket*)))
+  (setf *server-socket* (usocket:socket-listen \"0.0.0.0\" port :reuse-address t))
+  (setf *accept-thread* (bt:make-thread (lambda () (accept-loop *server-socket*))
+                                        :name (format nil \"lumen-accept-~A\" port)))
+  (format t \"~&[min] listening on ~A~%\" port)
+  t)
+" 0 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 22 (face font-lock-variable-name-face fontified t) 22 29 (fontified t) 29 35 (face font-lock-keyword-face fontified t) 35 36 (fontified t) 36 51 (face font-lock-variable-name-face fontified t) 51 59 (fontified t) 59 64 (face font-lock-keyword-face fontified t) 64 65 (fontified t) 65 90 (face font-lock-function-name-face fontified t) 90 97 (fontified t) 97 166 (face font-lock-doc-face fontified t) 166 170 (fontified t) 170 183 (face font-lock-keyword-face fontified t) 183 207 (fontified t) 207 222 (face font-lock-comment-face fontified t) 222 225 (fontified t) 225 229 (face font-lock-keyword-face fontified t) 229 324 (fontified t) 324 329 (face font-lock-keyword-face fontified t) 329 330 (fontified t) 330 351 (face font-lock-function-name-face fontified t) 351 358 (fontified t) 358 418 (face font-lock-doc-face fontified t) 418 422 (fontified t) 422 425 (face font-lock-keyword-face fontified t) 425 433 (fontified t) 433 500 (face font-lock-string-face fontified t) 500 516 (fontified t) 516 520 (face font-lock-string-face fontified t) 520 527 (fontified t) 527 530 (face font-lock-comment-delimiter-face fontified t) 530 567 (face font-lock-comment-face fontified t) 567 645 (fontified t) 645 650 (face font-lock-keyword-face fontified t) 650 651 (fontified t) 651 668 (face font-lock-function-name-face fontified t) 668 688 (fontified t) 688 695 (face font-lock-keyword-face fontified t) 695 716 (fontified t) 716 719 (face font-lock-keyword-face fontified t) 719 757 (fontified t) 757 778 (face font-lock-comment-face fontified t) 778 783 (fontified t) 783 797 (face font-lock-keyword-face fontified t) 797 808 (fontified t) 808 813 (face font-lock-keyword-face fontified t) 813 900 (fontified t) 900 913 (face font-lock-keyword-face fontified t) 913 932 (fontified t) 932 945 (face font-lock-keyword-face fontified t) 945 982 (fontified t) 982 987 (face font-lock-keyword-face fontified t) 987 988 (fontified t) 988 999 (face font-lock-function-name-face fontified t) 999 1012 (fontified t) 1012 1016 (face font-lock-keyword-face fontified t) 1016 1022 (fontified t) 1022 1041 (face font-lock-keyword-face fontified t) 1041 1099 (fontified t) 1099 1106 (face font-lock-keyword-face fontified t) 1106 1150 (fontified t) 1150 1156 (face font-lock-keyword-face fontified t) 1156 1217 (fontified t) 1217 1222 (face font-lock-builtin-face fontified t) 1222 1223 (fontified t) 1223 1241 (face font-lock-string-face fontified t) 1241 1247 (fontified t) 1247 1248 (fontified t) 1248 1253 (face font-lock-keyword-face fontified t) 1253 1254 (fontified t) 1254 1263 (face font-lock-function-name-face fontified t) 1263 1265 (fontified t) 1265 1269 (face font-lock-type-face fontified t) 1269 1271 (fontified t) 1271 1283 (fontified t) 1283 1286 (fontified t) 1286 1290 (face font-lock-keyword-face fontified t) 1290 1308 (fontified t) 1308 1321 (face font-lock-keyword-face fontified t) 1321 1350 (fontified t) 1350 1363 (fontified t) 1363 1410 (fontified t) 1410 1419 (face font-lock-string-face fontified t) 1419 1425 (fontified t) 1425 1439 (face font-lock-builtin-face fontified t) 1439 1446 (fontified t) 1446 1469 (fontified t) 1469 1484 (fontified t) 1484 1485 (fontified t) 1485 1491 (face font-lock-keyword-face fontified t) 1491 1498 (fontified t) 1498 1526 (fontified t) 1526 1566 (fontified t) 1566 1571 (face font-lock-builtin-face fontified t) 1571 1584 (fontified t) 1584 1601 (face font-lock-string-face fontified t) 1601 1622 (fontified t) 1622 1649 (face font-lock-string-face fontified t) 1649 1660 (fontified t) 1660 1661 (fontified t rear-nonsticky t)) . -151) (undo-tree-id63 . -797) (undo-tree-id64 . -855) (undo-tree-id65 . -619) (undo-tree-id66 . -1661) 1812 (t 26791 18673 0 0)) nil (26791 19206 483029 0) 0 nil] [nil nil ((#(";;;; --- server-min.lisp ---
+(in-package :cl)
+
+(defpackage :lumen.test
+  (:use :cl :alexandria)
+  (:export :start :stop))
+
+(in-package :lumen.test)
+
+(defvar *server-socket* nil)
+(defvar *accept-thread* nil)
+
+(defun %read-and-discard-headers (s)
+  \"Lit la ligne de requête + les en-têtes et s'arrête à la ligne vide.\"
+  (ignore-errors (read-line s nil nil)) ; request line
+  (loop for line = (read-line s nil nil)
+        while (and line (> (length line) 0)) do (values)))
+
+(defun %write-plain-response (s)
+  \"Écrit une réponse HTTP 1.1 minimale en CHAÎNES UNIQUEMENT.\"
+  (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+        (body \"ok\"))
+    ;; Tout en chaînes, sur le *même* flux.
+    (write-string head s)
+    (write-string body s)
+    (finish-output s)))
+
+(defun handle-connection (socket client)
+  (declare (ignore socket))
+  (let ((s (usocket:socket-stream client))) ; <-- flux caractère
+    (unwind-protect
+         (progn
+           (%read-and-discard-headers s)
+           (%write-plain-response s))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun accept-loop (socket)
+  (loop
+    (multiple-value-bind (client addr port) (usocket:socket-accept socket)
+      (declare (ignore addr port))
+      (bt:make-thread (lambda () (handle-connection socket client))
+                      :name \"lumen-client-min\"))))
+
+(defun start-min (&key (port 8080))
+  (when *server-socket* (ignore-errors (usocket:socket-close *server-socket*)))
+  (setf *server-socket* (usocket:socket-listen \"0.0.0.0\" port :reuse-address t))
+  (setf *accept-thread* (bt:make-thread (lambda () (accept-loop *server-socket*))
+                                        :name (format nil \"lumen-accept-~A\" port)))
+  (format t \"~&[min] listening on ~A~%\" port)
+  t)
+" 0 5 (face font-lock-comment-delimiter-face fontified t) 5 29 (face font-lock-comment-face fontified t) 29 30 (fontified t) 30 40 (face font-lock-keyword-face fontified t) 40 41 (fontified t) 41 44 (face font-lock-builtin-face fontified t) 44 47 (fontified t) 47 48 (fontified t) 48 58 (face font-lock-keyword-face fontified t) 58 59 (fontified t) 59 70 (face font-lock-type-face fontified t) 70 71 (fontified t) 71 74 (fontified t) 74 78 (face font-lock-builtin-face fontified t) 78 79 (fontified t) 79 82 (face font-lock-builtin-face fontified t) 82 83 (fontified t) 83 94 (face font-lock-builtin-face fontified t) 94 95 (fontified t) 95 96 (fontified t) 96 99 (fontified t) 99 106 (face font-lock-builtin-face fontified t) 106 107 (fontified t) 107 113 (face font-lock-builtin-face fontified t) 113 114 (fontified t) 114 119 (face font-lock-builtin-face fontified t) 119 123 (fontified t) 123 124 (fontified t) 124 134 (face font-lock-keyword-face fontified t) 134 135 (fontified t) 135 145 (face font-lock-builtin-face fontified t) 145 146 (face font-lock-builtin-face fontified t rear-nonsticky t) 146 147 (fontified t rear-nonsticky t) 147 148 (fontified t) 148 150 (fontified t) 150 156 (face font-lock-keyword-face fontified t) 156 157 (fontified t) 157 172 (face font-lock-variable-name-face fontified t) 172 179 (fontified t) 179 185 (face font-lock-keyword-face fontified t) 185 186 (fontified t) 186 201 (face font-lock-variable-name-face fontified t) 201 209 (fontified t) 209 214 (face font-lock-keyword-face fontified t) 214 215 (fontified t) 215 240 (face font-lock-function-name-face fontified t) 240 247 (fontified t) 247 316 (face font-lock-doc-face fontified t) 316 320 (fontified t) 320 333 (face font-lock-keyword-face fontified t) 333 357 (fontified t) 357 372 (face font-lock-comment-face fontified t) 372 375 (fontified t) 375 379 (face font-lock-keyword-face fontified t) 379 474 (fontified t) 474 479 (face font-lock-keyword-face fontified t) 479 480 (fontified t) 480 501 (face font-lock-function-name-face fontified t) 501 508 (fontified t) 508 568 (face font-lock-doc-face fontified t) 568 572 (fontified t) 572 575 (face font-lock-keyword-face fontified t) 575 583 (fontified t) 583 650 (face font-lock-string-face fontified t) 650 666 (fontified t) 666 670 (face font-lock-string-face fontified t) 670 677 (fontified t) 677 680 (face font-lock-comment-delimiter-face fontified t) 680 717 (face font-lock-comment-face fontified t) 717 795 (fontified t) 795 800 (face font-lock-keyword-face fontified t) 800 801 (fontified t) 801 818 (face font-lock-function-name-face fontified t) 818 838 (fontified t) 838 845 (face font-lock-keyword-face fontified t) 845 866 (fontified t) 866 869 (face font-lock-keyword-face fontified t) 869 907 (fontified t) 907 928 (face font-lock-comment-face fontified t) 928 933 (fontified t) 933 947 (face font-lock-keyword-face fontified t) 947 958 (fontified t) 958 963 (face font-lock-keyword-face fontified t) 963 1050 (fontified t) 1050 1063 (face font-lock-keyword-face fontified t) 1063 1082 (fontified t) 1082 1095 (face font-lock-keyword-face fontified t) 1095 1132 (fontified t) 1132 1137 (face font-lock-keyword-face fontified t) 1137 1138 (fontified t) 1138 1149 (face font-lock-function-name-face fontified t) 1149 1162 (fontified t) 1162 1166 (face font-lock-keyword-face fontified t) 1166 1172 (fontified t) 1172 1191 (face font-lock-keyword-face fontified t) 1191 1249 (fontified t) 1249 1256 (face font-lock-keyword-face fontified t) 1256 1300 (fontified t) 1300 1306 (face font-lock-keyword-face fontified t) 1306 1367 (fontified t) 1367 1372 (face font-lock-builtin-face fontified t) 1372 1373 (fontified t) 1373 1391 (face font-lock-string-face fontified t) 1391 1397 (fontified t) 1397 1398 (fontified t) 1398 1403 (face font-lock-keyword-face fontified t) 1403 1404 (fontified t) 1404 1413 (face font-lock-function-name-face fontified t) 1413 1415 (fontified t) 1415 1419 (face font-lock-type-face fontified t) 1419 1421 (fontified t) 1421 1433 (fontified t) 1433 1436 (fontified t) 1436 1440 (face font-lock-keyword-face fontified t) 1440 1458 (fontified t) 1458 1471 (face font-lock-keyword-face fontified t) 1471 1560 (fontified t) 1560 1569 (face font-lock-string-face fontified t) 1569 1575 (fontified t) 1575 1589 (face font-lock-builtin-face fontified t) 1589 1596 (fontified t) 1596 1619 (fontified t) 1619 1634 (fontified t) 1634 1635 (fontified t) 1635 1641 (face font-lock-keyword-face fontified t) 1641 1648 (fontified t) 1648 1676 (fontified t) 1676 1716 (fontified t) 1716 1721 (face font-lock-builtin-face fontified t) 1721 1734 (fontified t) 1734 1751 (face font-lock-string-face fontified t) 1751 1772 (fontified t) 1772 1799 (face font-lock-string-face fontified t) 1799 1810 (fontified t) 1810 1811 (fontified t rear-nonsticky t)) . 1) (undo-tree-id28 . -1811) (undo-tree-id29 . -742) (undo-tree-id30 . -947) (undo-tree-id31 . -947) (undo-tree-id32 . -28) (undo-tree-id33 . -29) (undo-tree-id34 . -95) (undo-tree-id35 . -95) (undo-tree-id36 . -60) (undo-tree-id37 . -59) (undo-tree-id38 . -95) (undo-tree-id39 . -135) (undo-tree-id40 . -95) (undo-tree-id41 . -506) (undo-tree-id42 . -506) (undo-tree-id43 . -506) (undo-tree-id44 . -769) (undo-tree-id45 . -901) (undo-tree-id46 . -901) (undo-tree-id47 . -901) (undo-tree-id48 . -901) (undo-tree-id49 . -901) (undo-tree-id50 . -901) (undo-tree-id51 . -901) (undo-tree-id52 . -901) (undo-tree-id53 . -901) (undo-tree-id54 . -901) (undo-tree-id55 . -95) (undo-tree-id56 . -901) (undo-tree-id57 . -901) (undo-tree-id58 . -1811) (t 26791 18673 0 0)) ((1 . 1812)) (26791 19151 300510 0) 0 nil])
+([nil nil ((#("(" 0 1 (fontified t)) . -150) (undo-tree-id59 . -1) (undo-tree-id60 . -1) (undo-tree-id61 . -1) (undo-tree-id62 . -1) 151) nil (26791 19206 483025 0) 0 nil])
+nil
+([nil nil ((nil rear-nonsticky nil 1595 . 1596) (nil fontified nil 150 . 1596) (150 . 1596)) nil (26791 19206 483012 0) 0 nil])
+([nil nil ((1596 . 1597)) nil (26791 19206 483008 0) 0 nil])
+([nil nil ((#("(defvar *server-socket* nil)
+(defvar *accept-thread* nil)
+
+(defun %write-plain-response (s)
+  \"Réponse HTTP minimale, écrite en chaînes, sur le même flux.\"
+  (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+        (body \"ok\"))
+    (write-string head s)
+    (write-string body s)
+    (finish-output s)
+    (format t \"~&[min] sent 200/ok~%\")))
+
+(defun handle-connection (socket client)
+  (declare (ignore socket))
+  (let ((s (usocket:socket-stream client))) ; flux caractère
+    (unwind-protect
+         (progn
+           (format t \"~&[min] accepted ~S~%\" client)
+           ;; AUCUNE LECTURE: on répond tout de suite
+           (%write-plain-response s))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun accept-loop (socket)
+  (loop
+    (multiple-value-bind (client addr port) (usocket:socket-accept socket)
+      (declare (ignore addr port))
+      (bt:make-thread (lambda () (handle-connection socket client))
+                      :name \"lumen-client-min\"))))
+
+(defun start-min (&key (port 8000))
+  (when *server-socket* (ignore-errors (usocket:socket-close *server-socket*)))
+  (setf *server-socket* (usocket:socket-listen \"0.0.0.0\" port :reuse-address t))
+  (setf *accept-thread*
+        (bt:make-thread (lambda () (accept-loop *server-socket*))
+                        :name (format nil \"lumen-accept-~A\" port)))
+  (format t \"~&[min] listening on ~A~%\" port)
+  t)
+" 0 1 (fontified t) 1 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 23 (face font-lock-variable-name-face fontified t) 23 30 (fontified t) 30 36 (face font-lock-keyword-face fontified t) 36 37 (fontified t) 37 52 (face font-lock-variable-name-face fontified t) 52 60 (fontified t) 60 65 (face font-lock-keyword-face fontified t) 65 66 (fontified t) 66 87 (face font-lock-function-name-face fontified t) 87 94 (fontified t) 94 155 (face font-lock-doc-face fontified t) 155 159 (fontified t) 159 162 (face font-lock-keyword-face fontified t) 162 170 (fontified t) 170 237 (face font-lock-string-face fontified t) 237 253 (fontified t) 253 257 (face font-lock-string-face fontified t) 257 348 (fontified t) 348 371 (face font-lock-string-face fontified t) 371 377 (fontified t) 377 382 (face font-lock-keyword-face fontified t) 382 383 (fontified t) 383 400 (face font-lock-function-name-face fontified t) 400 420 (fontified t) 420 427 (face font-lock-keyword-face fontified t) 427 448 (fontified t) 448 451 (face font-lock-keyword-face fontified t) 451 489 (fontified t) 489 506 (face font-lock-comment-face fontified t) 506 511 (fontified t) 511 525 (face font-lock-keyword-face fontified t) 525 536 (fontified t) 536 541 (face font-lock-keyword-face fontified t) 541 563 (fontified t) 563 586 (face font-lock-string-face fontified t) 586 606 (fontified t) 606 609 (face font-lock-comment-delimiter-face fontified t) 609 649 (face font-lock-comment-face fontified t) 649 694 (fontified t) 694 707 (face font-lock-keyword-face fontified t) 707 726 (fontified t) 726 739 (face font-lock-keyword-face fontified t) 739 776 (fontified t) 776 781 (face font-lock-keyword-face fontified t) 781 782 (fontified t) 782 793 (face font-lock-function-name-face fontified t) 793 806 (fontified t) 806 810 (face font-lock-keyword-face fontified t) 810 816 (fontified t) 816 835 (face font-lock-keyword-face fontified t) 835 893 (fontified t) 893 900 (face font-lock-keyword-face fontified t) 900 944 (fontified t) 944 950 (face font-lock-keyword-face fontified t) 950 1011 (fontified t) 1011 1016 (face font-lock-builtin-face fontified t) 1016 1017 (fontified t) 1017 1035 (face font-lock-string-face fontified t) 1035 1041 (fontified t) 1041 1042 (fontified t) 1042 1047 (face font-lock-keyword-face fontified t) 1047 1048 (fontified t) 1048 1057 (face font-lock-function-name-face fontified t) 1057 1059 (fontified t) 1059 1063 (face font-lock-type-face fontified t) 1063 1080 (fontified t) 1080 1084 (face font-lock-keyword-face fontified t) 1084 1102 (fontified t) 1102 1115 (face font-lock-keyword-face fontified t) 1115 1204 (fontified t) 1204 1213 (face font-lock-string-face fontified t) 1213 1219 (fontified t) 1219 1233 (face font-lock-builtin-face fontified t) 1233 1287 (fontified t) 1287 1293 (face font-lock-keyword-face fontified t) 1293 1351 (fontified t) 1351 1352 (fontified t) 1352 1357 (face font-lock-builtin-face fontified t) 1357 1370 (fontified t) 1370 1387 (face font-lock-string-face fontified t) 1387 1396 (fontified t) 1396 1408 (fontified t) 1408 1435 (face font-lock-string-face fontified t) 1435 1447 (fontified t)) . 150) (undo-tree-id0 . -374) (undo-tree-id1 . -1447) (undo-tree-id2 . -374) (undo-tree-id3 . -374) (undo-tree-id4 . -1447) (undo-tree-id5 . -1447) (undo-tree-id6 . -1010) (undo-tree-id7 . -1447) (t 26791 19206 0 0)) nil (26791 19421 243682 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2133 . 2134) (nil fontified nil 150 . 2134) (150 . 2134)) nil (26791 19421 243656 0) 0 nil])
+([nil nil ((2134 . 2135)) nil (26791 19421 243652 0) 0 nil])
+([nil nil ((2135 . 2136) (t 26791 19421 0 0)) nil (26791 19518 359506 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2365 . 2366) (nil fontified nil 2273 . 2366) (nil fontified nil 2269 . 2273) (nil fontified nil 2193 . 2269) (nil fontified nil 2180 . 2193) (nil fontified nil 2158 . 2180) (nil fontified nil 2154 . 2158) (nil fontified nil 2147 . 2154) (nil fontified nil 2143 . 2147) (nil fontified nil 2142 . 2143) (nil fontified nil 2137 . 2142) (nil fontified nil 2136 . 2137) (2136 . 2366)) nil (26791 19518 359505 0) 0 nil])
+([nil nil ((2366 . 2367)) nil (26791 19952 347736 0) 0 nil])
+([nil nil ((#("(defvar *server-socket* nil)
+(defvar *accept-thread* nil)
+
+(defun stream-binary-p (s)
+  (subtypep (stream-element-type s) '(unsigned-byte 8)))
+
+(defun write-str (s str)
+  \"Écrit STR sur S en respectant son type (octets vs caractères).\"
+  (if (stream-binary-p s)
+      (write-sequence (trivial-utf-8:string-to-utf-8-bytes str) s)
+      (write-string str s)))
+
+(defun send-200-ok (s)
+  (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+        (body \"ok\"))
+    (write-str s head)
+    (write-str s body)
+    (finish-output s)))
+
+(defun send-500-empty (s)
+  (let ((head \"HTTP/1.1 500 Internal Server Error\\r\\nContent-Length: 0\\r\\nConnection: close\\r\\n\\r\\n\"))
+    (write-str s head)
+    (finish-output s)))
+
+(defun handle-connection (socket client)
+  (declare (ignore socket))
+  (let ((s (usocket:socket-stream client)))
+    (unwind-protect
+         (handler-case
+             (progn
+               ;; AUCUNE lecture → on répond immédiatement
+               (send-200-ok s))
+           (error (e)
+             (format *error-output* \"~&[ultra-min] ERROR: ~A~%\" e)
+             (ignore-errors (send-500-empty s))))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun accept-loop (socket)
+  (loop
+    (multiple-value-bind (client addr port) (usocket:socket-accept socket)
+      (declare (ignore addr port))
+      (bt:make-thread (lambda () (handle-connection socket client))
+                      :name \"ultra-min-client\"))))
+
+(defun start-ultra-min (&key (port 8000))
+  (when *server-socket* (ignore-errors (usocket:socket-close *server-socket*)))
+  ;; Lie-toi en IPv4 explicite pour éviter ::1
+  (setf *server-socket* (usocket:socket-listen \"127.0.0.1\" port :reuse-address t))
+  (setf *accept-thread* (bt:make-thread (lambda () (accept-loop *server-socket*))
+                                        :name (format nil \"ultra-min-accept-~A\" port)))
+  (format t \"~&[ultra-min] listening on ~A (IPv4 only)~%\" port)
+  t)
+" 0 1 (fontified t) 1 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 23 (face font-lock-variable-name-face fontified t) 23 30 (fontified t) 30 36 (face font-lock-keyword-face fontified t) 36 37 (fontified t) 37 52 (face font-lock-variable-name-face fontified t) 52 60 (fontified t) 60 65 (face font-lock-keyword-face fontified t) 65 66 (fontified t) 66 81 (face font-lock-function-name-face fontified t) 81 145 (fontified t) 145 150 (face font-lock-keyword-face fontified t) 150 151 (fontified t) 151 160 (face font-lock-function-name-face fontified t) 160 171 (fontified t) 171 235 (face font-lock-doc-face fontified t) 235 239 (fontified t) 239 241 (face font-lock-keyword-face fontified t) 241 360 (fontified t) 360 365 (face font-lock-keyword-face fontified t) 365 366 (fontified t) 366 377 (face font-lock-function-name-face fontified t) 377 385 (fontified t) 385 388 (face font-lock-keyword-face fontified t) 388 396 (fontified t) 396 463 (face font-lock-string-face fontified t) 463 479 (fontified t) 479 483 (face font-lock-string-face fontified t) 483 558 (fontified t) 558 563 (face font-lock-keyword-face fontified t) 563 564 (fontified t) 564 578 (face font-lock-function-name-face fontified t) 578 586 (fontified t) 586 589 (face font-lock-keyword-face fontified t) 589 597 (fontified t) 597 683 (face font-lock-string-face fontified t) 683 735 (fontified t) 735 740 (face font-lock-keyword-face fontified t) 740 741 (fontified t) 741 758 (face font-lock-function-name-face fontified t) 758 778 (fontified t) 778 785 (face font-lock-keyword-face fontified t) 785 806 (fontified t) 806 809 (face font-lock-keyword-face fontified t) 809 852 (fontified t) 852 866 (face font-lock-keyword-face fontified t) 866 877 (fontified t) 877 889 (face font-lock-keyword-face fontified t) 889 904 (fontified t) 904 909 (face font-lock-keyword-face fontified t) 909 925 (fontified t) 925 928 (face font-lock-comment-delimiter-face fontified t) 928 969 (face font-lock-comment-face fontified t) 969 1013 (fontified t) 1013 1018 (face font-lock-warning-face fontified t) 1018 1059 (fontified t) 1059 1086 (face font-lock-string-face fontified t) 1086 1104 (fontified t) 1104 1117 (face font-lock-keyword-face fontified t) 1117 1147 (fontified t) 1147 1160 (face font-lock-keyword-face fontified t) 1160 1179 (fontified t) 1179 1192 (face font-lock-keyword-face fontified t) 1192 1228 (fontified t) 1228 1229 (fontified t) 1229 1234 (face font-lock-keyword-face fontified t) 1234 1235 (fontified t) 1235 1246 (face font-lock-function-name-face fontified t) 1246 1259 (fontified t) 1259 1263 (face font-lock-keyword-face fontified t) 1263 1269 (fontified t) 1269 1288 (face font-lock-keyword-face fontified t) 1288 1346 (fontified t) 1346 1351 (face font-lock-keyword-face fontified t) 1351 1353 (face font-lock-keyword-face fontified t) 1353 1374 (fontified t) 1374 1397 (fontified t) 1397 1403 (face font-lock-keyword-face fontified t) 1403 1464 (fontified t) 1464 1469 (face font-lock-builtin-face fontified t) 1469 1470 (fontified t) 1470 1488 (face font-lock-string-face fontified t) 1488 1494 (fontified t) 1494 1495 (fontified t) 1495 1500 (face font-lock-keyword-face fontified t) 1500 1501 (fontified t) 1501 1516 (face font-lock-function-name-face fontified t) 1516 1518 (fontified t) 1518 1522 (face font-lock-type-face fontified t) 1522 1536 (fontified t) 1536 1539 (fontified t) 1539 1543 (face font-lock-keyword-face fontified t) 1543 1561 (fontified t) 1561 1574 (face font-lock-keyword-face fontified t) 1574 1618 (fontified t) 1618 1621 (face font-lock-comment-delimiter-face fontified t) 1621 1663 (face font-lock-comment-face fontified t) 1663 1710 (fontified t) 1710 1721 (face font-lock-string-face fontified t) 1721 1727 (fontified t) 1727 1741 (face font-lock-builtin-face fontified t) 1741 1787 (fontified t) 1787 1793 (face font-lock-keyword-face fontified t) 1793 1868 (fontified t) 1868 1873 (face font-lock-builtin-face fontified t) 1873 1886 (fontified t) 1886 1907 (face font-lock-string-face fontified t) 1907 1928 (fontified t) 1928 1973 (face font-lock-string-face fontified t) 1973 1985 (fontified t)) . 150) (undo-tree-id39 . -1985) (t 26791 19518 0 0)) nil (26791 19990 155414 0) 0 nil] [nil nil ((#("(defvar *server-socket* nil)
+(defvar *accept-thread* nil)
+
+(defun stream-binary-p (s)
+  (subtypep (stream-element-type s) '(unsigned-byte 8)))
+
+(defun write-str (s str)
+  \"Écrit STR sur S en respectant son type (octets vs caractères).\"
+  (if (stream-binary-p s)
+      (write-sequence (trivial-utf-8:string-to-utf-8-bytes str) s)
+      (write-string str s)))
+
+(defun send-200-ok (s)
+  (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+        (body \"ok\"))
+    (write-str s head)
+    (write-str s body)
+    (finish-output s)))
+
+(defun send-500-empty (s)
+  (let ((head \"HTTP/1.1 500 Internal Server Error\\r\\nContent-Length: 0\\r\\nConnection: close\\r\\n\\r\\n\"))
+    (write-str s head)
+    (finish-output s)))
+
+(defun handle-connection (socket client)
+  (declare (ignore socket))
+  (let ((s (usocket:socket-stream client)))
+    (unwind-protect
+         (handler-case
+             (progn
+               ;; AUCUNE lecture → on répond immédiatement
+               (send-200-ok s))
+           (error (e)
+             (format *error-output* \"~&[ultra-min] ERROR: ~A~%\" e)
+             (ignore-errors (send-500-empty s))))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun accept-loop (socket)
+  (loop
+    (multiple-value-bind (client addr port) (usocket:socket-accept socket)
+      (declare (ignore addr port))
+      (bt:make-thread (lambda () (handle-connection socket client))
+                      :name \"ultra-min-client\"))))
+
+(defun start-ultra-min (&key (port 8000))
+  (when *server-socket* (ignore-errors (usocket:socket-close *server-socket*)))
+  ;; Lie-toi en IPv4 explicite pour éviter ::1
+  (setf *server-socket* (usocket:socket-listen \"127.0.0.1\" port :reuse-address t))
+  (setf *accept-thread* (bt:make-thread (lambda () (accept-loop *server-socket*))
+                                        :name (format nil \"ultra-min-accept-~A\" port)))
+  (format t \"~&[ultra-min] listening on ~A (IPv4 only)~%\" port)
+  t)
+
+(defun stop ()
+  (when *server-socket*
+    (ignore-errors (usocket:socket-close *server-socket*))
+    (setf *server-socket* nil))
+  (when *accept-thread*
+    (bt:destroy-thread *accept-thread*)
+    (setf *accept-thread* nil))
+  t)
+" 0 1 (fontified t) 1 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 23 (face font-lock-variable-name-face fontified t) 23 30 (fontified t) 30 36 (face font-lock-keyword-face fontified t) 36 37 (fontified t) 37 52 (face font-lock-variable-name-face fontified t) 52 60 (fontified t) 60 65 (face font-lock-keyword-face fontified t) 65 66 (fontified t) 66 81 (face font-lock-function-name-face fontified t) 81 145 (fontified t) 145 150 (face font-lock-keyword-face fontified t) 150 151 (fontified t) 151 160 (face font-lock-function-name-face fontified t) 160 171 (fontified t) 171 235 (face font-lock-doc-face fontified t) 235 239 (fontified t) 239 241 (face font-lock-keyword-face fontified t) 241 360 (fontified t) 360 365 (face font-lock-keyword-face fontified t) 365 366 (fontified t) 366 377 (face font-lock-function-name-face fontified t) 377 385 (fontified t) 385 388 (face font-lock-keyword-face fontified t) 388 396 (fontified t) 396 463 (face font-lock-string-face fontified t) 463 479 (fontified t) 479 483 (face font-lock-string-face fontified t) 483 558 (fontified t) 558 563 (face font-lock-keyword-face fontified t) 563 564 (fontified t) 564 578 (face font-lock-function-name-face fontified t) 578 586 (fontified t) 586 589 (face font-lock-keyword-face fontified t) 589 597 (fontified t) 597 683 (face font-lock-string-face fontified t) 683 735 (fontified t) 735 740 (face font-lock-keyword-face fontified t) 740 741 (fontified t) 741 758 (face font-lock-function-name-face fontified t) 758 778 (fontified t) 778 785 (face font-lock-keyword-face fontified t) 785 806 (fontified t) 806 809 (face font-lock-keyword-face fontified t) 809 852 (fontified t) 852 866 (face font-lock-keyword-face fontified t) 866 877 (fontified t) 877 889 (face font-lock-keyword-face fontified t) 889 904 (fontified t) 904 909 (face font-lock-keyword-face fontified t) 909 925 (fontified t) 925 928 (face font-lock-comment-delimiter-face fontified t) 928 969 (face font-lock-comment-face fontified t) 969 1013 (fontified t) 1013 1018 (face font-lock-warning-face fontified t) 1018 1059 (fontified t) 1059 1086 (face font-lock-string-face fontified t) 1086 1104 (fontified t) 1104 1117 (face font-lock-keyword-face fontified t) 1117 1147 (fontified t) 1147 1160 (face font-lock-keyword-face fontified t) 1160 1179 (fontified t) 1179 1192 (face font-lock-keyword-face fontified t) 1192 1228 (fontified t) 1228 1229 (fontified t) 1229 1234 (face font-lock-keyword-face fontified t) 1234 1235 (fontified t) 1235 1246 (face font-lock-function-name-face fontified t) 1246 1259 (fontified t) 1259 1263 (face font-lock-keyword-face fontified t) 1263 1269 (fontified t) 1269 1288 (face font-lock-keyword-face fontified t) 1288 1346 (fontified t) 1346 1351 (face font-lock-keyword-face fontified t) 1351 1353 (face font-lock-keyword-face fontified t) 1353 1374 (fontified t) 1374 1397 (fontified t) 1397 1403 (face font-lock-keyword-face fontified t) 1403 1464 (fontified t) 1464 1469 (face font-lock-builtin-face fontified t) 1469 1470 (fontified t) 1470 1488 (face font-lock-string-face fontified t) 1488 1495 (fontified t) 1495 1500 (face font-lock-keyword-face fontified t) 1500 1501 (fontified t) 1501 1516 (face font-lock-function-name-face fontified t) 1516 1518 (fontified t) 1518 1522 (face font-lock-type-face fontified t) 1522 1539 (fontified t) 1539 1543 (face font-lock-keyword-face fontified t) 1543 1561 (fontified t) 1561 1574 (face font-lock-keyword-face fontified t) 1574 1618 (fontified t) 1618 1621 (face font-lock-comment-delimiter-face fontified t) 1621 1663 (face font-lock-comment-face fontified t) 1663 1710 (fontified t) 1710 1721 (face font-lock-string-face fontified t) 1721 1727 (fontified t) 1727 1741 (face font-lock-builtin-face fontified t) 1741 1787 (fontified t) 1787 1793 (face font-lock-keyword-face fontified t) 1793 1868 (fontified t) 1868 1873 (face font-lock-builtin-face fontified t) 1873 1886 (fontified t) 1886 1907 (face font-lock-string-face fontified t) 1907 1928 (fontified t) 1928 1973 (face font-lock-string-face fontified t) 1973 1987 (fontified t) 1987 1992 (face font-lock-keyword-face fontified t) 1992 1993 (fontified t) 1993 1997 (face font-lock-function-name-face fontified t) 1997 2004 (fontified t) 2004 2008 (face font-lock-keyword-face fontified t) 2008 2030 (fontified t) 2030 2043 (face font-lock-keyword-face fontified t) 2043 2119 (fontified t) 2119 2123 (face font-lock-keyword-face fontified t) 2123 2217 (fontified t)) . -150) (undo-tree-id0 . -2217) (undo-tree-id1 . -2140) (undo-tree-id2 . -1228) (undo-tree-id3 . -1374) (undo-tree-id4 . -820) (undo-tree-id5 . -1536) (undo-tree-id6 . -2217) (undo-tree-id7 . -2217) (undo-tree-id8 . -2217) (undo-tree-id9 . -2217) (undo-tree-id10 . -2217) (undo-tree-id11 . -2217) (undo-tree-id12 . -2217) (undo-tree-id13 . -2217) (undo-tree-id14 . -2217) (undo-tree-id15 . -2217) (undo-tree-id16 . -2217) (undo-tree-id17 . -2217) (undo-tree-id18 . -2217) (undo-tree-id19 . -2217) (undo-tree-id20 . -2217) 2367 (t 26791 19518 0 0)) ((150 . 2367)) (26791 19952 347124 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1907 . 1908) (nil fontified nil 150 . 1908) (150 . 1908)) nil (26791 19990 155413 0) 0 nil])
+nil
+([nil nil ((#("*accept-thread*" 0 15 (fontified t)) . -2086) (undo-tree-id37 . -15) (undo-tree-id38 . -7) 2101) nil (26791 19990 155411 0) 0 nil])
+([nil nil ((2086 . 2090)) nil (26791 19990 155409 0) 0 nil])
+([nil nil ((#("server-socket" 0 13 (fontified t)) . -2018) (undo-tree-id30 . -13) (undo-tree-id31 . -13) (undo-tree-id32 . -13) (undo-tree-id33 . -13) (undo-tree-id34 . -13) (undo-tree-id35 . -13) (undo-tree-id36 . -13) 2031) nil (26791 19990 155408 0) 0 nil])
+([nil nil ((2018 . 2021)) nil (26791 19990 155403 0) 0 nil])
+([nil nil ((#("*accept-thread*" 0 15 (fontified t)) . -2092) (undo-tree-id21 . -15) (undo-tree-id22 . -15) (undo-tree-id23 . -15) (undo-tree-id24 . -15) (undo-tree-id25 . -15) (undo-tree-id26 . -15) (undo-tree-id27 . -15) (undo-tree-id28 . -15) (undo-tree-id29 . -15) 2107) nil (26791 19990 155401 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2095 . 2096) (nil fontified nil 2092 . 2096) (2092 . 2096)) nil (26791 19990 155386 0) 0 nil])
+([nil nil ((#("process-id" 0 10 (fontified t)) . -1754) (undo-tree-id99 . -10) (undo-tree-id100 . -3) (undo-tree-id101 . -3) (undo-tree-id102 . -3) (undo-tree-id103 . -3) (undo-tree-id104 . -3) (undo-tree-id105 . -3) (undo-tree-id106 . -7) (undo-tree-id107 . -7) (undo-tree-id108 . -7) (undo-tree-id109 . -7) (undo-tree-id110 . -7) (undo-tree-id111 . -7) (undo-tree-id112 . -7) (undo-tree-id113 . -7) (undo-tree-id114 . -2) (undo-tree-id115 . -2) (undo-tree-id116 . -2) (undo-tree-id117 . -2) (undo-tree-id118 . -2) (undo-tree-id119 . -2) (undo-tree-id120 . -10) (undo-tree-id121 . -10) 1764 (t 26791 19990 0 0)) nil (26791 20018 717770 0) 0 nil])
+([nil nil ((1754 . 1756)) nil (26791 20018 717758 0) 0 nil])
+([nil nil ((1747 . 1765) (#("sb-ext:pr" 0 9 (fontified t)) . -1747) (undo-tree-id40 . -7) (undo-tree-id41 . -9) (undo-tree-id42 . -7) (undo-tree-id43 . -7) (undo-tree-id44 . -7) (undo-tree-id45 . -7) (undo-tree-id46 . -7) (undo-tree-id47 . -7) (undo-tree-id48 . -7) (undo-tree-id49 . -7) (undo-tree-id50 . -7) (undo-tree-id51 . -7) (undo-tree-id52 . -7) (undo-tree-id53 . -7) (undo-tree-id54 . -7) (undo-tree-id55 . -7) (undo-tree-id56 . -7) (undo-tree-id57 . -7) (undo-tree-id58 . -7) (undo-tree-id59 . -7) (undo-tree-id60 . -7) (undo-tree-id61 . -7) (undo-tree-id62 . -7) (undo-tree-id63 . -7) (undo-tree-id64 . -7) (undo-tree-id65 . -7) (undo-tree-id66 . -7) (undo-tree-id67 . -7) (undo-tree-id68 . -7) (undo-tree-id69 . -7) (undo-tree-id70 . -7) (undo-tree-id71 . -7) (undo-tree-id72 . -7) (undo-tree-id73 . -7) (undo-tree-id74 . -7) (undo-tree-id75 . -7) (undo-tree-id76 . -7) (undo-tree-id77 . -7) (undo-tree-id78 . -7) (undo-tree-id79 . -7) (undo-tree-id80 . -7) (undo-tree-id81 . -8) (undo-tree-id82 . -8) (undo-tree-id83 . -8) (undo-tree-id84 . -8) (undo-tree-id85 . -8) (undo-tree-id86 . -8) (undo-tree-id87 . -9) (undo-tree-id88 . -9) (undo-tree-id89 . -9) (undo-tree-id90 . -9) (undo-tree-id91 . -9) (undo-tree-id92 . -9) (undo-tree-id93 . -9) (undo-tree-id94 . -9) (undo-tree-id95 . -9) (undo-tree-id96 . -9) (undo-tree-id97 . -9) (undo-tree-id98 . -9) 1756) nil (26791 20018 717753 0) 0 nil])
+([nil nil ((#(" (PID=~A" 0 8 (face font-lock-string-face fontified t)) . -1728) (undo-tree-id203 . -8) (undo-tree-id204 . -8) (undo-tree-id205 . -8) 1736 (t 26791 20018 0 0)) nil (26791 20067 687194 0) 0 nil])
+([nil nil ((#(")" 0 1 (face font-lock-string-face fontified t)) . 1728)) nil (26791 20067 687191 0) 0 nil])
+([nil nil ((#(" (sb-ext:process-pid)" 0 2 (fontified t) 2 20 (fontified t) 20 21 (fontified t)) . -1736) (undo-tree-id122 . -20) (undo-tree-id123 . -2) (undo-tree-id124 . -2) (undo-tree-id125 . -2) (undo-tree-id126 . -2) (undo-tree-id127 . -2) (undo-tree-id128 . -2) (undo-tree-id129 . -2) (undo-tree-id130 . -2) (undo-tree-id131 . -2) (undo-tree-id132 . -2) (undo-tree-id133 . -2) (undo-tree-id134 . -2) (undo-tree-id135 . -2) (undo-tree-id136 . -2) (undo-tree-id137 . -2) (undo-tree-id138 . -2) (undo-tree-id139 . -2) (undo-tree-id140 . -2) (undo-tree-id141 . -2) (undo-tree-id142 . -2) (undo-tree-id143 . -2) (undo-tree-id144 . -2) (undo-tree-id145 . -2) (undo-tree-id146 . -2) (undo-tree-id147 . -2) (undo-tree-id148 . -2) (undo-tree-id149 . -2) (undo-tree-id150 . -2) (undo-tree-id151 . -2) (undo-tree-id152 . -2) (undo-tree-id153 . -2) (undo-tree-id154 . -2) (undo-tree-id155 . -2) (undo-tree-id156 . -2) (undo-tree-id157 . -2) (undo-tree-id158 . -2) (undo-tree-id159 . -2) (undo-tree-id160 . -2) (undo-tree-id161 . -2) (undo-tree-id162 . -2) (undo-tree-id163 . -2) (undo-tree-id164 . -2) (undo-tree-id165 . -2) (undo-tree-id166 . -2) (undo-tree-id167 . -2) (undo-tree-id168 . -2) (undo-tree-id169 . -2) (undo-tree-id170 . -2) (undo-tree-id171 . -2) (undo-tree-id172 . -2) (undo-tree-id173 . -2) (undo-tree-id174 . -2) (undo-tree-id175 . -2) (undo-tree-id176 . -2) (undo-tree-id177 . -2) (undo-tree-id178 . -2) (undo-tree-id179 . -2) (undo-tree-id180 . -2) (undo-tree-id181 . -20) (undo-tree-id182 . -20) (undo-tree-id183 . -20) (undo-tree-id184 . -20) (undo-tree-id185 . -21) (undo-tree-id186 . -20) (undo-tree-id187 . -20) (undo-tree-id188 . -20) (undo-tree-id189 . -20) (undo-tree-id190 . -20) (undo-tree-id191 . -20) (undo-tree-id192 . -20) (undo-tree-id193 . -20) (undo-tree-id194 . -20) (undo-tree-id195 . -20) (undo-tree-id196 . -2) (undo-tree-id197 . -21) (undo-tree-id198 . -21) (undo-tree-id199 . -21) (undo-tree-id200 . -21) (undo-tree-id201 . -21) (undo-tree-id202 . -21) 1757) nil (26791 20067 687187 0) 0 nil])
+([nil nil ((1104 . 1106) (t 26791 20067 0 0)) nil (26791 20259 497263 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2263 . 2264) (nil fontified nil 1106 . 2264) (1106 . 2264)) nil (26791 20259 497259 0) 0 nil])
+([nil nil ((3211 . 3212) (t 26791 20259 0 0)) nil (26791 20299 796640 0) 0 nil])
+([nil nil ((3228 . 3229)) nil (26791 20299 796636 0) 0 nil])
+([nil nil ((2264 . 2266) (t 26791 20299 0 0)) nil (26791 20355 924887 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2950 . 2951) (nil fontified nil 2266 . 2951) (2266 . 2951)) nil (26791 20355 924886 0) 0 nil])
+([nil current ((#("
+(defun handle (sock client)
+  (declare (ignore sock))
+  (let ((s (usocket:socket-stream client)))
+    (unwind-protect
+         (handler-case
+             (progn
+               (format t \"~&[ultra] accepted ~S~%\" client)
+               ;; aucune lecture : on répond tout de suite
+               (write-200 s)
+               (format t \"~&[ultra] sent ok~%\"))
+           (error (e)
+             (format *error-output* \"~&[ultra] ERROR in handle: ~A~%\" e)
+             (ignore-errors
+               (write-string \"HTTP/1.1 500 Internal Server Error\\r\\nContent-Length: 0\\r\\nConnection: close\\r\\n\\r\\n\" s)
+               (finish-output s))))
+      (ignore-errors (close s))
+      (ignore-errors (usocket:socket-close client)))))
+
+(defun handle (sock client)
+  (declare (ignore sock))
+  (let ((s (usocket:socket-stream client))) ; flux *caractère*
+    (unwind-protect
+         (handler-case
+             (progn
+               (format t \"~&[ultra] accepted ~S~%\" client)
+               ;; Aucune lecture : on répond immédiatement
+               (let ((head \"HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\n\")
+                     (body \"ok\"))
+                 (write-string head s)
+                 (write-string body s)
+                 (finish-output s))
+               (format t \"~&[ultra] sent ok~%\"))
+           (error (e)
+             (format *error-output* \"~&[ultra] ERROR in handle: ~A~%\" e)
+             (ignore-errors
+               (write-string \"HTTP/1.1 500 Internal Server Error\\r\\nContent-Length: 0\\r\\nConnection: close\\r\\n\\r\\n\" s)
+               (finish-output s))))
+      ;; 🔽 Fermeture GRACIEUSE (pas de double close)
+      (ignore-errors (usocket:socket-shutdown client :direction :output)) ; FIN côté écriture
+      (ignore-errors (close s))       ; ferme le flux (et le socket sous-jacent)
+      ;; NE PAS rappeler (usocket:socket-close) ici
+      )))
+" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 14 (face font-lock-function-name-face fontified t) 14 32 (fontified t) 32 39 (face font-lock-keyword-face fontified t) 39 58 (fontified t) 58 61 (face font-lock-keyword-face fontified t) 61 104 (fontified t) 104 118 (face font-lock-keyword-face fontified t) 118 129 (fontified t) 129 141 (face font-lock-keyword-face fontified t) 141 156 (fontified t) 156 161 (face font-lock-keyword-face fontified t) 161 187 (fontified t) 187 212 (face font-lock-string-face fontified t) 212 236 (fontified t) 236 239 (face font-lock-comment-delimiter-face fontified t) 239 280 (face font-lock-comment-face fontified t) 280 334 (fontified t) 334 355 (face font-lock-string-face fontified t) 355 370 (fontified t) 370 375 (face font-lock-warning-face fontified t) 375 416 (fontified t) 416 449 (face font-lock-string-face fontified t) 449 467 (fontified t) 467 480 (face font-lock-keyword-face fontified t) 480 510 (fontified t) 510 596 (face font-lock-string-face fontified t) 596 643 (fontified t) 643 656 (face font-lock-keyword-face fontified t) 656 668 (fontified t) 668 675 (fontified t) 675 688 (face font-lock-keyword-face fontified t) 688 723 (fontified t) 723 724 (fontified t) 724 725 (fontified t) 725 730 (face font-lock-keyword-face fontified t) 730 731 (fontified t) 731 737 (face font-lock-function-name-face fontified t) 737 755 (fontified t) 755 762 (face font-lock-keyword-face fontified t) 762 781 (fontified t) 781 784 (face font-lock-keyword-face fontified t) 784 822 (fontified t) 822 841 (face font-lock-comment-face fontified t) 841 846 (fontified t) 846 860 (face font-lock-keyword-face fontified t) 860 871 (fontified t) 871 883 (face font-lock-keyword-face fontified t) 883 898 (fontified t) 898 903 (face font-lock-keyword-face fontified t) 903 929 (fontified t) 929 954 (face font-lock-string-face fontified t) 954 978 (fontified t) 978 981 (face font-lock-comment-delimiter-face fontified t) 981 1022 (face font-lock-comment-face fontified t) 1022 1038 (fontified t) 1038 1041 (face font-lock-keyword-face fontified t) 1041 1049 (fontified t) 1049 1116 (face font-lock-string-face fontified t) 1116 1145 (fontified t) 1145 1149 (face font-lock-string-face fontified t) 1149 1291 (fontified t) 1291 1312 (face font-lock-string-face fontified t) 1312 1327 (fontified t) 1327 1332 (face font-lock-warning-face fontified t) 1332 1373 (fontified t) 1373 1406 (face font-lock-string-face fontified t) 1406 1424 (fontified t) 1424 1437 (face font-lock-keyword-face fontified t) 1437 1467 (fontified t) 1467 1553 (face font-lock-string-face fontified t) 1553 1599 (fontified t) 1599 1602 (face font-lock-comment-delimiter-face fontified t) 1602 1646 (face font-lock-comment-face fontified t) 1646 1653 (fontified t) 1653 1666 (face font-lock-keyword-face fontified t) 1666 1699 (fontified t) 1699 1709 (face font-lock-builtin-face fontified t) 1709 1710 (fontified t) 1710 1717 (face font-lock-builtin-face fontified t) 1717 1720 (fontified t) 1720 1740 (face font-lock-comment-face fontified t) 1740 1747 (fontified t) 1747 1760 (face font-lock-keyword-face fontified t) 1760 1778 (fontified t) 1778 1821 (face font-lock-comment-face fontified t) 1821 1827 (fontified t) 1827 1830 (face font-lock-comment-delimiter-face fontified t) 1830 1873 (face font-lock-comment-face fontified t) 1873 1881 (fontified t) 1881 1882 (rear-nonsticky t fontified t) 1882 1883 (fontified t)) . 382) (undo-tree-id206 . -1883) (undo-tree-id207 . -1557) (undo-tree-id208 . -667) (undo-tree-id209 . -722) (undo-tree-id210 . -1117) (undo-tree-id211 . -1556) (undo-tree-id212 . -724) (undo-tree-id213 . -1883)) nil (26791 20355 924882 0) 0 nil])
+nil

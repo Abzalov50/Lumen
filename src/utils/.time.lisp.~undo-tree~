@@ -1,0 +1,12 @@
+(undo-tree-save-format-version . 1)
+"aa799448f04a19445c51c312627ee6e6469513a5"
+[nil nil nil nil (26819 59834 232373 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 398 . 399) (nil fontified nil 1 . 399) (1 . 399) (t . -1)) nil (26819 59834 232372 0) 0 nil])
+([nil nil ((399 . 401)) nil (26819 59834 232371 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2243 . 2244) (nil fontified nil 401 . 2244) (401 . 2244)) nil (26819 59834 232370 0) 0 nil])
+([nil nil ((38 . 44)) nil (26819 59834 232369 0) 0 nil])
+([nil nil ((#(";" 0 1 (face font-lock-comment-face fontified t)) . -43) (undo-tree-id1 . -1) 44) nil (26819 59834 232368 0) 0 nil])
+([nil nil ((43 . 44)) nil (26819 59834 232365 0) 0 nil])
+([nil nil ((#(":lumen.time" 0 11 (face font-lock-builtin-face fontified t)) . -419) (undo-tree-id0 . -11) 430) nil (26819 59834 232363 0) 0 nil])
+([nil current ((nil rear-nonsticky nil 435 . 436) (nil fontified nil 432 . 436) (nil fontified nil 419 . 432) (419 . 436)) nil (26819 59834 232334 0) 0 nil])
+nil

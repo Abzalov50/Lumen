@@ -1,0 +1,218 @@
+(undo-tree-save-format-version . 1)
+"4b045b53ef95b87014e48bce490b198c151f83a3"
+[nil nil nil nil (26802 47807 667904 0) 0 nil]
+([nil nil ((nil rear-nonsticky nil 1848 . 1849) (nil fontified nil 1 . 1849) (1 . 1849) (t . -1)) nil (26802 47807 667903 0) 0 nil])
+([nil nil ((#("user" 0 4 (face font-lock-builtin-face fontified t)) . -52) (undo-tree-id3 . -4) 56) nil (26802 47807 667902 0) 0 nil])
+([nil nil ((#("-" 0 1 (face font-lock-builtin-face fontified t)) . -51) (undo-tree-id1 . -1) (undo-tree-id2 . -1) 52) nil (26802 47807 667901 0) 0 nil])
+([nil nil ((#(";;;; lumen/data/prepare-cache.lisp
+" 0 5 (face font-lock-comment-delimiter-face fontified t) 5 35 (face font-lock-comment-face fontified t)) . -1) (undo-tree-id0 . -35) 36) nil (26802 47807 667898 0) 0 nil])
+([nil nil ((17 . 18)) nil (26802 47807 667886 0) 0 nil])
+([nil nil ((173 . 174)) nil (26802 47807 667882 0) 0 nil])
+([nil nil ((#("p" 0 1 (face slime-reader-conditional-face fontified t)) . -1445) (undo-tree-id12 . -1) (undo-tree-id13 . -1) 1446 (t 26802 47807 0 0)) nil (26802 48026 514658 0) 0 nil])
+([nil nil ((1445 . 1446)) nil (26802 48026 514656 0) 0 nil])
+([nil nil ((#("p" 0 1 (face slime-reader-conditional-face fontified t)) . 1477)) nil (26802 48026 514656 0) 0 nil])
+([nil nil ((1477 . 1478)) nil (26802 48026 514655 0) 0 nil])
+([nil nil ((1419 . 1429)) nil (26802 48026 514655 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1470 . 1471) (nil fontified nil 1449 . 1471) (nil fontified nil 1429 . 1449) (1429 . 1471)) nil (26802 48026 514655 0) 0 nil])
+([nil nil ((1471 . 1481)) nil (26802 48026 514654 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1522 . 1523) (nil fontified nil 1501 . 1523) (nil fontified nil 1481 . 1501) (1481 . 1523)) nil (26802 48026 514653 0) 0 nil])
+([nil nil ((#("s" 0 1 (face slime-reader-conditional-face fontified t)) . -1436) (undo-tree-id10 . -1) (undo-tree-id11 . -1) 1437) nil (26802 48026 514653 0) 0 nil])
+([nil nil ((#("s" 0 1 (face slime-reader-conditional-face fontified t)) . -1467) (undo-tree-id8 . -1) (undo-tree-id9 . -1) 1468) nil (26802 48026 514651 0) 0 nil])
+([nil nil ((#("a" 0 1 (face slime-reader-conditional-face fontified t)) . -1547) (undo-tree-id7 . -1) 1548) nil (26802 48026 514649 0) 0 nil])
+([nil nil ((1547 . 1548)) nil (26802 48026 514647 0) 0 nil])
+([nil nil ((#("a" 0 1 (face slime-reader-conditional-face fontified t)) . -1579) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) 1580) nil (26802 48026 514646 0) 0 nil])
+([nil nil ((1579 . 1580)) nil (26802 48026 514631 0) 0 nil])
+([nil nil ((63 . 66) (t 26802 48026 0 0)) nil (26802 48424 477989 0) 0 nil])
+([nil nil ((66 . 77)) nil (26802 48424 477988 0) 0 nil])
+([nil nil ((67 . 79) (#(":import-fr" 0 10 (face font-lock-builtin-face fontified t)) . -67) (undo-tree-id15 . -10) 77) nil (26802 48424 477987 0) 0 nil])
+([nil nil ((79 . 80)) nil (26802 48424 477985 0) 0 nil])
+([nil nil ((80 . 86)) nil (26802 48424 477984 0) 0 nil])
+([nil nil ((80 . 91) (#(":postm" 0 6 (face font-lock-builtin-face fontified t)) . -80) (undo-tree-id14 . -6) 86) nil (26802 48424 477983 0) 0 nil])
+([nil nil ((91 . 92)) nil (26802 48424 477972 0) 0 nil])
+([nil nil ((92 . 101)) nil (26802 48424 477969 0) 0 nil])
+([nil nil ((#("(defpackage :lumen.data.prepare
+  (:use :cl)
+  (:import-from :postmodern :prepare)
+  (:export :*prepare-cache-size* :*prepare-cache-ttl-ms*
+           :get-prepared-plan :reset-prepare-cache))
+
+(in-package :lumen.data.prepare)
+
+(defparameter *prepare-cache-size* 512)
+(defparameter *prepare-cache-ttl-ms* nil)
+
+(defstruct (%prepared-plan (:constructor %make-prepared-plan
+                           (sql format handle created-at-ms)))
+  sql format handle created-at-ms)
+
+(defvar *cache* (make-hash-table :test 'equal))
+(defvar *cache-lock* (bt:make-lock \"prepare-cache-lock\"))
+
+(defun reset-prepare-cache ()
+  (bt:with-lock-held (*cache-lock*) (clrhash *cache*)) t)
+
+(defun %now-ms ()
+  (round (* 1000.0 (/ (get-internal-real-time) internal-time-units-per-second))))
+
+(defun get-prepared-plan (sql &key (format :raw))
+  \"Retourne une FONCTION préparée pour SQL.
+FORMAT = :raw (résultat driver) | :plists (rows→alists :keywords).
+Cache clé = (sql, format).\"
+  (let ((key (list sql format)))
+    (bt:with-lock-held (*cache-lock*)
+      (let ((entry (gethash key *cache*)))
+        (when (and entry *prepare-cache-ttl-ms*
+                   (> (- (%now-ms) (%prepared-plan-created-at-ms entry))
+                      *prepare-cache-ttl-ms*))
+          (setf entry nil) (remhash key *cache*))
+        (or (and entry (%prepared-plan-handle entry))
+            (let* ((handle
+                     #+postmodern
+                     (ecase format
+		       (:alist (postmodern:prepare sql :alist))
+		       (:alists (postmodern:prepare sql :alists))
+                       (:plists (postmodern:prepare sql :plists))
+                       (:raw    (postmodern:prepare sql)))
+                     #-postmodern
+                     (lambda (&rest _params) (declare (ignore _params)) '())))
+              (setf entry (%make-prepared-plan sql format handle (%now-ms)))
+              (setf (gethash key *cache*) entry)
+              handle))))))
+" 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 31 (face font-lock-type-face fontified t) 31 32 (fontified t) 32 35 (fontified t) 35 39 (face font-lock-builtin-face fontified t) 39 40 (fontified t) 40 43 (face font-lock-builtin-face fontified t) 43 45 (fontified t) 45 48 (fontified t) 48 60 (face font-lock-builtin-face fontified t) 60 61 (fontified t) 61 72 (face font-lock-builtin-face fontified t) 72 73 (fontified t) 73 81 (face font-lock-builtin-face fontified t) 81 82 (fontified t) 82 83 (fontified t) 83 86 (fontified t) 86 93 (face font-lock-builtin-face fontified t) 93 94 (fontified t) 94 115 (face font-lock-builtin-face fontified t) 115 116 (fontified t) 116 139 (face font-lock-builtin-face fontified t) 139 140 (fontified t) 140 151 (fontified t) 151 169 (face font-lock-builtin-face fontified t) 169 170 (fontified t) 170 190 (face font-lock-builtin-face fontified t) 190 194 (fontified t) 194 195 (fontified t) 195 205 (face font-lock-keyword-face fontified t) 205 206 (fontified t) 206 225 (face font-lock-builtin-face fontified t) 225 229 (fontified t) 229 241 (face font-lock-keyword-face fontified t) 241 242 (fontified t) 242 262 (face font-lock-variable-name-face fontified t) 262 269 (fontified t) 269 281 (face font-lock-keyword-face fontified t) 281 282 (fontified t) 282 304 (face font-lock-variable-name-face fontified t) 304 312 (fontified t) 312 321 (face font-lock-keyword-face fontified t) 321 323 (fontified t) 323 337 (face font-lock-type-face fontified t) 337 339 (fontified t) 339 351 (face font-lock-builtin-face fontified t) 351 472 (fontified t) 472 478 (face font-lock-keyword-face fontified t) 478 479 (fontified t) 479 486 (face font-lock-variable-name-face fontified t) 486 504 (fontified t) 504 509 (face font-lock-builtin-face fontified t) 509 520 (fontified t) 520 526 (face font-lock-keyword-face fontified t) 526 527 (fontified t) 527 539 (face font-lock-variable-name-face fontified t) 539 554 (fontified t) 554 574 (face font-lock-string-face fontified t) 574 579 (fontified t) 579 584 (face font-lock-keyword-face fontified t) 584 585 (fontified t) 585 604 (face font-lock-function-name-face fontified t) 604 611 (fontified t) 611 628 (face font-lock-keyword-face fontified t) 628 668 (fontified t) 668 673 (face font-lock-keyword-face fontified t) 673 674 (fontified t) 674 681 (face font-lock-function-name-face fontified t) 681 768 (fontified t) 768 769 (fontified t) 769 774 (face font-lock-keyword-face fontified t) 774 775 (fontified t) 775 792 (face font-lock-function-name-face fontified t) 792 798 (fontified t) 798 802 (face font-lock-type-face fontified t) 802 811 (fontified t) 811 815 (face font-lock-builtin-face fontified t) 815 820 (fontified t) 820 956 (face font-lock-doc-face fontified t) 956 960 (fontified t) 960 963 (face font-lock-keyword-face fontified t) 963 995 (fontified t) 995 1012 (face font-lock-keyword-face fontified t) 1012 1035 (fontified t) 1035 1038 (face font-lock-keyword-face fontified t) 1038 1080 (fontified t) 1080 1084 (face font-lock-keyword-face fontified t) 1084 1356 (fontified t) 1356 1360 (face font-lock-keyword-face fontified t) 1360 1391 (fontified t) 1391 1404 (face slime-reader-conditional-face fontified t) 1404 1439 (face slime-reader-conditional-face fontified t) 1439 1448 (face slime-reader-conditional-face fontified t) 1448 1467 (face slime-reader-conditional-face fontified t) 1467 1487 (face slime-reader-conditional-face fontified t) 1487 1488 (face slime-reader-conditional-face fontified t rear-nonsticky t) 1488 1489 (face slime-reader-conditional-face fontified t) 1489 1498 (face slime-reader-conditional-face fontified t) 1498 1518 (face slime-reader-conditional-face fontified t) 1518 1539 (face slime-reader-conditional-face fontified t) 1539 1540 (face slime-reader-conditional-face fontified t rear-nonsticky t) 1540 1541 (face slime-reader-conditional-face fontified t) 1541 1583 (face slime-reader-conditional-face fontified t) 1583 1584 (face slime-reader-conditional-face fontified t) 1584 1607 (face slime-reader-conditional-face fontified t) 1607 1641 (face slime-reader-conditional-face fontified t) 1641 1665 (face slime-reader-conditional-face fontified t) 1665 1666 (fontified t) 1666 1722 (fontified t) 1722 1728 (face font-lock-keyword-face fontified t) 1728 1730 (fontified t) 1730 1735 (face font-lock-type-face fontified t) 1735 1742 (fontified t) 1742 1746 (fontified t) 1746 1753 (face font-lock-keyword-face fontified t) 1753 1779 (fontified t) 1779 1796 (fontified t) 1796 1856 (fontified t) 1856 1931 (fontified t) 1931 1932 (fontified t rear-nonsticky t)) . -19) (undo-tree-id19 . -309) 1951 (t 26802 48424 0 0)) nil (26802 54107 622637 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2414 . 2415) (nil fontified nil 19 . 2415) (19 . 2415)) nil (26802 54107 622635 0) 0 nil])
+([nil nil ((151 . 152)) nil (26802 54107 622634 0) 0 nil])
+([nil nil ((63 . 66)) nil (26802 54107 622634 0) 0 nil])
+([nil nil ((nil fontified nil 148 . 149) (nil fontified nil 147 . 148) (nil fontified nil 132 . 147) (nil fontified nil 131 . 132) (nil fontified nil 130 . 131) (nil fontified nil 129 . 130) (nil fontified nil 111 . 129) (nil fontified nil 110 . 111) (nil fontified nil 109 . 110) (nil fontified nil 108 . 109) (nil fontified nil 93 . 108) (nil fontified nil 92 . 93) (nil fontified nil 91 . 92) (nil fontified nil 80 . 91) (nil fontified nil 79 . 80) (nil fontified nil 67 . 79) (nil fontified nil 66 . 67) (66 . 149)) nil (26802 54107 622633 0) 0 nil])
+([nil nil ((#(":connect-toplevel" 0 1 (face font-lock-builtin-face fontified t) 1 16 (face font-lock-builtin-face fontified t) 16 17 (face font-lock-builtin-face fontified t rear-nonsticky t)) . -92) 109) nil (26802 54107 622631 0) 0 nil])
+([nil nil ((92 . 93)) nil (26802 54107 622630 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 102 . 103) (nil fontified nil 93 . 103) (93 . 103)) nil (26802 54107 622630 0) 0 nil])
+([nil nil ((#(":disconnect-toplevel :with-transaction" 0 1 (face font-lock-builtin-face fontified t) 1 19 (face font-lock-builtin-face fontified t) 19 20 (face font-lock-builtin-face fontified t rear-nonsticky t) 20 21 (fontified t) 21 22 (face font-lock-builtin-face fontified t) 22 37 (face font-lock-builtin-face fontified t) 37 38 (face font-lock-builtin-face fontified t rear-nonsticky t)) . -104) 142) nil (26802 54107 622629 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 111 . 112) (nil fontified nil 104 . 112) (104 . 112)) nil (26802 54107 622628 0) 0 nil])
+([nil nil ((#("(let* ((conn (%current-connection))
+         (key  (list sql format)))
+    (unless conn
+      (error \"Aucune connexion Postmodern active (get-prepared-plan ~S)\" sql))
+    (bt:with-lock-held (*lock*)
+      (let* ((tab (%subcache conn))
+             (pair (gethash key tab))
+             (fn   (car pair))
+             (t0   (cdr pair)))
+        (when (and fn *prepare-cache-ttl-ms*
+                   (> (- (%now-ms) (or t0 0)) *prepare-cache-ttl-ms*))
+          (setf fn nil pair nil) (remhash key tab))
+        (or fn
+            (let ((new-fn
+                    (ecase format
+                      (:alists (postmodern:prepare sql :alists))
+                      (:alist  (postmodern:prepare sql :alist))
+                      (:plists (postmodern:prepare sql :plists))
+                      (:plist  (postmodern:prepare sql :plist))
+                      (:rows   (postmodern:prepare sql :rows))
+                      (:lists  (postmodern:prepare sql :lists))
+                      (:raw    (postmodern:prepare sql)))))  ;; :raw = format par défaut Postmodern
+              (setf (gethash key tab) (cons new-fn (%now-ms)))
+              new-fn)))))" 0 1 (fontified t) 1 5 (face font-lock-keyword-face fontified t) 5 76 (fontified t) 76 82 (face font-lock-keyword-face fontified t) 82 95 (fontified t) 95 100 (face font-lock-warning-face fontified t) 100 101 (fontified t) 101 160 (face font-lock-string-face fontified t) 160 172 (fontified t) 172 189 (face font-lock-keyword-face fontified t) 189 206 (fontified t) 206 210 (face font-lock-keyword-face fontified t) 210 257 (fontified t) 257 273 (fontified t) 273 301 (fontified t) 301 304 (fontified t) 304 345 (fontified t) 345 349 (face font-lock-keyword-face fontified t) 349 390 (fontified t) 390 452 (fontified t) 452 532 (fontified t) 532 535 (face font-lock-keyword-face fontified t) 535 566 (fontified t) 566 571 (face font-lock-keyword-face fontified t) 571 602 (fontified t) 602 609 (face font-lock-builtin-face fontified t) 609 634 (fontified t) 634 641 (face font-lock-builtin-face fontified t) 641 667 (fontified t) 667 673 (face font-lock-builtin-face fontified t) 673 699 (fontified t) 699 705 (face font-lock-builtin-face fontified t) 705 731 (fontified t) 731 738 (face font-lock-builtin-face fontified t) 738 763 (fontified t) 763 770 (face font-lock-builtin-face fontified t) 770 796 (fontified t) 796 802 (face font-lock-builtin-face fontified t) 802 828 (fontified t) 828 834 (face font-lock-builtin-face fontified t) 834 860 (fontified t) 860 865 (face font-lock-builtin-face fontified t) 865 892 (fontified t) 892 897 (face font-lock-builtin-face fontified t) 897 923 (fontified t) 923 929 (face font-lock-builtin-face fontified t) 929 955 (fontified t) 955 961 (face font-lock-builtin-face fontified t) 961 987 (fontified t) 987 991 (face font-lock-builtin-face fontified t) 991 1025 (fontified t) 1025 1028 (face font-lock-comment-delimiter-face fontified t) 1028 1064 (face font-lock-comment-face fontified t) 1064 1152 (fontified t)) . -1313) (undo-tree-id18 . -1152) 2465) nil (26802 54107 622627 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2588 . 2589) (nil fontified nil 1313 . 2589) (1313 . 2589)) nil (26802 54107 622626 0) 0 nil])
+([nil nil ((#(")" 0 1 (rear-nonsticky t fontified t)) . -2588) (undo-tree-id16 . -1) (#(")" 0 1 (fontified t rear-nonsticky t)) . -2589) (undo-tree-id17 . -1) 2590) nil (26802 54107 622624 0) 0 nil])
+([nil nil ((2588 . 2589)) nil (26802 54107 622608 0) 0 nil])
+([nil nil ((1056 . 1058) (t 26802 54107 0 0)) nil (26804 18061 8160 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3010 . 3011) (nil fontified nil 1058 . 3011) (1058 . 3011)) nil (26804 18061 8160 0) 0 nil])
+([nil nil ((#("
+" 0 1 (rear-nonsticky t fontified t)) . -3010) (undo-tree-id23 . -1) 3011) nil (26804 18061 8159 0) 0 nil])
+([nil nil ((4542 . 4544)) nil (26804 18061 8158 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6533 . 6534) (nil fontified nil 4544 . 6534) (4544 . 6534)) nil (26804 18061 8158 0) 0 nil])
+([nil nil ((#("
+" 0 1 (rear-nonsticky t fontified t)) . -6533) (undo-tree-id22 . -1) 6534) nil (26804 18061 8157 0) 0 nil])
+([nil nil ((5582 . 5583)) nil (26804 18061 8156 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5603 . 5604) (nil fontified nil 5583 . 5604) (5583 . 5604)) nil (26804 18061 8155 0) 0 nil])
+([nil nil ((#("
+                    (ecase format
+                      (:alists (postmodern:prepare sql :alists))
+                      (:alist  (postmodern:prepare sql :alist))
+                      (:plists (postmodern:prepare sql :plists))
+                      (:plist  (postmodern:prepare sql :plist))
+                      (:rows   (postmodern:prepare sql :rows))
+                      (:lists  (postmodern:prepare sql :lists))
+                      (:raw    (postmodern:prepare sql :rows))   ; compat interne
+                      (:none   ;; Exécution sans résultat (INSERT/UPDATE/DELETE)
+                               ;; utilise postmodern:execute (macro) via EVAL
+                               (lambda (&rest params)
+                                 (eval (list* 'postmodern:execute sql params))))))" 0 1 (fontified t) 1 22 (fontified t) 22 27 (face font-lock-keyword-face fontified t) 27 58 (fontified t) 58 65 (face font-lock-builtin-face fontified t) 65 90 (fontified t) 90 97 (face font-lock-builtin-face fontified t) 97 123 (fontified t) 123 129 (face font-lock-builtin-face fontified t) 129 155 (fontified t) 155 161 (face font-lock-builtin-face fontified t) 161 187 (fontified t) 187 194 (face font-lock-builtin-face fontified t) 194 219 (fontified t) 219 226 (face font-lock-builtin-face fontified t) 226 252 (fontified t) 252 258 (face font-lock-builtin-face fontified t) 258 284 (fontified t) 284 290 (face font-lock-builtin-face fontified t) 290 316 (fontified t) 316 321 (face font-lock-builtin-face fontified t) 321 348 (fontified t) 348 353 (face font-lock-builtin-face fontified t) 353 379 (fontified t) 379 385 (face font-lock-builtin-face fontified t) 385 411 (fontified t) 411 417 (face font-lock-builtin-face fontified t) 417 443 (fontified t) 443 447 (face font-lock-builtin-face fontified t) 447 462 (fontified t) 462 475 (fontified t) 475 480 (face font-lock-builtin-face fontified t) 480 485 (fontified t) 485 502 (face font-lock-comment-face fontified t) 502 525 (fontified t) 525 530 (face font-lock-builtin-face fontified t) 530 533 (fontified t) 533 536 (face font-lock-comment-delimiter-face fontified t) 536 583 (face font-lock-comment-face fontified t) 583 614 (fontified t) 614 617 (face font-lock-comment-delimiter-face fontified t) 617 661 (face font-lock-comment-face fontified t) 661 693 (fontified t) 693 699 (face font-lock-keyword-face fontified t) 699 701 (fontified t) 701 706 (face font-lock-type-face fontified t) 706 797 (fontified t)) . -5604) (undo-tree-id10 . -797) (undo-tree-id11 . -797) (undo-tree-id12 . -797) (undo-tree-id13 . -797) (undo-tree-id14 . -797) (undo-tree-id15 . -797) (undo-tree-id16 . -797) (undo-tree-id17 . -797) (undo-tree-id18 . -797) (undo-tree-id19 . -715) (undo-tree-id20 . -797) (undo-tree-id21 . -797) 6401) nil (26804 18061 8154 0) 0 nil])
+([nil nil ((#(")" 0 1 (fontified t)) . 5604) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1)) nil (26804 18061 8146 0) 0 nil])
+([nil nil ((5757 . 5758)) nil (26804 18061 8139 0) 0 nil])
+([nil nil ((#(")" 0 1 (fontified t)) . -5757) (undo-tree-id0 . -1) (undo-tree-id1 . -1) 5758) nil (26804 18061 8136 0) 0 nil])
+([nil nil ((#("
+(defun get-prepared-plan (sql &key (format :alists))
+  \"Retourne une FONCTION préparée pour SQL au FORMAT (par défaut :ALISTS).
+FORMAT accepté côté Postmodern : :rows :lists :alists :alist :plist :plists.
+Cache par connexion (clé = (conn sql format)).\"
+  (let* ((conn (%current-connection))
+         (key  (list sql format)))
+    (unless conn
+      (error \"Aucune connexion Postmodern active (get-prepared-plan ~S)\" sql))
+    (bt:with-lock-held (*lock*)
+      (let* ((tab (%subcache conn))
+             (pair (gethash key tab))
+             (fn   (car pair))
+             (t0   (cdr pair)))
+        (when (and fn *prepare-cache-ttl-ms*
+                   (> (- (%now-ms) (or t0 0)) *prepare-cache-ttl-ms*))
+          (setf fn nil pair nil) (remhash key tab))
+        (if fn
+            (progn
+              (lumen.data.metrics:incr-prepare-cache-hit sql)
+              fn)
+            (let ((new-fn
+                    (ecase format
+                      (:alists (postmodern:prepare sql :alists))
+                      (:alist  (postmodern:prepare sql :alist))
+                      (:plists (postmodern:prepare sql :plists))
+                      (:plist  (postmodern:prepare sql :plist))
+                      (:rows   (postmodern:prepare sql :rows))
+                      (:lists  (postmodern:prepare sql :lists))
+                      (:raw    (postmodern:prepare sql)))))
+              (setf (gethash key tab) (cons new-fn (%now-ms)))
+              (lumen.data.metrics:incr-prepare-cache-miss sql)
+              new-fn))))))" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 25 (face font-lock-function-name-face fontified t) 25 31 (fontified t) 31 35 (face font-lock-type-face fontified t) 35 44 (fontified t) 44 51 (face font-lock-builtin-face fontified t) 51 56 (fontified t) 56 253 (face font-lock-doc-face fontified t) 253 257 (fontified t) 257 261 (face font-lock-keyword-face fontified t) 261 332 (fontified t) 332 338 (face font-lock-keyword-face fontified t) 338 351 (fontified t) 351 356 (face font-lock-warning-face fontified t) 356 357 (fontified t) 357 416 (face font-lock-string-face fontified t) 416 428 (fontified t) 428 444 (face font-lock-keyword-face fontified t) 444 445 (face font-lock-keyword-face fontified t) 445 455 (fontified t) 455 462 (fontified t) 462 466 (face font-lock-keyword-face fontified t) 466 601 (fontified t) 601 605 (face font-lock-keyword-face fontified t) 605 769 (fontified t) 769 771 (face font-lock-keyword-face fontified t) 771 788 (fontified t) 788 793 (face font-lock-keyword-face fontified t) 793 887 (fontified t) 887 890 (face font-lock-keyword-face fontified t) 890 921 (fontified t) 921 926 (face font-lock-keyword-face fontified t) 926 957 (fontified t) 957 964 (face font-lock-builtin-face fontified t) 964 989 (fontified t) 989 996 (face font-lock-builtin-face fontified t) 996 1022 (fontified t) 1022 1028 (face font-lock-builtin-face fontified t) 1028 1054 (fontified t) 1054 1060 (face font-lock-builtin-face fontified t) 1060 1086 (fontified t) 1086 1093 (face font-lock-builtin-face fontified t) 1093 1118 (fontified t) 1118 1125 (face font-lock-builtin-face fontified t) 1125 1151 (fontified t) 1151 1157 (face font-lock-builtin-face fontified t) 1157 1183 (fontified t) 1183 1189 (face font-lock-builtin-face fontified t) 1189 1215 (fontified t) 1215 1220 (face font-lock-builtin-face fontified t) 1220 1247 (fontified t) 1247 1252 (face font-lock-builtin-face fontified t) 1252 1278 (fontified t) 1278 1284 (face font-lock-builtin-face fontified t) 1284 1310 (fontified t) 1310 1316 (face font-lock-builtin-face fontified t) 1316 1342 (fontified t) 1342 1346 (face font-lock-builtin-face fontified t) 1346 1499 (fontified t) 1499 1500 (fontified t) 1500 1505 (fontified t) 1505 1531 (fontified t)) . 3011) (undo-tree-id24 . -1531) (undo-tree-id25 . -455) (t 26804 18061 0 0)) nil (26804 36541 713019 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 3011)) nil (26804 36541 713004 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5101 . 5102) (nil fontified nil 3011 . 5102) (3011 . 5102) (t 26804 36541 0 0)) nil (26804 37469 60739 0) 0 nil])
+([nil current ((#("
+(defun %mk-fn (sql format)
+  \"Construit une fonction à appeler (lambda (&rest params) ...) pour SQL/FORMAT.
+- :alist   → une ligne (aliste) ou NIL
+- :alists  → liste d'alistes
+- :row     → une ligne (liste de valeurs)
+- :rows    → liste de lignes (liste de listes)
+- :single  → une valeur scalaire (ex: COUNT(*))
+- :none    → exécution sans résultat (INSERT/UPDATE/DELETE), renvoie n lignes affectées
+- :raw     → équivalent :rows (utilisé par compat interne)\"
+  (ecase format
+    (:alist
+     #+postmodern (postmodern:prepare sql :alist)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) nil))
+    (:alists
+     #+postmodern (postmodern:prepare sql :alists)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) nil))
+    (:row
+     #+postmodern (postmodern:prepare sql :row)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) nil))
+    (:rows
+     #+postmodern (postmodern:prepare sql :rows)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) nil))
+    (:single
+     #+postmodern (postmodern:prepare sql :single)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) nil))
+    (:raw
+     ;; Compat: on route vers :rows (appels existants qui consomment juste un entier)
+     #+postmodern (postmodern:prepare sql :rows)
+     #-postmodern (lambda (&rest _) (declare (ignore _)) 0))
+    (:none
+     ;; Exécution sans résultat (UPDATE/INSERT/DELETE), retourne n (rows affected).
+     ;; Postmodern expose `execute` comme macro ; on l'invoque via EVAL ici.
+     (lambda (&rest params)
+       #+postmodern
+       (eval (list* 'postmodern:execute sql params))
+       #-postmodern
+       0))))" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 14 (face font-lock-function-name-face fontified t) 14 30 (fontified t) 30 461 (face font-lock-doc-face fontified t) 461 465 (fontified t) 465 470 (face font-lock-keyword-face fontified t) 470 483 (fontified t) 483 489 (face font-lock-builtin-face fontified t) 489 532 (fontified t) 532 538 (face font-lock-builtin-face fontified t) 538 545 (fontified t) 545 601 (face slime-reader-conditional-face fontified t) 601 608 (fontified t) 608 615 (face font-lock-builtin-face fontified t) 615 658 (fontified t) 658 665 (face font-lock-builtin-face fontified t) 665 672 (fontified t) 672 728 (face slime-reader-conditional-face fontified t) 728 735 (fontified t) 735 739 (face font-lock-builtin-face fontified t) 739 782 (fontified t) 782 786 (face font-lock-builtin-face fontified t) 786 793 (fontified t) 793 849 (face slime-reader-conditional-face fontified t) 849 856 (fontified t) 856 861 (face font-lock-builtin-face fontified t) 861 904 (fontified t) 904 909 (face font-lock-builtin-face fontified t) 909 916 (fontified t) 916 972 (face slime-reader-conditional-face fontified t) 972 979 (fontified t) 979 986 (face font-lock-builtin-face fontified t) 986 1029 (fontified t) 1029 1036 (face font-lock-builtin-face fontified t) 1036 1043 (fontified t) 1043 1099 (face slime-reader-conditional-face fontified t) 1099 1106 (fontified t) 1106 1110 (face font-lock-builtin-face fontified t) 1110 1116 (fontified t) 1116 1119 (face font-lock-comment-delimiter-face fontified t) 1119 1160 (face font-lock-comment-face fontified t) 1160 1197 (face font-lock-comment-face fontified t) 1197 1239 (fontified t) 1239 1244 (face font-lock-builtin-face fontified t) 1244 1251 (fontified t) 1251 1305 (face slime-reader-conditional-face fontified t) 1305 1312 (fontified t) 1312 1317 (face font-lock-builtin-face fontified t) 1317 1323 (fontified t) 1323 1326 (face font-lock-comment-delimiter-face fontified t) 1326 1402 (face font-lock-comment-face fontified t) 1402 1407 (fontified t) 1407 1410 (face font-lock-comment-delimiter-face fontified t) 1410 1479 (face font-lock-comment-face fontified t) 1479 1485 (fontified t) 1485 1491 (face font-lock-keyword-face fontified t) 1491 1493 (fontified t) 1493 1498 (face font-lock-type-face fontified t) 1498 1587 (fontified t) 1587 1600 (face slime-reader-conditional-face fontified t) 1600 1608 (face slime-reader-conditional-face fontified t) 1608 1612 (fontified t)) . 1398) (undo-tree-id26 . -1612) (undo-tree-id27 . -1527) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) (undo-tree-id31 . -1600) (undo-tree-id32 . -1600) (undo-tree-id33 . -1600) (undo-tree-id34 . -1600) (undo-tree-id35 . -1600) (undo-tree-id36 . -1612) (undo-tree-id37 . -1612) (undo-tree-id38 . -1612) (undo-tree-id39 . -1) (undo-tree-id40 . -1612) (undo-tree-id41 . -1612)) nil (26804 37469 60732 0) 0 nil])
+nil
