@@ -5,19 +5,25 @@
   (:import-from :lumen.utils :%trim :url-decode-qs)
   (:import-from :lumen.core.mime :guess-content-type)
   (:import-from :lumen.core.http :respond-json :response :ctx-get :ctx-set! :req-body-stream)
-  (:export :body-parser :parse-urlencoded :parse-multipart :json-get))
+  (:export :parse-urlencoded :parse-multipart :json-get :parse-json 
+	   :read-exact-bytes :bytes->string-utf8 :string->bytes-utf8))
 
 (in-package :lumen.core.body)
 
-(defun read-stream-to-string (stream length)
-  (let* ((buf (make-string length)))
-    (read-sequence buf stream)
-    buf))
-
+#|
 (defun read-exact-bytes (stream len)
   (let ((buf (make-array len :element-type '(unsigned-byte 8))))
     (let ((n (read-sequence buf stream)))
       (if (= n len) buf (subseq buf 0 n)))))
+|#
+
+(defun read-exact-bytes (stream n &key limit)
+  "Lit exactement N octets. Si N > LIMIT, erreur."
+  (when (and limit (> n limit))
+    (error "Body too large (actual read attempt)"))
+  (let ((buf (make-array n :element-type '(unsigned-byte 8))))
+    (read-sequence buf stream)
+    buf))
 
 (defun bytes->string-utf8 (octets)
   (trivial-utf-8:utf-8-bytes-to-string octets))
@@ -49,32 +55,22 @@
        (getf obj key))
       (t nil))))
 
-(defun parse-json (stream length)
+(defun parse-json (stream length &key limit)
   (when (and stream length (> length 0))
-    (let* ((octets (read-exact-bytes stream length))
-           (txt    (trivial-utf-8:utf-8-bytes-to-string octets)))
-      ;;(print txt)
-      ;;(error "OKK")
+    ;; 1. Lecture sécurisée des octets
+    (let* ((octets (handler-case 
+                       (read-exact-bytes stream length :limit limit)
+                     (error (e) 
+                       (declare (ignore e))
+                       (return-from parse-json nil)))) ;; ou signal erreur spécifique
+           (txt (trivial-utf-8:utf-8-bytes-to-string octets)))
+      
+      ;; 2. Parsing JSON
       (handler-case
           (cl-json:decode-json-from-string txt)
         (error (e)
-          (format *error-output* "~&[json] decode error: ~A, raw=~A~%" e txt)
+          (format *error-output* "~&[json] decode error: ~A~%" e)
           nil)))))
-
-(defun body-parser (next)
-  (lambda (req)
-    (unless (lumen.core.http:ctx-get req :body-consumed)
-      (let* ((headers (lumen.core.http:req-headers req))
-             (ct  (cdr (assoc "content-type"   headers :test #'string-equal)))
-             (len (cdr (assoc "content-length" headers :test #'string-equal)))
-             (len* (when len (parse-integer len :junk-allowed t))))
-        (when (and ct len* (> len* 0)
-                   (search "application/json" (string-downcase ct)))
-          (let ((val (parse-json (lumen.core.http:req-body-stream req) len*)))
-	    ;;(error "OK")
-            (lumen.core.http:ctx-set! req :json val)
-            (lumen.core.http:ctx-set! req :body-consumed t)))))
-    (funcall next req)))
 
 ;;; ---------- x-www-form-urlencoded ------------------------------------------
 (defun parse-urlencoded-string (s)
@@ -188,12 +184,12 @@
           ""))))
 
 ;; -- Parser multipart en octets ----------------------------------------------
-(defun parse-multipart (stream length content-type)
+(defun parse-multipart (stream length content-type &key limit)
   "Parse multipart/form-data (en mémoire). Retourne plist :fields (alist) / :files (list d’alists)."
   (let* ((boundary (%find-boundary content-type)))
     (when (null boundary) (return-from parse-multipart nil))
     
-    (let* ((raw (read-exact-bytes stream length))
+    (let* ((raw (read-exact-bytes stream length :limit limit))
            (sep-bytes (%ascii-bytes (format nil "--~a" boundary)))
            (pos 0)
            parts)

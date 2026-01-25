@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"a374ee17589181f97116dc4fbf6703c623754c47"
+"1a198dadd4632a3d1f09315883e8fdd94ec9d724"
 [nil nil nil nil (26802 47807 742968 0) 0 nil]
 ([nil nil ((1 . 6) (t . -1)) nil (26802 47807 742967 0) 0 nil])
 ([nil nil ((2 . 12) (#("in-p" 0 4 (fontified t)) . -2) (undo-tree-id12 . -4) 6) nil (26802 47807 742966 0) 0 nil])
@@ -47,5 +47,8 @@
 ([nil nil ((#("data" 0 4 (fontified t)) . -4966) (undo-tree-id5 . -4) 4970) nil (26974 15377 920512 0) 0 nil])
 ([nil nil ((4966 . 4969)) nil (26974 15377 920511 0) 0 nil])
 ([nil nil ((4955 . 4976) (#("lumen.core.con" 0 14 (fontified t)) . -4955) (undo-tree-id3 . -11) (undo-tree-id4 . -14) 4969) nil (26974 15377 920509 0) 0 nil])
-([nil current ((#("c" 0 1 (fontified t)) . -4973) (undo-tree-id0 . -1) (#("f" 0 1 (fontified t)) . -4974) (undo-tree-id1 . -1) (#("g" 0 1 (fontified t)) . -4975) (undo-tree-id2 . -1) 4976) nil (26974 15377 920505 0) 0 nil])
+([nil nil ((#("c" 0 1 (fontified t)) . -4973) (undo-tree-id0 . -1) (#("f" 0 1 (fontified t)) . -4974) (undo-tree-id1 . -1) (#("g" 0 1 (fontified t)) . -4975) (undo-tree-id2 . -1) 4976) nil (26974 15377 920505 0) 0 nil])
+([nil current ((#("
+  (print \"IN DB-CONFIG\")
+  (print lumen.core.config::*cfg-file*)" 0 10 (fontified t) 10 24 (face font-lock-string-face fontified t) 24 65 (fontified t)) . 4920) (undo-tree-id0 . -65) (t 26993 53276 0 0)) nil (26995 19549 905327 0) 0 nil])
 nil

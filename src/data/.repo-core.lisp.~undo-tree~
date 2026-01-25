@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"76bdda19d06cbfd708e35ba1a6b2bc798be74b2e"
+"585feaa399bf31567643fdf23a4ea42c084c5835"
 [nil nil nil nil (26806 46357 496849 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 9310 . 9311) (nil fontified nil 1 . 9311) (1 . 9311) (t . -1)) nil (26806 46357 496848 0) 0 nil])
 ([nil nil ((47 . 51)) nil (26806 46357 496847 0) 0 nil])
@@ -3708,5 +3708,122 @@ nil
 ([nil nil ((nil rear-nonsticky nil 17908 . 17909) (nil fontified nil 17886 . 17909) (17886 . 17909) (t 26991 14472 0 0)) nil (26991 14602 853270 0) 0 nil])
 ([nil nil ((17909 . 17910)) nil (26991 14602 853269 0) 0 nil])
 ([nil nil ((#("result" 0 6 (fontified t)) . -17901) (undo-tree-id163 . -6) (undo-tree-id164 . -4) (undo-tree-id165 . -4) (undo-tree-id166 . -4) (undo-tree-id167 . -4) (undo-tree-id168 . -4) (undo-tree-id169 . -6) (undo-tree-id170 . -6) (undo-tree-id171 . -6) (undo-tree-id172 . -6) (undo-tree-id173 . -6) (undo-tree-id174 . -6) (undo-tree-id175 . -6) (undo-tree-id176 . -6) 17907) nil (26991 14602 853268 0) 0 nil])
-([nil current ((17901 . 17905)) nil (26991 14602 853247 0) 0 nil])
+([nil nil ((17901 . 17905)) nil (26991 14602 853247 0) 0 nil])
+([nil nil ((#("
+
+#|
+(defmethod repo-persist ((op (eql :patch)) (entity symbol) ctx &key id payload)
+  (let* ((cur (repo-show entity ctx id)))
+    (unless cur (error 'lumen.data.errors:not-found-error))
+    (let* ((payload* (%ensure-tenant-on-payload entity ctx payload :op :patch))
+           (ent      (row->entity entity cur)))
+      ;; appliquer le patch (hors tenant col)
+      (dolist (kv payload*)
+        (let* ((col (%norm-col-name (car kv)))
+               (val  (cdr kv))
+               (slot (entity-slot-symbol entity col)))
+          (when slot (setf (slot-value ent slot) val))))
+      (validate-entity! ent)
+        (multiple-value-bind (_n ent2) (entity-update! ent :patch t :returning t)
+          (declare (ignore _n))
+          (entity->row-alist ent2)))))
+|#" 0 2 (fontified t) 2 4 (face font-lock-comment-delimiter-face fontified t) 4 436 (face font-lock-comment-face fontified t) 436 761 (face font-lock-comment-face fontified t) 761 763 (face font-lock-comment-delimiter-face fontified t)) . 20369) (undo-tree-id2 . -763) (t 26993 53276 0 0)) nil (26996 45497 279298 0) 0 nil])
+([nil nil ((#("
+#|
+(defmethod repo-show ((entity symbol) ctx id)
+  (format t \"~&[Lumen] In REPO SHOW (~A)~%\" entity)
+  (let* ((md   (entity-metadata entity))
+         (tbl  (getf md :table))
+         (pk   (or (getf md :primary-key) :id))
+         (base (list '= pk id))
+         (tid  (getf ctx :tenant-id))
+         (tcol (%entity-tenant-col entity md))
+         (filters (if (and tcol tid)
+                      (list 'and base (list '= tcol tid))
+                      base)))
+    (lumen.data.db:ensure-connection
+      (let ((rows (select* tbl :filters filters :limit 1)))
+	
+        (and rows (first rows))))))
+|#" 0 1 (face font-lock-comment-face fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 466 (face font-lock-comment-face fontified t) 466 601 (face font-lock-comment-face fontified t) 601 603 (face font-lock-comment-delimiter-face fontified t)) . 18235) (undo-tree-id1 . -603)) nil (26996 45497 279296 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . 18235)) nil (26996 45497 279294 0) 0 nil])
+([nil nil ((#("#|
+(defmethod repo-index ((entity symbol) ctx
+                       &key filters order select page page-size limit offset
+                         after before key)
+  (format t \"~&[Lumen] In REPO INDEX (~A)~%\" entity)
+  (let* ((md      (entity-metadata entity))
+         (table   (getf md :table))
+         (allowed (entity-allowed-cols entity :include-pk? t :include-tenant? t))
+         (tid     (getf ctx :tenant-id))
+         (tcol    (%entity-tenant-col entity md))
+         (filters* (%maybe-add-tenant-filter filters tcol tid)))
+    (lumen.data.db:ensure-connection
+      (cond
+        ((or after before)
+         (select-page-keyset* table
+                              :filters filters*
+                              :order   order
+                              :key     key
+                              :after   after
+                              :limit   (or limit 20)
+                              :order-whitelist allowed))
+        (t
+         (select* table
+                  :filters filters*
+                  :order   order
+                  :select  (or select :*)
+                  :limit   (or (and page-size (* 1 page-size)) limit 20)
+                  :offset  (or offset (and page page-size (* (max 0 (1- page)) page-size)))
+                  :order-whitelist allowed))))))
+|#" 0 2 (face font-lock-comment-delimiter-face fontified t) 2 382 (face font-lock-comment-face fontified t) 382 422 (face font-lock-comment-face fontified t) 422 586 (face font-lock-comment-face fontified t) 586 1300 (face font-lock-comment-face fontified t) 1300 1302 (face font-lock-comment-delimiter-face fontified t)) . 14855) (undo-tree-id0 . -1302)) nil (26996 45497 279292 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 14855) (#("
+" 0 1 (fontified t)) . 14855)) nil (26996 45497 279276 0) 0 nil])
+([nil nil ((#("
+
+(defun %entity-tenant-col (entity &optional md)
+  \"Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields.\"
+  (let* ((md     (or md (entity-metadata entity)))
+         (fields (getf md :fields))
+         (decl   (getf md :tenant-id-col)))
+    (labels ((has-col-p (kw)
+               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
+      (cond
+        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
+        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
+        (t nil)))))   " 0 2 (fontified t) 2 3 (fontified t) 3 8 (face font-lock-keyword-face fontified t) 8 9 (fontified t) 9 27 (face font-lock-function-name-face fontified t) 27 36 (fontified t) 36 45 (face font-lock-type-face fontified t) 45 52 (fontified t) 52 148 (face font-lock-doc-face fontified t) 148 152 (fontified t) 152 156 (face font-lock-keyword-face fontified t) 156 226 (fontified t) 226 233 (face font-lock-builtin-face fontified t) 233 262 (fontified t) 262 276 (face font-lock-builtin-face fontified t) 276 285 (fontified t) 285 291 (face font-lock-keyword-face fontified t) 291 339 (fontified t) 339 345 (face font-lock-keyword-face fontified t) 345 362 (fontified t) 362 366 (face font-lock-builtin-face fontified t) 366 391 (fontified t) 391 395 (face font-lock-keyword-face fontified t) 395 448 (fontified t) 448 493 (face font-lock-comment-face fontified t) 493 513 (fontified t) 513 523 (face font-lock-builtin-face fontified t) 523 525 (fontified t) 525 535 (face font-lock-builtin-face fontified t) 535 545 (fontified t) 545 588 (face font-lock-comment-face fontified t) 588 610 (fontified t)) . 6621) (undo-tree-id38 . -2) (undo-tree-id39 . -27) (undo-tree-id40 . -27) (undo-tree-id41 . -27) (undo-tree-id42 . -27) (undo-tree-id43 . -27) (undo-tree-id44 . -27) (undo-tree-id45 . -27) (undo-tree-id46 . -27) (undo-tree-id47 . -610) (undo-tree-id48 . -149) (undo-tree-id49 . -27) (undo-tree-id50 . -27) (undo-tree-id51 . -27) (undo-tree-id52 . -27) (undo-tree-id53 . -27) (undo-tree-id54 . -27) (undo-tree-id55 . -27) (undo-tree-id56 . -610) (undo-tree-id57 . -610) (undo-tree-id58 . -610) (undo-tree-id59 . -610) (undo-tree-id60 . -610) (t 26996 45497 0 0)) nil (26996 64942 52895 0) 0 nil])
+([nil nil ((#("(defun %entity-tenant-col (entity &optional md)
+  \"Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields.\"
+  (let* ((md     (or md (entity-metadata entity)))
+         (fields (getf md :fields))
+         (decl   (getf md :tenant-id-col)))
+    (labels ((has-col-p (kw)
+               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
+      (cond
+        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
+        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
+        (t nil)))))                                   ; sinon pas de colonne tenant" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 25 (face font-lock-function-name-face fontified t) 25 34 (fontified t) 34 43 (face font-lock-type-face fontified t) 43 50 (fontified t) 50 146 (face font-lock-doc-face fontified t) 146 150 (fontified t) 150 154 (face font-lock-keyword-face fontified t) 154 224 (fontified t) 224 231 (face font-lock-builtin-face fontified t) 231 260 (fontified t) 260 274 (face font-lock-builtin-face fontified t) 274 280 (fontified t) 280 283 (fontified t) 283 289 (face font-lock-keyword-face fontified t) 289 307 (fontified t) 307 337 (fontified t) 337 343 (face font-lock-keyword-face fontified t) 343 360 (fontified t) 360 364 (face font-lock-builtin-face fontified t) 364 389 (fontified t) 389 393 (face font-lock-keyword-face fontified t) 393 446 (fontified t) 446 491 (face font-lock-comment-face fontified t) 491 511 (fontified t) 511 521 (face font-lock-builtin-face fontified t) 521 523 (fontified t) 523 533 (face font-lock-builtin-face fontified t) 533 543 (fontified t) 543 586 (face font-lock-comment-face fontified t) 586 605 (fontified t) 605 640 (fontified t) 640 669 (face font-lock-comment-face fontified t)) . 7903) (undo-tree-id209 . -25) (undo-tree-id210 . -25) (undo-tree-id211 . -25) (undo-tree-id212 . -25) (undo-tree-id213 . -25) (undo-tree-id214 . -25) (undo-tree-id215 . -669) (undo-tree-id216 . -25) (undo-tree-id217 . -25) (undo-tree-id218 . -25) (undo-tree-id219 . -25) (undo-tree-id220 . -25) (undo-tree-id221 . -25) (undo-tree-id222 . -25) (undo-tree-id223 . -25) (undo-tree-id224 . -25) (undo-tree-id225 . -25) (undo-tree-id226 . -25) (undo-tree-id227 . -25) (undo-tree-id228 . -25) (undo-tree-id229 . -25) (undo-tree-id230 . -25) (undo-tree-id231 . -307) (undo-tree-id232 . -25) (undo-tree-id233 . -25) (undo-tree-id234 . -25) (undo-tree-id235 . -25) (undo-tree-id236 . -25) (undo-tree-id237 . -25) (undo-tree-id238 . -25) (undo-tree-id239 . -25) (undo-tree-id240 . -25) (undo-tree-id241 . -608) (undo-tree-id242 . -605) (undo-tree-id243 . -605) (undo-tree-id244 . -605) (undo-tree-id245 . -605) (undo-tree-id246 . -605) (undo-tree-id247 . -605) (undo-tree-id248 . -605) (undo-tree-id249 . -605) (undo-tree-id250 . -585) (undo-tree-id251 . -585) (undo-tree-id252 . -585) (undo-tree-id253 . -585) (undo-tree-id254 . -585) (undo-tree-id255 . -669) (undo-tree-id256 . -669) (undo-tree-id257 . -669) (undo-tree-id258 . -669) (undo-tree-id259 . -585) (undo-tree-id260 . -669)) nil (26996 64959 549377 0) 0 nil] [nil nil ((#("(defun %entity-tenant-col (entity &optional md)
+  \"Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields.\"
+  (let* ((md     (or md (entity-metadata entity)))
+         (fields (getf md :fields))
+         (decl   (getf md :tenant-id-col)))
+    (labels ((has-col-p (kw)
+               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
+      (cond
+        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
+        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
+        (t nil)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 25 (face font-lock-function-name-face fontified t) 25 34 (fontified t) 34 43 (face font-lock-type-face fontified t) 43 50 (fontified t) 50 146 (face font-lock-doc-face fontified t) 146 150 (fontified t) 150 154 (face font-lock-keyword-face fontified t) 154 224 (fontified t) 224 231 (face font-lock-builtin-face fontified t) 231 260 (fontified t) 260 274 (face font-lock-builtin-face fontified t) 274 280 (fontified t) 280 283 (fontified t) 283 289 (face font-lock-keyword-face fontified t) 289 307 (fontified t) 307 337 (fontified t) 337 343 (face font-lock-keyword-face fontified t) 343 360 (fontified t) 360 364 (face font-lock-builtin-face fontified t) 364 389 (fontified t) 389 393 (face font-lock-keyword-face fontified t) 393 446 (fontified t) 446 491 (face font-lock-comment-face fontified t) 491 511 (fontified t) 511 521 (face font-lock-builtin-face fontified t) 521 523 (fontified t) 523 533 (face font-lock-builtin-face fontified t) 533 543 (fontified t) 543 586 (face font-lock-comment-face fontified t) 586 605 (fontified t)) . 7903) (undo-tree-id0 . -605) (undo-tree-id1 . -25) (undo-tree-id2 . -25) (undo-tree-id3 . -25) (undo-tree-id4 . -25) (undo-tree-id5 . -25) (undo-tree-id6 . -25) (undo-tree-id7 . -25) (undo-tree-id8 . -25) (undo-tree-id9 . -25) (undo-tree-id10 . -25) (undo-tree-id11 . -25) (undo-tree-id12 . -25) (undo-tree-id13 . -25) (undo-tree-id14 . -25) (undo-tree-id15 . -25) (undo-tree-id16 . -25) (undo-tree-id17 . -25) (undo-tree-id18 . -25) (undo-tree-id19 . -25) (undo-tree-id20 . -25) (undo-tree-id21 . -25) (undo-tree-id22 . -307) (undo-tree-id23 . -25) (undo-tree-id24 . -25) (undo-tree-id25 . -25) (undo-tree-id26 . -25) (undo-tree-id27 . -25) (undo-tree-id28 . -25) (undo-tree-id29 . -25) (undo-tree-id30 . -25) (undo-tree-id31 . -25) (undo-tree-id32 . -605) (undo-tree-id33 . -605) (undo-tree-id34 . -586) (undo-tree-id35 . -605) (undo-tree-id36 . -605) (undo-tree-id37 . -605) 8508) ((7903 . 8508)) (26996 64942 52790 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -7901) (undo-tree-id61 . -1) (undo-tree-id62 . -1) (undo-tree-id63 . -1) (undo-tree-id64 . -1) (undo-tree-id65 . -1) (undo-tree-id66 . -1) (undo-tree-id67 . -1) (undo-tree-id68 . -1) (undo-tree-id69 . -1) (undo-tree-id70 . -1) (undo-tree-id71 . -1) (undo-tree-id72 . -1) (undo-tree-id73 . -1) (undo-tree-id74 . -1) (undo-tree-id75 . -1) (undo-tree-id76 . -1) (undo-tree-id77 . -1) (undo-tree-id78 . -1) (undo-tree-id79 . -1) (undo-tree-id80 . -1) (undo-tree-id81 . -1) (undo-tree-id82 . -1) (undo-tree-id83 . -1) (undo-tree-id84 . -1) (undo-tree-id85 . -1) (undo-tree-id86 . -1) (undo-tree-id87 . -1) (undo-tree-id88 . -1) (undo-tree-id89 . -1) (undo-tree-id90 . -1) (undo-tree-id91 . -1) (undo-tree-id92 . -1) (undo-tree-id93 . -1) (undo-tree-id94 . -1) (undo-tree-id95 . -1) (undo-tree-id96 . -1) (undo-tree-id97 . -1) (undo-tree-id98 . -1) (undo-tree-id99 . -1) (undo-tree-id100 . -1) (undo-tree-id101 . -1) (undo-tree-id102 . -1) (undo-tree-id103 . -1) (undo-tree-id104 . -1) (undo-tree-id105 . -1) (undo-tree-id106 . -1) (undo-tree-id107 . -1) (undo-tree-id108 . -1) (undo-tree-id109 . -1) (undo-tree-id110 . -1) (undo-tree-id111 . -1) (undo-tree-id112 . -1) (undo-tree-id113 . -1) (undo-tree-id114 . -1) (undo-tree-id115 . -1) (undo-tree-id116 . -1) (undo-tree-id117 . -1) (undo-tree-id118 . -1) (undo-tree-id119 . -1) (undo-tree-id120 . -1) (undo-tree-id121 . -1) (undo-tree-id122 . -1) (undo-tree-id123 . -1) (undo-tree-id124 . -1) (undo-tree-id125 . -1) (undo-tree-id126 . -1) (undo-tree-id127 . -1) (undo-tree-id128 . -1) (undo-tree-id129 . -1) (undo-tree-id130 . -1) (undo-tree-id131 . -1) (undo-tree-id132 . -1) (undo-tree-id133 . -1) (undo-tree-id134 . -1) (#("
+" 0 1 (fontified t)) . -7902) (undo-tree-id135 . -1) (undo-tree-id136 . -1) (undo-tree-id137 . -1) (undo-tree-id138 . -1) (undo-tree-id139 . -1) (undo-tree-id140 . -1) (undo-tree-id141 . -1) (undo-tree-id142 . -1) (undo-tree-id143 . -1) (undo-tree-id144 . -1) (undo-tree-id145 . -1) (undo-tree-id146 . -1) (undo-tree-id147 . -1) (undo-tree-id148 . -1) (undo-tree-id149 . -1) (undo-tree-id150 . -1) (undo-tree-id151 . -1) (undo-tree-id152 . -1) (undo-tree-id153 . -1) (undo-tree-id154 . -1) (undo-tree-id155 . -1) (undo-tree-id156 . -1) (undo-tree-id157 . -1) (undo-tree-id158 . -1) (undo-tree-id159 . -1) (undo-tree-id160 . -1) (undo-tree-id161 . -1) (undo-tree-id162 . -1) (undo-tree-id163 . -1) (undo-tree-id164 . -1) (undo-tree-id165 . -1) (undo-tree-id166 . -1) (undo-tree-id167 . -1) (undo-tree-id168 . -1) (undo-tree-id169 . -1) (undo-tree-id170 . -1) (undo-tree-id171 . -1) (undo-tree-id172 . -1) (undo-tree-id173 . -1) (undo-tree-id174 . -1) (undo-tree-id175 . -1) (undo-tree-id176 . -1) (undo-tree-id177 . -1) (undo-tree-id178 . -1) (undo-tree-id179 . -1) (undo-tree-id180 . -1) (undo-tree-id181 . -1) (undo-tree-id182 . -1) (undo-tree-id183 . -1) (undo-tree-id184 . -1) (undo-tree-id185 . -1) (undo-tree-id186 . -1) (undo-tree-id187 . -1) (undo-tree-id188 . -1) (undo-tree-id189 . -1) (undo-tree-id190 . -1) (undo-tree-id191 . -1) (undo-tree-id192 . -1) (undo-tree-id193 . -1) (undo-tree-id194 . -1) (undo-tree-id195 . -1) (undo-tree-id196 . -1) (undo-tree-id197 . -1) (undo-tree-id198 . -1) (undo-tree-id199 . -1) (undo-tree-id200 . -1) (undo-tree-id201 . -1) (undo-tree-id202 . -1) (undo-tree-id203 . -1) (undo-tree-id204 . -1) (undo-tree-id205 . -1) (undo-tree-id206 . -1) (undo-tree-id207 . -1) (undo-tree-id208 . -1) 7903) nil (26996 64959 549346 0) 0 nil])
+nil
+([nil nil ((2882 . 2884)) nil (26996 64959 549259 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3552 . 3553) (nil fontified nil 3524 . 3553) (nil fontified nil 3489 . 3524) (nil fontified nil 3470 . 3489) (nil fontified nil 3427 . 3470) (nil fontified nil 3417 . 3427) (nil fontified nil 3407 . 3417) (nil fontified nil 3405 . 3407) (nil fontified nil 3395 . 3405) (nil fontified nil 3375 . 3395) (nil fontified nil 3330 . 3375) (nil fontified nil 3277 . 3330) (nil fontified nil 3273 . 3277) (nil fontified nil 3248 . 3273) (nil fontified nil 3244 . 3248) (nil fontified nil 3227 . 3244) (nil fontified nil 3221 . 3227) (nil fontified nil 3191 . 3221) (nil fontified nil 3173 . 3191) (nil fontified nil 3167 . 3173) (nil fontified nil 3164 . 3167) (nil fontified nil 3158 . 3164) (nil fontified nil 3144 . 3158) (nil fontified nil 3115 . 3144) (nil fontified nil 3108 . 3115) (nil fontified nil 3038 . 3108) (nil fontified nil 3034 . 3038) (nil fontified nil 3030 . 3034) (nil fontified nil 2934 . 3030) (nil fontified nil 2927 . 2934) (nil fontified nil 2918 . 2927) (nil fontified nil 2909 . 2918) (nil fontified nil 2891 . 2909) (nil fontified nil 2890 . 2891) (nil fontified nil 2885 . 2890) (nil fontified nil 2884 . 2885) (2884 . 3553)) nil (26996 64959 549254 0) 0 nil])
+([nil nil ((12625 . 12627) (t 26996 64959 0 0)) nil (26997 1429 533125 0) 0 nil])
+([nil nil ((12797 . 12799)) nil (26997 1429 533124 0) 0 nil])
+([nil nil ((12170 . 12172)) nil (26997 1429 533124 0) 0 nil])
+([nil nil ((13064 . 13066)) nil (26997 1429 533123 0) 0 nil])
+([nil current ((13252 . 13254)) nil (26997 1429 533119 0) 0 nil])
 nil

@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"b246726f7fc0c8dc7ae6ba51b9c926c53bbd62e5"
+"ab83f71b22c8a979f6f9ffa36819e067b43f78ea"
 [nil nil nil nil (26805 19171 263491 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 12684 . 12685) (nil fontified nil 1 . 12685) (1 . 12685) (t . -1)) nil (26805 19171 263490 0) 0 nil])
 ([nil nil ((427 . 429) (#(" " 0 1 (fontified nil)) . 427) (426 . 427)) nil (26805 19171 263489 0) 0 nil])
@@ -1389,5 +1389,251 @@ nil
 ([nil nil ((#("i" 0 1 (face font-lock-builtin-face fontified t)) . -158) (undo-tree-id11 . -1) 159) nil (26981 62867 59625 0) 0 nil])
 ([nil nil ((158 . 162)) nil (26981 62867 59623 0) 0 nil])
 ([nil nil ((#("extras" 0 6 (fontified t)) . -4366) (undo-tree-id0 . -6) (undo-tree-id1 . -5) (undo-tree-id2 . -5) (undo-tree-id3 . -5) (undo-tree-id4 . -5) (undo-tree-id5 . -5) (undo-tree-id6 . -5) (undo-tree-id7 . -6) (undo-tree-id8 . -6) (undo-tree-id9 . -6) (undo-tree-id10 . -6) 4372) nil (26981 62867 59621 0) 0 nil])
-([nil current ((4366 . 4371)) nil (26981 62867 59600 0) 0 nil])
+([nil nil ((4366 . 4371)) nil (26981 62867 59600 0) 0 nil])
+([nil nil ((1255 . 1257) (t 26993 53276 0 0)) nil (26996 23281 918330 0) 0 nil])
+([nil nil ((#("x" 0 1 (fontified t)) . -1255) (undo-tree-id0 . -1) (#("g" 0 1 (fontified t)) . -1256) (undo-tree-id1 . -1) 1257) nil (26996 23281 918326 0) 0 nil])
+([nil nil ((#("auth-jwt" 0 8 (fontified t)) . -8588) (8596 . 8611) (#("auth-jwt" 0 8 (fontified t)) . -7832) (7840 . 7855) (#("auth-jwt" 0 8 (face font-lock-doc-face fontified t)) . -7779) (7787 . 7802) (#("auth-jwt" 0 8 (fontified t)) . -7428) (t 26996 23281 0 0) (7436 . 7451) (t 26996 23281 0 0)) nil (26996 57090 661985 0) 0 nil])
+([nil nil ((756 . 759) (t 26996 57090 0 0)) nil (26996 65218 306363 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 795 . 796) (nil fontified nil 759 . 796) (759 . 796)) nil (26996 65218 306363 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 773 . 774) (nil fontified nil 773 . 774) (nil fontified nil 772 . 773) (nil fontified nil 760 . 772) (nil fontified nil 759 . 760) (759 . 774)) nil (26996 65218 306362 0) 0 nil])
+([nil nil ((795 . 796)) nil (26996 65218 306360 0) 0 nil])
+([nil nil ((812 . 813)) nil (26996 65218 306356 0) 0 nil])
+([nil nil ((#("(defmethod mount-crud! ((entity symbol)
+                        &key (base \"/api\") (name nil)
+                          (order-whitelist '())
+                          (auth-guard nil)
+                          (host nil)
+                        ;; NOUVEAU : Liste des actions autorisées (toutes par défaut)
+                          (actions '(:index :show :create :patch :delete)))
+  \"Monte des routes CRUD pour ENTITY.
+   :actions permet de limiter les routes (ex: '(:index :show)).
+
+EXEMPLES DE CONSTRUCTION D'URL VALIDES (QUERY PARAMS) :
+
+1. Filtrage Simple (Paramètres à la racine)
+   Tout paramètre inconnu est traité comme un filtre d'égalité SQL.
+   - URL : /api/users?role=admin&is_active=true
+   - SQL : WHERE role = 'admin' AND is_active = true
+
+2. Filtrage Explicite (Namespace 'q[...]')
+   Méthode robuste (recommandée) pour éviter les collisions avec les clés système.
+   - URL : /api/users?q[unit_id]=123&q[lastname]=Doe
+   - SQL : WHERE unit_id = '123' AND lastname = 'Doe'
+
+3. Pagination
+   Gère le découpage des résultats.
+   - URL : /api/users?page=2&page_size=20
+   - Note : Le paramètre 'limit' est un alias accepté pour 'page_size'.
+
+4. Tri (Sorting)
+   Format attendu : 'colonne' (ascendant par défaut) ou 'colonne:desc'.
+   - URL : /api/users?order=created_at:desc
+   - URL : /api/users?order=lastname:asc
+
+5. Sélection de Colonnes (Projection)
+   Permet de ne récupérer que certains champs pour alléger le JSON.
+   - URL : /api/users?select=id,firstname,lastname,email
+
+6. Recherche Textuelle Globale
+   Le paramètre 'q' utilisé sans crochets déclenche une recherche (ILIKE ou FTS).
+   - URL : /api/documents?q=rapport
+   - SQL : (col1 ILIKE '%rapport%' OR col2 ILIKE '%rapport%')
+
+7. Combinaison Complexe
+   Tous les paramètres peuvent être combinés.
+   - URL : /api/documents?target_type=folder&q=fip&page=1&order=created_at:desc
+   - Action : Récupère les documents de type 'folder' contenant le mot 'fip',
+              affiche la 1ère page, triée par date de création décroissante.
+
+ARGUMENTS :
+  :actions - Liste des opérations à monter (ex: '(:index :show)).
+  :base    - Préfixe de l'URL (défaut: \\\"/api\\\").
+  :name    - Nom de la ressource dans l'URL (défaut: table de l'entité).
+  :host    - Virtual host optionnel (string ou liste).
+  :auth-guard - Fonction (lambda (req &key op)) retournant T ou une réponse HTTP.\"
+  (let* ((md (lumen.data.dao:entity-metadata entity))
+         (seg (or name (getf md :table)))
+         (base-list (format nil \"~a/~a\" base seg))
+         (base-item (format nil \"~a/~a/:id\" base seg)))
+    
+    (labels
+        ((ctx-from-req* (req) (lumen.core.http:ctx-from-req req))
+
+         (guard! (req op)
+           (when auth-guard
+             (let ((gret (funcall auth-guard req :op op)))
+               (unless (eq gret t)
+                 (return-from guard! gret)))))
+
+         (route-spec (path)
+           (cond
+             ((null host) path)
+             ((stringp host) (list :host host :path path))
+             ((listp host)   (list :hosts host :path path))
+             (t path))))
+
+      ;; INDEX
+      ;; GET (:host ... :path /api/<seg>)
+      (when (member :index actions)
+	(lumen.core.router:defroute GET (route-spec base-list) (req)
+          (guard! req :index)
+          (let* ((ctx (ctx-from-req* req))
+                 (qp  (lumen.core.http:req-query req)) ;; qp est une alist: ((\"key\" . \"val\") ...)
+                
+                 ;; --- CORRECTION FILTRAGE ---
+                 ;; 1. Définir les clés réservées au moteur CRUD
+                 (reserved-keys '(\"q\" \"select\" \"order\" \"key\" \"after\" \"before\" \"page\" \"page_size\" \"limit\"))
+                
+                 ;; 2. Filtres explicites (si on utilise ?q=...)
+                 (filters-q (or (lumen.utils:alist-get qp :q) '()))
+                
+                 ;; 3. Filtres implicites (tout paramètre racine qui n'est PAS réservé)
+                 ;; Ex: ?target_id=... devient un filtre
+                 (filters-root (remove-if (lambda (pair) 
+                                            (member (car pair) reserved-keys :test #'string-equal)) 
+                                          qp))
+                
+                 ;; 4. Fusion des deux
+                 (filters (append filters-q filters-root))
+                 ;; ---------------------------
+
+                 (select   (%parse-select (lumen.utils:alist-get qp :select)))
+                 (order    (or (%ensure-order-whitelist
+				(%parse-order (lumen.utils:alist-get qp :order))
+				(or order-whitelist
+                                    (mapcar (lambda (f) (getf f :col))
+                                            (lumen.data.dao:entity-fields entity))))
+                               (%derive-default-order entity)))
+                 (key      (%parse-key (lumen.utils:alist-get qp :key)))
+                 (after    (%parse-after/before (lumen.utils:alist-get qp :after)))
+                 (before   (%parse-after/before (lumen.utils:alist-get qp :before)))
+                 (page     (%maybe-number (lumen.utils:alist-get qp :page)))
+                 (psize    (%maybe-number (lumen.utils:alist-get qp :page_size)))
+                 (limit    (%maybe-number (lumen.utils:alist-get qp :limit))))
+           
+            ;; Debug log pour vérifier que les filtres sont bien pris
+            (format t \"~&[DEBUG] Index filters: ~S~%\" filters)
+           
+            (lumen.core.http:respond-json
+             (lumen.data.repo.core:repo-index entity ctx
+                                              :filters filters 
+                                              :order order :select select
+                                              :page page :page-size psize :limit limit
+                                              :after after :before before :key key)))))
+
+      ;; SHOW
+      (when (member :show actions)
+        (lumen.core.router:defroute GET (route-spec base-item) (req)
+          (guard! req :show)
+          (lumen.core.router:with-params (req id)
+            (let* ((ctx (ctx-from-req* req))
+                   (row (lumen.data.repo.core:repo-show entity ctx id)))
+              (if row
+                  (lumen.core.http:respond-json row)
+                  (lumen.core.http:respond-404))))))
+
+      ;; CREATE
+      (when (member :create actions)
+        (lumen.core.router:defroute POST (route-spec base-list) (req)
+          (guard! req :create)
+          (let* ((ctx (ctx-from-req* req))
+                 (payload (lumen.core.http:ctx-get req :json))
+                 (res (lumen.data.repo.core:repo-create entity ctx payload)))
+            (lumen.core.http:respond-json res :status 201))))
+
+      ;; PATCH
+      (when (member :patch actions)
+        (lumen.core.router:defroute PATCH (route-spec base-item) (req)
+          (guard! req :patch)
+          (lumen.core.router:with-params (req id)
+            (let* ((ctx (ctx-from-req* req))
+                   (payload (lumen.core.http:ctx-get req :json))
+                   (res (lumen.data.repo.core:repo-patch entity ctx id payload)))
+              (lumen.core.http:respond-json res)))))
+
+      ;; DELETE
+      (when (member :delete actions)
+        (lumen.core.router:defroute DELETE (route-spec base-item) (req)
+          (guard! req :delete)
+          (lumen.core.router:with-params (req id)
+            (let* ((ctx (ctx-from-req* req))
+                   (res (lumen.data.repo.core:repo-delete entity ctx id)))
+              (lumen.core.http:respond-json res)))))
+
+      ;; Retourne les patterns
+      (list base-list base-item))))" 0 1334 (face font-lock-comment-face fontified t) 1334 1370 (face font-lock-comment-face fontified t) 1370 7524 (face font-lock-comment-face fontified t)) . -9151) (undo-tree-id5 . -6681) (undo-tree-id6 . -7524) 16675 (t 26996 65218 0 0)) nil (26997 1305 45534 0) 0 nil])
+([nil nil ((#("#|
+
+|#" 0 2 (face font-lock-comment-delimiter-face fontified t) 2 3 (face font-lock-comment-face fontified t) 3 4 (face font-lock-comment-face fontified t) 4 6 (face font-lock-comment-delimiter-face fontified t)) . 9148) (undo-tree-id4 . -6)) nil (26997 1305 45531 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 9148) (#("
+" 0 1 (fontified t)) . 9148)) nil (26997 1305 45529 0) 0 nil])
+([nil nil ((#("(defun %jwt-required-or-response (req)
+  \"Retourne T si OK, sinon un objet réponse (401/403) du mw.\"
+  (let* ((mw   (lumen.core.middleware:auth-middleware :required-p t))
+         (next (lambda (_req) :ok))
+         (out  (funcall (funcall mw next) req)))
+    (if (eql out :ok) t out)))
+
+(defun make-jwt-guard (&key (required-p nil) roles scopes scopes-mode
+                            (allow-query-token-p t) (qs-keys '(\"access\" \"token\")))
+  \"Fabrique un guard (req) ⇒ T|response basé sur auth-middleware.\"
+  (let ((mw (lumen.core.middleware:auth-middleware
+             :required-p t
+             :roles-allow roles
+             :scopes-allow scopes
+             :scopes-mode (or scopes-mode :any)
+             :allow-query-token-p allow-query-token-p
+             :qs-keys qs-keys)))
+    (lambda (req)
+      (let* ((next (lambda (_req) :ok))
+             (out  (funcall (funcall mw next) req)))
+        (if (eql out :ok) t out)))))
+
+(defun make-entity-crud-guard (entity &key (required-p nil))
+  \"Retourne un guard (req &key op) ⇒ T|response. Si :op est absent, on exige juste un JWT valide.\"
+  (lambda (req &key op &allow-other-keys)
+    (cond
+      ((null op) (%jwt-required-or-response req))
+      (t
+       (let* ((scopes (%crud-scope-for entity op))
+              (mw (lumen.core.middleware:auth-middleware
+                   :required-p required-p :scopes-allow scopes :scopes-mode :any)))
+         (let* ((next (lambda (_req) :ok))
+                (out  (funcall (funcall mw next) req)))
+           (if (eql out :ok) t out)))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 32 (face font-lock-function-name-face fontified t) 32 41 (fontified t) 41 100 (face font-lock-doc-face fontified t) 100 104 (fontified t) 104 108 (face font-lock-keyword-face fontified t) 108 132 (fontified t) 132 155 (fontified t) 155 166 (face font-lock-builtin-face fontified t) 166 187 (fontified t) 187 193 (face font-lock-keyword-face fontified t) 193 201 (fontified t) 201 204 (face font-lock-builtin-face fontified t) 204 261 (fontified t) 261 263 (face font-lock-keyword-face fontified t) 263 273 (fontified t) 273 276 (face font-lock-builtin-face fontified t) 276 289 (fontified t) 289 294 (face font-lock-keyword-face fontified t) 294 295 (fontified t) 295 309 (face font-lock-function-name-face fontified t) 309 311 (fontified t) 311 315 (face font-lock-type-face fontified t) 315 421 (fontified t) 421 429 (face font-lock-string-face fontified t) 429 430 (fontified t) 430 437 (face font-lock-string-face fontified t) 437 443 (fontified t) 443 507 (face font-lock-doc-face fontified t) 507 511 (fontified t) 511 514 (face font-lock-keyword-face fontified t) 514 572 (fontified t) 572 583 (face font-lock-builtin-face fontified t) 583 599 (fontified t) 599 611 (face font-lock-builtin-face fontified t) 611 631 (fontified t) 631 644 (face font-lock-builtin-face fontified t) 644 665 (fontified t) 665 677 (face font-lock-builtin-face fontified t) 677 694 (fontified t) 694 698 (face font-lock-builtin-face fontified t) 698 713 (fontified t) 713 733 (face font-lock-builtin-face fontified t) 733 767 (fontified t) 767 775 (face font-lock-builtin-face fontified t) 775 792 (fontified t) 792 798 (face font-lock-keyword-face fontified t) 798 812 (fontified t) 812 816 (face font-lock-keyword-face fontified t) 816 825 (fontified t) 825 831 (face font-lock-keyword-face fontified t) 831 839 (fontified t) 839 842 (face font-lock-builtin-face fontified t) 842 907 (fontified t) 907 909 (face font-lock-keyword-face fontified t) 909 919 (fontified t) 919 922 (face font-lock-builtin-face fontified t) 922 937 (fontified t) 937 942 (face font-lock-keyword-face fontified t) 942 943 (fontified t) 943 965 (face font-lock-function-name-face fontified t) 965 974 (fontified t) 974 978 (face font-lock-type-face fontified t) 978 999 (fontified t) 999 1095 (face font-lock-doc-face fontified t) 1095 1099 (fontified t) 1099 1105 (face font-lock-keyword-face fontified t) 1105 1111 (fontified t) 1111 1115 (face font-lock-type-face fontified t) 1115 1119 (fontified t) 1119 1136 (face font-lock-type-face fontified t) 1136 1143 (fontified t) 1143 1147 (face font-lock-keyword-face fontified t) 1147 1215 (fontified t) 1215 1219 (face font-lock-keyword-face fontified t) 1219 1334 (fontified t) 1334 1345 (face font-lock-builtin-face fontified t) 1345 1357 (fontified t) 1357 1370 (face font-lock-builtin-face fontified t) 1370 1378 (fontified t) 1378 1390 (face font-lock-builtin-face fontified t) 1390 1391 (fontified t) 1391 1395 (face font-lock-builtin-face fontified t) 1395 1409 (fontified t) 1409 1413 (face font-lock-keyword-face fontified t) 1413 1422 (fontified t) 1422 1428 (face font-lock-keyword-face fontified t) 1428 1436 (fontified t) 1436 1439 (face font-lock-builtin-face fontified t) 1439 1510 (fontified t) 1510 1512 (face font-lock-keyword-face fontified t) 1512 1522 (fontified t) 1522 1525 (face font-lock-builtin-face fontified t) 1525 1539 (fontified t)) . 7346) (undo-tree-id0 . -1539) (undo-tree-id1 . -155) (undo-tree-id2 . -155) (undo-tree-id3 . -155)) nil (26997 1305 45528 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 10838 . 10839) (nil fontified nil 7346 . 10839) (7346 . 10839)) nil (26997 1305 45511 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6874 . 6875) (nil fontified nil 6837 . 6875) (6837 . 6875) (t 26997 1305 0 0)) nil (26998 12791 67721 0) 0 nil])
+([nil nil ((6875 . 6881)) nil (26998 12791 67720 0) 0 nil])
+([nil nil ((#("
+                   (string-downcase (symbol-name entity))" 0 1 (fontified t) 1 58 (fontified t)) . 6897) (undo-tree-id3 . -58)) nil (26998 12791 67769 0) 0 nil])
+([nil nil ((#("~a" 0 2 (face font-lock-string-face fontified t)) . 7106) (undo-tree-id43 . -2) (undo-tree-id44 . -2) (undo-tree-id45 . -2) (undo-tree-id46 . -2) 7108) nil (26998 12821 803924 0) 0 nil] [nil nil ((#("))
+         (tbl  (string-downcase (etypecase seg
+                                  (string seg)
+                                  (symbol (symbol-name seg))))))
+    (ecase op
+      (:index (list (format nil \"~a" 0 3 (fontified t) 3 36 (fontified t) 36 45 (face font-lock-keyword-face fontified t) 45 167 (fontified t) 167 172 (face font-lock-keyword-face fontified t) 172 183 (fontified t) 183 189 (face font-lock-builtin-face fontified t) 189 208 (fontified t) 208 211 (face font-lock-string-face fontified t)) . 6897) (undo-tree-id0 . -211) (undo-tree-id1 . -209) (undo-tree-id2 . -209) 7108) ((6897 . 7108)) (26998 12791 67715 0) 0 nil])
+([nil nil ((#(":" 0 1 (face font-lock-string-face fontified t)) . 7106)) nil (26998 12821 803916 0) 0 nil])
+nil
+([nil nil ((7110 . 7111)) nil (26998 12821 803915 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 7112 . 7113) (nil fontified nil 7111 . 7113) (7111 . 7113)) nil (26998 12821 803915 0) 0 nil])
+([nil nil ((#("~a:" 0 3 (face font-lock-string-face fontified t)) . -7157) (undo-tree-id40 . -3) (undo-tree-id41 . -3) (undo-tree-id42 . -3) 7160) nil (26998 12821 803913 0) 0 nil])
+([nil nil ((nil fontified nil 7163 . 7164) (nil fontified nil 7162 . 7163) (nil fontified nil 7161 . 7162) (7161 . 7164)) nil (26998 12821 803911 0) 0 nil])
+([nil nil ((#("~a:" 0 3 (face font-lock-string-face fontified t)) . -7208) (undo-tree-id37 . -3) (undo-tree-id38 . -3) (undo-tree-id39 . -3) 7211) nil (26998 12821 803910 0) 0 nil])
+([nil nil ((nil fontified nil 7215 . 7216) (nil fontified nil 7214 . 7215) (nil fontified nil 7213 . 7214) (7213 . 7216)) nil (26998 12821 803907 0) 0 nil])
+([nil nil ((#("a" 0 1 (face font-lock-string-face fontified t)) . 7259) (#("~" 0 1 (face font-lock-string-face fontified t)) . 7259) (undo-tree-id32 . -1) (undo-tree-id33 . -1) (undo-tree-id34 . -1) (undo-tree-id35 . -1) (undo-tree-id36 . -1)) nil (26998 12821 803906 0) 0 nil])
+([nil nil ((nil fontified nil 7267 . 7268) (nil fontified nil 7266 . 7267) (nil fontified nil 7265 . 7266) (7265 . 7268)) nil (26998 12821 803902 0) 0 nil])
+([nil nil ((#(":" 0 1 (face font-lock-string-face fontified t)) . -7259) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) (undo-tree-id31 . -1) 7260) nil (26998 12821 803901 0) 0 nil])
+([nil nil ((#("~" 0 1 (face font-lock-string-face fontified t)) . -7310) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (#("a" 0 1 (face font-lock-string-face fontified t)) . -7311) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (#(":" 0 1 (face font-lock-string-face fontified t)) . -7312) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) 7313) nil (26998 12821 803891 0) 0 nil])
+([nil nil ((nil fontified nil 7318 . 7319) (nil fontified nil 7317 . 7318) (nil fontified nil 7316 . 7317) (7316 . 7319)) nil (26998 12821 803866 0) 0 nil])
+([nil nil ((7291 . 7293) (t 26998 12821 0 0)) nil (26998 12831 477215 0) 0 nil])
+([nil nil ((7240 . 7242)) nil (26998 12831 477214 0) 0 nil])
+([nil nil ((7189 . 7191)) nil (26998 12831 477214 0) 0 nil])
+([nil nil ((7138 . 7140)) nil (26998 12831 477213 0) 0 nil])
+([nil nil ((7087 . 7089)) nil (26998 12831 477209 0) 0 nil])
+([nil nil ((#("list" 0 4 (fontified t)) . -10419) (undo-tree-id77 . -4) (undo-tree-id78 . -1) (undo-tree-id79 . -1) (undo-tree-id80 . -1) (undo-tree-id81 . -1) (undo-tree-id82 . -1) (undo-tree-id83 . -4) (undo-tree-id84 . -4) (undo-tree-id85 . -4) (undo-tree-id86 . -4) (undo-tree-id87 . -4) (undo-tree-id88 . -4) (undo-tree-id89 . -4) (undo-tree-id90 . -4) 10423 (t 26998 12831 0 0)) nil (26998 13137 340737 0) 0 nil])
+([nil nil ((#("(" 0 1 (fontified t)) . -10418) (undo-tree-id56 . -1) (undo-tree-id57 . -1) (undo-tree-id58 . -1) (undo-tree-id59 . -1) (undo-tree-id60 . -1) (undo-tree-id61 . -1) (undo-tree-id62 . -1) (undo-tree-id63 . -1) (undo-tree-id64 . -1) (undo-tree-id65 . -1) (undo-tree-id66 . -1) (undo-tree-id67 . -1) (undo-tree-id68 . -1) (undo-tree-id69 . -1) (undo-tree-id70 . -1) (undo-tree-id71 . -1) (undo-tree-id72 . -1) (undo-tree-id73 . -1) (undo-tree-id74 . -1) (undo-tree-id75 . -1) (undo-tree-id76 . -1) 10419) nil (26998 13137 340729 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -10448) (undo-tree-id54 . -1) (undo-tree-id55 . -1) 10449) nil (26998 13137 340715 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -10418) (undo-tree-id47 . -1) (undo-tree-id48 . -1) (undo-tree-id49 . -1) (undo-tree-id50 . -1) (undo-tree-id51 . -1) (undo-tree-id52 . -1) (undo-tree-id53 . -1) 10419) nil (26998 13137 340710 0) 0 nil])
+([nil current ((#(")" 0 1 (fontified t)) . -10446) (undo-tree-id91 . -1) (undo-tree-id92 . -1) (undo-tree-id93 . -1) (undo-tree-id94 . -1) (undo-tree-id95 . -1) (undo-tree-id96 . -1) (undo-tree-id97 . -1) (undo-tree-id98 . -1) 10447 (t 26998 13137 0 0)) nil (26998 13147 470713 0) 0 nil])
 nil

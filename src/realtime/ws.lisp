@@ -5,6 +5,7 @@
   (:import-from :lumen.core.http
     :request :response :req-headers :req-path :req-query :respond-json)
   (:import-from :lumen.utils :ensure-header :str-prefix-p)
+  (:import-from :lumen.core.middleware :defmiddleware)
   (:export
     ;; handshake + I/O
     :respond-ws
@@ -12,7 +13,7 @@
    :defws :register-ws :unregister-ws :ws-route-dispatch :list-ws-endpoints
     :decode-close-payload :safe-close
     ;; Middleware
-    :ws-upgrade
+    :ws-upgrade-middleware
     ))
 
 (in-package :lumen.realtime.ws)
@@ -197,6 +198,16 @@
     (funcall send :close payload)
     c))
 
+(defun %parse-qs-local (qs)
+  "Parse basique pour extraire le token sans dépendre du middleware complet."
+  (if (stringp qs)
+      (loop for pair in (uiop:split-string qs :separator "&")
+            collect (let* ((pos (position #\= pair))
+                           (k (if pos (subseq pair 0 pos) pair))
+                           (v (if pos (subseq pair (1+ pos)) nil)))
+                      (cons k v)))
+      qs)) ;; Si c'est déjà une liste ou nil
+
 ;;; ---------- respond-ws avec sous-protocoles ----------
 (defun respond-ws (req handler &key protocols require-protocol)
   "Handshake WS + boucle handler. Négocie éventuellement SEC-WEBSOCKET-PROTOCOL.
@@ -252,24 +263,6 @@
 
 (defun list-ws-endpoints ()
   (loop for k being the hash-keys of *ws-handlers* collect k))
-
-#|
-(defmacro defws (path (recv send req proto) &optional options &body body)
-  "Déclare un endpoint WS.
-   OPTIONS est un plist supportant :protocols '(...) et :require-protocol t/nil.
-
-   Exemple :
-     (defws \"/ws/echo\" (recv send req proto)
-       (:protocols '(\"echo.v1\") :require-protocol t)
-       (funcall send :text \"welcome\")
-       (loop ...))"
-  (let ((protocols        (and options (getf options :protocols)))
-        (require-protocol (and options (getf options :require-protocol))))
-    `(register-ws ,path
-                  (lambda (,recv ,send ,req ,proto) ,@body)
-                  :protocols ,protocols
-                  :require-protocol ,require-protocol)))
-|#
 
 (defmacro defws (path (recv send req proto) (&key protocols require-protocol) &body body)
   "Déclare un endpoint WS.
@@ -336,9 +329,14 @@
 
 (defun %extract-bearer-token (req &key (query-key "access"))
   (let* ((auth (%hdr req "authorization"))
-         (q    (req-query req)))
+         ;; On parse la query string localement si c'est une chaîne
+         (raw-q (lumen.core.http:req-query req))
+         (q     (if (stringp raw-q) 
+                    (%parse-qs-local raw-q) 
+                    raw-q)))
+    
     (or (and auth (lumen.utils:str-prefix-p "Bearer " auth) (subseq auth 7))
-        (and (listp q) (cdr (assoc query-key q :test #'string=))))))
+        (cdr (assoc query-key q :test #'string=)))))
 
 (defun %maybe-auth-jwt! (req require-jwt jwt-secret &key (query-key "access"))
   "Décode JWT si présent; si REQUIRE-JWT et invalide/absent → retourne une réponse 401.
@@ -412,6 +410,7 @@
 ;;; ------------------------------------------------------------
 ;;; Middleware : ws-upgrade
 ;;; ------------------------------------------------------------
+#|
 (defun ws-upgrade (&key
                      (mount "/ws")
                      (origins-allow nil) ; '("https://localhost:8443") ou NIL
@@ -454,3 +453,61 @@ Options: ORIGINS-ALLOW, REQUIRE-JWT, JWT-SECRET, QUERY-KEY, PING-INTERVAL, MAX-B
 			    :require-protocol (ws-handler-require-protocol entry))))
             ;; Pas un WS sous mount → continuer la pile
 	    (funcall next req))))))
+|#
+
+;;; ------------------------------------------------------------
+;;; Middleware : ws-upgrade-middleware (Version CLOS)
+;;; ------------------------------------------------------------
+;;#|
+(defmiddleware ws-upgrade-middleware
+    ((mount         :initarg :mount          :initform "/ws")
+     (origins-allow :initarg :origins-allow  :initform nil)
+     (require-jwt   :initarg :require-jwt    :initform nil)
+     (jwt-secret    :initarg :jwt-secret     :initform "change-me")
+     (query-key     :initarg :query-key      :initform "access")
+     (ping-interval :initarg :ping-interval  :initform 0)
+     (max-bytes     :initarg :max-bytes      :initform (* 1 1024 1024)))
+    (req next)
+  (let ((path (lumen.core.http:req-path req))
+        (mount-point (slot-value mw 'mount)))
+
+    ;; 1. Est-ce une requête Upgrade WS sous le bon chemin ?
+    (if (and (%upgrade-request-p req) 
+             (lumen.utils:str-prefix-p mount-point path))
+        
+        (progn
+          ;; 2. Vérification Origin
+          (unless (%origin-allowed-p req (slot-value mw 'origins-allow))
+            ;; On coupe la chaîne et on retourne 403
+            (return-from lumen.core.pipeline:handle
+              (respond-json '((:error . ((:type . "ws") (:message . "origin not allowed")))) 
+                            :status 403)))
+
+          ;; 3. Recherche du Handler (Route WS interne)
+          (let ((entry (%lookup-ws-entry path)))
+            (unless entry
+              (return-from lumen.core.pipeline:handle
+                (respond-json '((:error . ((:type . "ws") (:message . "not found")))) 
+                              :status 404)))
+
+            ;; 4. Authentification JWT (Optionnelle ou requise)
+            ;; Note: %maybe-auth-jwt! retourne une réponse (401) si échec, ou NIL si succès.
+            (let ((auth-res (%maybe-auth-jwt! req 
+                                              (slot-value mw 'require-jwt)
+                                              (slot-value mw 'jwt-secret) 
+                                              :query-key (slot-value mw 'query-key))))
+              (when auth-res 
+                (return-from lumen.core.pipeline:handle auth-res)))
+
+            ;; 5. Handshake & Hijack
+            ;; respond-ws prend le contrôle du socket et bloque le thread jusqu'à la fin de la connexion.
+            (respond-ws req
+                        (%wrap-user-handler (ws-handler-fn entry) 
+                                            (slot-value mw 'ping-interval) 
+                                            (slot-value mw 'max-bytes))
+                        :protocols (ws-handler-protocols entry)
+                        :require-protocol (ws-handler-require-protocol entry))))
+
+        ;; Sinon : Ce n'est pas pour nous, on passe au middleware suivant
+        (funcall next req))))
+;;|#

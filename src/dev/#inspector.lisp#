@@ -1,0 +1,306 @@
+(in-package :cl)
+
+(defpackage :lumen.dev.inspector
+  (:use :cl)
+  (:import-from :lumen.core.http :respond-html :req-params)
+  (:import-from :lumen.obs.metrics :get-path-stats)
+  (:import-from :lumen.dev.module :find-module :get-modules
+   :module-meta-path-prefix :module-meta-name :module-meta-doc
+	   :module-meta-entities :module-meta-resources :module-meta-routes)
+  (:export :mount-inspector!))
+
+(in-package :lumen.dev.inspector)
+
+;;; ---------------------------------------------------------------------------
+;;; 1. HELPERS DATA
+;;; ---------------------------------------------------------------------------
+
+(defun find-module-for-path (path)
+  (let ((modules (lumen.dev.module:get-modules))
+        (best-match nil)
+        (max-len -1))
+    (dolist (m modules)
+      (let* ((prefix (lumen.dev.module:module-meta-path-prefix m))
+             (len (length prefix)))
+        (when (and (lumen.utils:str-prefix-p prefix path)
+                   (> len max-len)
+                   (or (= (length path) len)
+                       (char= (char path len) #\/)))
+          (setf max-len len
+                best-match (lumen.dev.module:module-meta-name m)))))
+    best-match))
+
+(defun find-route-summary (method path)
+  (let ((entry (find-if (lambda (x) 
+                          (and (string= (getf x :method) method)
+                               (string= (getf x :path) path)))
+                        lumen.http.crud::*custom-route-registry*)))
+    (getf entry :summary)))
+
+;;; ---------------------------------------------------------------------------
+;;; 2. FRONTEND ASSETS
+;;; ---------------------------------------------------------------------------
+
+(defparameter *inspector-css* "
+  :root { --bg: #f9fafb; --card: #ffffff; --primary: #2563eb; --text: #1f2937; --border: #e5e7eb; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; margin:0; }
+  .container { max-width: 1400px; margin: 0 auto; padding-bottom: 100px; }
+  
+  .card { background: var(--card); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--border); }
+  
+  /* Modules Grid */
+  .mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+  .mod-card { 
+      border: 1px solid var(--border); padding: 15px; border-radius: 8px; cursor: pointer; transition: all 0.2s; background: white;
+      position: relative; overflow: hidden;
+  }
+  .mod-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+  .mod-card.active { background: #eff6ff; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+  .mod-card.active::after { content: '\\2714'; position: absolute; top: 10px; right: 10px; color: var(--primary); font-weight: bold; }
+  
+  /* Controls */
+  .controls { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+  .search-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; min-width: 200px; }
+  .limit-select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; }
+
+  /* Table Styles */
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 800px; }
+  th { text-align: left; padding: 12px; background: #f3f4f6; border-bottom: 2px solid var(--border); white-space: nowrap; font-weight: 600; color: #4b5563; }
+  td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover { background-color: #f9fafb; }
+  
+  /* Pagination */
+  .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+  .btn { padding: 8px 16px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: #374151; }
+  .btn:hover { background: #f3f4f6; color: var(--primary); border-color: #d1d5db; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; background: #f9fafb; color: #9ca3af; }
+
+  /* Utilities */
+  .badge { padding: 4px 8px; border-radius: 4px; font-weight: 700; font-size: 0.7rem; text-transform: uppercase; display: inline-block; min-width: 50px; text-align: center; }
+  .GET { background: #dbeafe; color: #1e40af; } .POST { background: #d1fae5; color: #065f46; }
+  .PUT { background: #ffedd5; color: #9a3412; } .DELETE { background: #fee2e2; color: #991b1b; }
+  
+  .metric-bar { height: 6px; background: #e5e7eb; border-radius: 3px; width: 60px; display: inline-block; margin-right: 8px; overflow: hidden; vertical-align: middle; }
+  .metric-fill { height: 100%; background: var(--primary); }
+  .err-high { color: #dc2626; font-weight: bold; }
+  .module-tag { background: #e0e7ff; color: #3730a3; border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+  .no-mod { color: #9ca3af; font-style: italic; font-size: 0.8rem; }
+  .error-row { background: #fef2f2; color: #991b1b; }
+")
+
+(defparameter *inspector-js* "
+<script>
+  var appState = {
+    page: 1,
+    limit: 50,
+    filterModule: null,
+    filterSearch: '',
+    rows: []
+  };
+
+  function initInspector() {
+    var tbody = document.querySelector('#routesTable tbody');
+    if(!tbody) return;
+    appState.rows = Array.from(tbody.querySelectorAll('tr'));
+    renderTable();
+  }
+
+  function selectModule(name, el) {
+    var cards = document.querySelectorAll('.mod-card');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.remove('active');
+    }
+    
+    if (appState.filterModule === name) {
+      appState.filterModule = null; 
+    } else {
+      appState.filterModule = name;
+      if(el) el.classList.add('active');
+    }
+    appState.page = 1;
+    renderTable();
+  }
+
+  function updateSearch(val) {
+    appState.filterSearch = val.toUpperCase();
+    appState.page = 1;
+    renderTable();
+  }
+  
+  function changeLimit(val) {
+    appState.limit = parseInt(val);
+    appState.page = 1;
+    renderTable();
+  }
+
+  function changePage(delta) {
+    appState.page += delta;
+    renderTable();
+  }
+
+  function renderTable() {
+    var filtered = appState.rows;
+
+    if (appState.filterModule) {
+      filtered = filtered.filter(function(row) {
+        return row.getAttribute('data-module') === appState.filterModule;
+      });
+    }
+
+    if (appState.filterSearch) {
+      filtered = filtered.filter(function(row) {
+        return row.innerText.toUpperCase().indexOf(appState.filterSearch) > -1;
+      });
+    }
+
+    var total = filtered.length;
+    var maxPage = Math.ceil(total / appState.limit) || 1;
+    if (appState.page > maxPage) appState.page = maxPage;
+    if (appState.page < 1) appState.page = 1;
+
+    var start = (appState.page - 1) * appState.limit;
+    var end = start + appState.limit;
+    var pageItems = filtered.slice(start, end);
+
+    appState.rows.forEach(function(r) { r.style.display = 'none'; });
+    pageItems.forEach(function(r) { r.style.display = ''; });
+
+    var elInfo = document.getElementById('pageInfo');
+    if(elInfo) elInfo.innerText = 'Page ' + appState.page + ' / ' + maxPage + ' (' + total + ' routes)';
+    
+    var btnPrev = document.getElementById('btnPrev');
+    if(btnPrev) btnPrev.disabled = (appState.page === 1);
+    
+    var btnNext = document.getElementById('btnNext');
+    if(btnNext) btnNext.disabled = (appState.page === maxPage);
+  }
+
+  document.addEventListener('DOMContentLoaded', initInspector);
+</script>
+")
+
+;;; ---------------------------------------------------------------------------
+;;; 3. RENDU HTML
+;;; ---------------------------------------------------------------------------
+
+(defun render-modules-card (s)
+  (format s "<div class='card'><h2>🧩 Modules</h2>")
+  (format s "<div class='mod-grid'>")
+  (dolist (m (lumen.dev.module:get-modules))
+    (let ((name (string-downcase (lumen.dev.module:module-meta-name m))))
+      (format s "<div class='mod-card' onclick='selectModule(\"~A\", this)'>
+                   <div style='font-weight:bold; font-size:1.1em; color:#111827'>~A</div>
+                   <div style='font-family:monospace; color:#2563eb; font-size:0.9em; margin:5px 0;'>~A</div>
+                   <div style='font-size:0.8em; color:#6b7280'>~A tables • ~A routes</div>
+                 </div>"
+              name name
+              (lumen.dev.module:module-meta-path-prefix m)
+              (length (lumen.dev.module:module-meta-entities m))
+              (length (lumen.dev.module:module-meta-routes m)))))
+  (format s "</div></div>"))
+
+(defun render-pagination (s)
+  ;; Séparation claire pour être sûr que ça s'imprime
+  (format s "<div class='pagination'>
+     <button id='btnPrev' class='btn' onclick='changePage(-1)'>&larr; Précédent</button>
+     <span id='pageInfo' style='color:#666; font-weight:500'>Chargement...</span>
+     <button id='btnNext' class='btn' onclick='changePage(1)'>Suivant &rarr;</button>
+  </div>"))
+
+(defun render-dashboard-page ()
+  (with-output-to-string (s)
+    (write-string "<!doctype html><html><head><title>Lumen Cockpit</title>" s)
+    (write-string "<meta charset='utf-8'>" s)
+    (format s "<style>~A</style>" *inspector-css*)
+    (write-string *inspector-js* s)
+    (write-string "</head><body><div class='container'>" s)
+    
+    (format s "<h1>⚡ Lumen Cockpit</h1>")
+
+    ;; Modules
+    (render-modules-card s)
+
+    ;; Routes Card
+    (write-string "<div class='card'>" s)
+    
+    ;; Controls
+    (write-string "<div class='controls'>
+       <input type='text' class='search-input' onkeyup='updateSearch(this.value)' 
+              placeholder='🔍 Rechercher (méthode, url, summary...)'>
+       
+       <select class='limit-select' onchange='changeLimit(this.value)'>
+         <option value='10'>10 / page</option>
+         <option value='20'>20 / page</option>
+         <option value='50' selected>50 / page</option>
+         <option value='100'>100 / page</option>
+         <option value='9999'>Tout afficher</option>
+       </select>
+    </div>" s)
+
+    (write-string "<div class='table-wrapper'>" s)
+    (write-string "<table id='routesTable'><thead><tr>
+        <th>Module</th>
+        <th>Method</th>
+        <th>Route</th>
+        <th>Summary</th>
+        <th>Reqs</th>
+        <th>Lat (avg)</th>
+        <th>Err %</th>
+      </tr></thead><tbody>" s)
+
+    ;; --- BOUCLE DE DONNÉES SÉCURISÉE ---
+    (let ((routes (lumen.core.router::%all-routes-registry-list)))
+      (dolist (r routes)
+        ;; On utilise ignore-errors pour qu'une route mal formée ne casse pas toute la page
+        (handler-case 
+            (let* ((m (getf r :method))
+                   (p (getf r :path))
+                   (module-name (find-module-for-path p))
+                   (mod-str (if module-name (string-downcase module-name) "-"))
+                   (summary (or (find-route-summary m p) ""))
+                   (stats   (lumen.obs.metrics:get-path-stats m p))
+                   (count   (if stats (getf stats :count) 0))
+                   (total-ms (if stats (getf stats :sum-ms) 0))
+                   (errors  (if stats (getf stats :errors) 0))
+                   (avg-ms  (if (> count 0) (/ total-ms count) 0))
+                   (err-rate (if (> count 0) (* 100.0 (/ errors count)) 0.0)))
+
+              (format s "<tr data-module='~A'>
+                 <td><span class='~A'>~A</span></td>
+                 <td><span class='badge ~A'>~A</span></td>
+                 <td style='font-family:monospace; font-weight:600; color:#333'>~A</td>
+                 <td style='color:#666; font-size:0.85em'>~A</td>
+                 <td class='metric'>~D</td>
+                 <td class='metric'>
+                   <div class='metric-bar'><div class='metric-fill' style='width:~D%'></div></div>
+                   ~,1F ms
+                 </td>
+                 <td class='metric ~A'>~,1F%</td>
+                 </tr>"
+                 mod-str 
+                 (if module-name "module-tag" "no-mod")
+                 mod-str
+                 m m 
+                 p 
+                 summary
+                 count
+                 (min 100 (floor avg-ms)) 
+                 avg-ms
+                 (if (> err-rate 0) "err-high" "")
+                 err-rate))
+          ;; Si une erreur survient pour UNE ligne, on affiche une ligne d'erreur
+          (error (c)
+            (format s "<tr class='error-row'><td colspan='7'>Erreur de rendu route: ~A</td></tr>" c)))))
+
+    (write-string "</tbody></table></div>" s) ;; Fin Table Wrapper
+
+    ;; --- PAGINATION (Hors de la boucle, donc s'imprime même si la boucle est vide) ---
+    (render-pagination s)
+    
+    (write-string "</div>" s) ;; Fin Card
+    (write-string "</div></body></html>" s)))
+
+(defun mount-inspector! (&key (path "/_inspector"))
+  (lumen.core.router:defroute :GET path (req)
+    (respond-html (render-dashboard-page))))

@@ -26,6 +26,7 @@
        ,@body)))
 
 ;; macro DSL “tout en un” avec options
+#|
 (defmacro defguarded (method path-arg (req)
                       (&key required roles scopes scopes-mode
                             ;; rate limit
@@ -52,7 +53,7 @@
          (with-guards
            (,req
             ;; -------- Auth unique et configurée ----------
-            (lumen.core.middleware:auth-jwt
+            (lumen.core.middleware:auth-middleware
              :required-p ,(if required-effective t nil)
              ,@(when roles       `(:roles-allow ,roles))
              ,@(when scopes      `(:scopes-allow ,scopes))
@@ -72,32 +73,72 @@
              ,@(when leeway-sec `(:leeway-sec ,leeway-sec)))
             ;; -------- Rate limit éventuel ----------
             ,@(when rate-cap
-                `((lumen.core.middleware:rate-limit
+                `((lumen.core.middleware:rate-limit-middleware
                    :capacity ,rate-cap
                    :refill-per-sec ,(or rate-refill 1)
                    :route-key ,rk)))) ;; Ici rk est utilisé si rate-cap est présent
            ,@body)))))
-
-#|
-(defmacro def-api-route (method path args (&key scopes roles (admin-bypass t))
-			 &body body)
-  "Wrapper autour de lumen.core.router:defguarded pour QALM.
-   - Force l'authentification (required=t)
-   - Simplifie la syntaxe des scopes"
-  `(lumen.core.router:defguarded ,method ,path ,args
-     ;; On active auth-jwt
-     (:required t
-     ;; Configuration des permissions
-     :scopes ,scopes
-     :roles  ,roles
-     ;; Bypass Admin (activé par défaut)
-     :admin-bypass-scopes? ,admin-bypass
-     :admin-bypass-roles?  ,admin-bypass
-     ;; Autoriser le token en query param pour SSE (ex: ?access_token=...)
-     :allow-query-token? t )
-     
-     ,@body))
 |#
+
+(defmacro defguarded (method path-arg (req)
+                      (&key required roles scopes scopes-mode
+                            ;; rate limit
+                            rate-cap rate-refill route-key
+                            ;; options auth-jwt avancées
+                            admin-bypass? admin-roles
+                            allow-query-token? qs-keys
+                            secret leeway-sec)
+                      &body body)
+  "Route protégée paramétrable par JWT (rôles, scopes, bypass admin, etc.)."
+  (let* ((rk (gensym "ROUTEKEY"))
+         ;; required effectif : si rôles ou scopes présents, on force le JWT requis
+         (required-effective (or required (not (null roles)) (not (null scopes)))))
+    
+    `(lumen.core.router:defroute ,method ,path-arg (,req)
+       (let* ((,rk (or ,route-key
+                       (multiple-value-bind (host-spec real-path)
+                           (lumen.core.router::%parse-route-args ,path-arg)
+                         (declare (ignore host-spec))
+                         (format nil "~A ~A" ,(string-upcase (string method)) real-path)))))
+         
+         (declare (ignorable ,rk))
+         
+         ;; On construit la chaîne de middlewares dynamiquement pour cette route
+         (lumen.core.pipeline:execute-middleware-chain
+          (list
+           ;; 1. AUTHENTIFICATION
+           (make-instance 'lumen.core.middleware:auth-middleware
+                          :required-p ,(if required-effective t nil)
+                          ,@(when roles        `(:roles-allow ,roles))
+                          ,@(when scopes       `(:scopes-allow ,scopes))
+                          ,@(when scopes-mode  `(:scopes-mode ,scopes-mode))
+                          ;; Configuration Admin
+                          ,@(when admin-roles  `(:admin-roles ,admin-roles))
+                          ,@(when admin-bypass? `(:bypass-admin ,admin-bypass?))
+                          ;; Configuration Token Source
+                          ,@(when (not (null allow-query-token?))
+                              `(:allow-query ,allow-query-token?))
+                          ;; Note: qs-keys n'est pas dans le standard auth-middleware v2 
+                          ;; mais on le passe au cas où vous l'ayez ajouté
+                          ,@(when qs-keys      `(:qs-keys ,qs-keys))
+                          ;; Crypto
+                          ,@(when secret       `(:secret ,secret))
+                          ,@(when leeway-sec   `(:leeway ,leeway-sec)))
+
+           ;; 2. RATE LIMIT (Conditionnel)
+           ;; On utilise ,@ pour épisser le code seulement si rate-cap est défini
+           ,@(when rate-cap
+               `((make-instance 'lumen.core.middleware:rate-limit-middleware
+                                :capacity ,rate-cap
+                                :refill ,(or rate-refill 1)
+                                :route-key ,rk))))
+          
+          ;; LE HANDLER FINAL (Corps de la route)
+          (lambda (,req) 
+            ,@body)
+          
+          ;; L'ARGUMENT REQUEST
+          ,req)))))
 
 (defmacro def-api-route (method path args (&key scopes roles (admin-bypass t)
                                                 ;; Champs pour la documentation :
@@ -127,8 +168,7 @@
         :scopes ,scopes
         :roles  ,roles
         ;; Bypass Admin (activé par défaut)
-        :admin-bypass-scopes? ,admin-bypass
-        :admin-bypass-roles?  ,admin-bypass
+        :admin-bypass? ,admin-bypass
         ;; Autoriser le token en query param pour SSE
         :allow-query-token? t )
        

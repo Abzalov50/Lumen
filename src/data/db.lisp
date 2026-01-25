@@ -14,6 +14,7 @@
    :application-error :application-error-message :application-error-code)
   (:import-from :lumen.data.metrics 
    :record-query-latency :record-slow-query)
+  (:import-from :lumen.core.trace :with-tracing)
   
   (:export :start! :stop! :with-tx :query-a :query-1a :exec
            :with-conn :ensure-connection :with-rollback
@@ -81,6 +82,8 @@
 (defvar *in-connection* nil)
 
 (defun %checkout-connection (pool)
+  ;; On trace l'acquisition de connexion
+  (lumen.core.trace:with-tracing ("DB:AcquireConn" :pool-size (length (pool-available-conns pool)))
   (let ((conn nil))
     (bt:with-lock-held ((pool-lock pool))
       (setf conn (pop (pool-available-conns pool))))
@@ -89,7 +92,7 @@
             conn
             (progn (ignore-errors (postmodern:disconnect conn))
                    (%create-connection (pool-config pool))))
-        (%create-connection (pool-config pool)))))
+        (%create-connection (pool-config pool))))))
 
 (defun %checkin-connection (pool conn)
   (when (and pool conn (postmodern:connected-p conn))
@@ -141,154 +144,124 @@
 ;;; --- EXEC AVEC DEBUG LOGS ET PATCH ---
 
 (defun exec (sql &rest params)
-  "Execute INSERT/UPDATE/DELETE. 
-   NE CAPTURE PAS LES ERREURS : laisse run-in-transaction gérer le Rollback."
-  
-  (format t "~&EXEC:SQL: ~A~%" sql)
-  
-  (let* ((kpos (position-if (lambda (x)
-                              (and (keywordp x)
-                                   (not (member x '(:null :default) :test #'eq))))
-                            params))
-         (args (if kpos (subseq params 0 kpos) params))
-         (opts (if kpos (subseq params kpos) '()))
-         (timeout-ms (getf opts :timeout-ms (or *default-statement-timeout-ms* nil)))
-         (t0 (get-internal-real-time)))
+  "Execute INSERT/UPDATE/DELETE."
 
-    ;;(format t "~&EXEC:ARGS: ~A~%" args)
-    (format t "~&EXEC:OPTS: ~A~%" opts)
+  (lumen.core.trace:with-tracing ("DB:Exec" 
+                                  :sql (subseq sql 0 (min 100 (length sql)))
+                                  :params-count (length params))
+    (format t "~&EXEC:SQL: ~A~%" sql)
+  
+    (let* ((kpos (position-if (lambda (x)
+				(and (keywordp x)
+                                     (not (member x '(:null :default) :test #'eq))))
+                              params))
+           (args (if kpos (subseq params 0 kpos) params))
+           (opts (if kpos (subseq params kpos) '()))
+           (timeout-ms (getf opts :timeout-ms (or *default-statement-timeout-ms* nil)))
+           (t0 (get-internal-real-time)))
 
-    ;; On utilise unwind-protect ou simplement rien pour laisser l'erreur passer
-    (with-statement-timeout (timeout-ms)
-      (let* ((lower (string-downcase sql))
-             (has-returning (search "returning" lower))
-             affected ret)
+      ;;(format t "~&EXEC:ARGS: ~A~%" args)
+      (format t "~&EXEC:OPTS: ~A~%" opts)
+
+      ;; On utilise unwind-protect ou simplement rien pour laisser l'erreur passer
+      (with-statement-timeout (timeout-ms)
+	(let* ((lower (string-downcase sql))
+               (has-returning (search "returning" lower))
+               affected ret)
             
-        (if has-returning
-            ;; RETURNING
-            (let* ((fn  (get-prepared-plan sql :format :alist))
-                   (row (apply fn args)))
-              (setf affected (if row 1 0)
-                    ret row))
+          (if has-returning
+              ;; RETURNING
+              (let* ((fn  (get-prepared-plan sql :format :alist))
+                     (row (apply fn args)))
+		(setf affected (if row 1 0)
+                      ret row))
             
-            ;; NO RETURNING
-            (let* ((fn (get-prepared-plan sql :format :none))
-                   (n  (or (apply fn args) 0)))
-              (setf affected n
-                    ret nil)))
+              ;; NO RETURNING
+              (let* ((fn (get-prepared-plan sql :format :none))
+                     (n  (or (apply fn args) 0)))
+		(setf affected n
+                      ret nil)))
             
-        ;; Métriques
-        (let ((elapsed-ms (* 1000.0 (/ (- (get-internal-real-time) t0)
-                                       cl:internal-time-units-per-second))))
-          (record-query-latency sql elapsed-ms (or affected 0))
-          (when (and *slow-query-ms* (>= elapsed-ms *slow-query-ms*))
-            (lumen.data.metrics:record-slow-query
-             sql elapsed-ms :params args :affected affected)))
+          ;; Métriques
+          (let ((elapsed-ms (* 1000.0 (/ (- (get-internal-real-time) t0)
+					 cl:internal-time-units-per-second))))
+            (record-query-latency sql elapsed-ms (or affected 0))
+            (when (and *slow-query-ms* (>= elapsed-ms *slow-query-ms*))
+              (lumen.data.metrics:record-slow-query
+               sql elapsed-ms :params args :affected affected)))
 	
-        (format t "~&[EXEC DEBUG] SQL executed.~%Affected: ~A~%Ret: ~A~%" affected  ret)    
-        (values affected ret)))))
+          (format t "~&[EXEC DEBUG] SQL executed.~%Affected: ~A~%Ret: ~A~%" affected  ret)    
+          (values affected ret))))))
 
 (defun query-a (sql &rest params)
   "Execute SELECT. Return alist."
-  (ensure-connection
-    (let* ((t0 (get-internal-real-time))
-           (fn (get-prepared-plan sql :format :alists)))
+  (lumen.core.trace:with-tracing ("DB:Query" 
+                                  :sql (subseq sql 0 (min 100 (length sql))))
+    (ensure-connection
+      (let* ((t0 (get-internal-real-time))
+             (fn (get-prepared-plan sql :format :alists)))
       
-      ;; Patch identique pour query-a, par sécurité
-      (let ((real-params
-             (if (and (= 1 (length params))
-                      (listp (first params))
-                      (> (cl-ppcre:count-matches "\\$\\d+" sql) 1))
-                 (first params)
-                 params)))
+	;; Patch identique pour query-a, par sécurité
+	(let ((real-params
+		(if (and (= 1 (length params))
+			 (listp (first params))
+			 (> (cl-ppcre:count-matches "\\$\\d+" sql) 1))
+                    (first params)
+                    params)))
         
-        (handler-case
-            (let ((rows (apply fn real-params)))
-              (values rows (length rows)))
-          (error (c)
-            (error (translate-db-error c))))))))
+          (handler-case
+              (let ((rows (apply fn real-params)))
+		(values rows (length rows)))
+            (error (c)
+              (error (translate-db-error c)))))))))
 
 (defun query-1a (sql &rest params)
-  (print sql)
-  (print params)
   (first (apply #'query-a sql params)))
-
-;;; --- TRANSACTION MANAGEMENT ---
-
-(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  (let ((attempt 0))
-    (loop
-      (let ((result 
-             (ensure-connection
-               (handler-case
-                   (progn
-                     (%raw-exec "BEGIN")
-                     (let ((res (funcall thunk)))
-		       (print "YYYYYYYY")
-                       (%raw-exec "COMMIT")
-                       (cons :ok res)))
-                 (error (c)
-                   (ignore-errors (%raw-exec "ROLLBACK"))
-                   (cons :error c))))))
-        
-        (if (eq (car result) :ok)
-            (return (cdr result))
-            
-            (let* ((err (cdr result))
-                   (is-app (typep err 'lumen.core.error:application-error))
-                   (mapped (unless is-app (lumen.data.errors:map-db-error err))))
-	      (format t "~&[TX] Analysis: App? ~A Mapped? ~A~%" is-app mapped)
-              (when is-app (error err))
-              (if (and mapped (< attempt retries) (lumen.data.errors:retryable-db-error-p mapped))
-                  (progn
-                    (incf attempt)
-                    (format t "~&[DB] Retry TX (~A/~A) due to ~A...~%" attempt retries mapped)
-                    (sleep (/ (max 50 sleep-ms) 1000.0)))
-                  (error (or mapped err)))))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; TRANSACTION MANAGEMENT (BLOCK/LABELS - SAFE FLOW)
 ;;; ----------------------------------------------------------------------------
 (defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
   "Transaction avec flux de contrôle explicite (pas de loop/return implicite)."
-  (let ((attempt 0))
-    (block txn-block
-      (labels ((retry-loop ()
-                 ;; 1. Exécution
-                 (let ((result 
-                        (ensure-connection
-                          (handler-case
-                              (progn
-                                (%raw-exec "BEGIN")
-                                (let ((res (funcall thunk)))
-                                  (%raw-exec "COMMIT")
-                                  (list :ok res)))
-                            (error (c)
-                              (ignore-errors (%raw-exec "ROLLBACK"))
-                              (list :error c))))))
+  (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
+    (let ((attempt 0))
+      (block txn-block
+	(labels ((retry-loop ()
+                   ;; 1. Exécution
+                   (let ((result 
+                           (ensure-connection
+                             (handler-case
+				 (progn
+                                   (%raw-exec "BEGIN")
+                                   (let ((res (funcall thunk)))
+                                     (%raw-exec "COMMIT")
+                                     (list :ok res)))
+                               (error (c)
+				 (ignore-errors (%raw-exec "ROLLBACK"))
+				 (list :error c))))))
                    
-                   ;; 2. Analyse
-                   (if (eq (first result) :ok)
-                       (return-from txn-block (second result))
+                     ;; 2. Analyse
+                     (if (eq (first result) :ok)
+			 (return-from txn-block (second result))
                        
-                       (let* ((err (second result))
-                              (is-app (typep err 'lumen.core.error:application-error))
-                              (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+			 (let* ((err (second result))
+				(is-app (typep err 'lumen.core.error:application-error))
+				(mapped (unless is-app (lumen.data.errors:map-db-error err))))
                          
-                         (when is-app (error err))
+                           (when is-app (error err))
                          
-                         (if (and mapped 
-                                  (< attempt retries) 
-                                  (lumen.data.errors:retryable-db-error-p mapped))
-                             (progn
-                               (incf attempt)
-                               (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
-                               (sleep (/ (max 50 sleep-ms) 1000.0))
-                               (retry-loop)) ;; Appel récursif sûr
+                           (if (and mapped 
+                                    (< attempt retries) 
+                                    (lumen.data.errors:retryable-db-error-p mapped))
+                               (progn
+				 (incf attempt)
+				 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
+				 (sleep (/ (max 50 sleep-ms) 1000.0))
+				 (retry-loop)) ;; Appel récursif sûr
                              
-                             (error (or mapped err))))))))
+                               (error (or mapped err))))))))
         
-        (retry-loop)))))
+          (retry-loop))))))
 
 (defmacro with-tx ((&key retries) &body body)
   `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))

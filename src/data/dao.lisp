@@ -22,6 +22,10 @@
 
 (in-package :lumen.data.dao)
 
+;; slot %%dirty pour suivre les modifications
+(defparameter +dirty-slot-name+ '%%dirty)
+(defparameter +original-slot-name+ '%%original)
+
 ;;; ----------------------------------------------------------------------------
 ;;; Registry & metadata
 ;;; ----------------------------------------------------------------------------
@@ -156,13 +160,6 @@
           ((listp slots) (dolist (s slots) (remhash s h)))
           (t (remhash slots h))))
   entity)
-
-#|
-(defun dirty-slots (entity)
-  (let ((h (slot-value entity '%%dirty)) (acc '()))
-    (maphash (lambda (k v) (declare (ignore v)) (push k acc)) h)
-    (nreverse acc)))
-|#
 
 (defun dirty-slots (obj)
   "Retourne les slots modifiés depuis le dernier snapshot."
@@ -321,25 +318,6 @@ avec TIRETS (comme le format Postmodern :alists). Exemple:
     (string
      (%col->alist-key (intern (string-upcase col) :keyword)))))
 
-#|
-(defun entity->row-alist (entity &key (include-nulls nil))
-  "Convertit une instance CLOS d’entité en alist au format « row » (clés colonnes).
-Les clés sont normalisées au style Postmodern (:CREATED-AT, :LOCK-VERSION, ...)."
-  (let* ((cls   (class-of entity))
-         (cname (class-name cls))
-         (md    (entity-metadata cname))
-         (fields (getf md :fields)))
-    (loop for f in fields
-          for col  = (getf f :col)
-          for slot = (getf f :slot)
-          for key  = (%col->alist-key col)
-          for have = (slot-boundp entity slot)
-          for val  = (and have (slot-value entity slot))
-          for out  = (coerce-in val (getf f :type))
-          when (or include-nulls (and have (not (null out))))
-            collect (cons key out))))
-|#
-
 (defun entity->row-alist (entity &key (include-nulls nil))
   "Convertit une instance CLOS d’entité en alist au format « row » (clés colonnes).
    Les clés sont normalisées au style Postmodern (:CREATED-AT, :LOCK-VERSION, ...).
@@ -494,118 +472,6 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
                 (after-insert entity new)
                 (values affected new)))))))))
 
-#|
-(defmethod entity-update! ((entity standard-object) &key (returning t) (patch nil))
-  (let* ((class (class-name (class-of entity)))
-         (md (entity-metadata class))
-         (table (%ident (getf md :table)))
-         (pk (or (getf md :primary-key) :id))
-         (fields (getf md :fields))
-         (lv-col (getf md :lock-version)) ; keyword ou NIL
-         (ts (%timestamps-of md))
-         (ts-updated (and ts (getf ts :updated)))
-         (ts-fn (or (and ts (getf ts :db-fn)) "CURRENT_TIMESTAMP")))
-    ;; Validations avant update (toujours)
-    (validate-entity! entity)
-    (let ((assigns '()) where)
-      (multiple-value-bind (emit params-f) (%make-param-emitter)
-        ;; Déterminer l’ensemble des slots “à considérer”
-        (let* ((candidate-slots
-                 (if patch (dirty-slots entity)
-                     (mapcar (lambda (f) (getf f :slot)) fields)))
-               ;; Récupérer slot/ty de PK & lock-version s'ils existent
-               (pk-slot (getf (or (%field-by-col fields pk)
-                                  (error "PK ~a introuvable pour ~a" pk class))
-                              :slot))
-               (pk-ty   (getf (or (%field-by-col fields pk)) :type))
-               (lv-slot (and lv-col (getf (or (%field-by-col fields lv-col)) :slot)))
-               (lv-ty   (and lv-col (getf (or (%field-by-col fields lv-col)) :type)))
-               (lv-val  (and lv-slot (%slot-value entity lv-slot))))
-          ;; WHERE: PK obligatoire
-          (let ((pk-val (%slot-value entity pk-slot)))
-            (unless pk-val (error "Primary key manquante (~a) pour UPDATE" pk))
-            (setf where (format nil "~a = ~a" (%ident pk)
-                                (funcall emit (coerce-out pk-val pk-ty)))))
-          ;; WHERE: lock-version si configuré
-          (when lv-col
-            (unless lv-val
-              (error "Optimistic locking activé mais slot ~a est NIL" lv-col))
-            (setf where (format nil "~a AND ~a = ~a"
-                                where
-                                (%ident lv-col)
-                                (funcall emit (coerce-out lv-val lv-ty)))))
-          ;; SET: construire la liste d'assignations
-          (dolist (f fields)
-            (let* ((col (getf f :col))
-                   (slot (getf f :slot))
-                   (ty   (getf f :type))
-                   (val  (%slot-value entity slot))
-                   (is-pk (eq col pk))
-                   (is-lv (and lv-col (eq col lv-col)))
-                   (is-up (and ts-updated (eq col ts-updated)))
-                   (selected (member slot candidate-slots :test #'eq))
-		   ;; MODIF: On ignore les colonnes virtuelles
-                   (is-virtual (%virtual-col-p f)))
-	      (unless is-virtual
-              (cond
-                ;; Ne pas SET la PK
-                (is-pk nil)
-                ;; lock-version: on force "col = col + 1" (littéral SQL), jamais paramétré
-                (is-lv (push (format nil "~a = ~a + 1" (%ident col) (%ident col)) assigns))
-                ;; PATCH: ignorer les slots non dirty
-                ((and patch (not selected)) nil)
-                ;; updated_at: si NIL → forcer ts-fn, sinon paramétrer
-                (is-up
-                 (if (null val)
-                     (push (format nil "~a = ~a" (%ident col) ts-fn) assigns)
-                     (push (format nil "~a = ~a" (%ident col)
-                                   (funcall emit (coerce-out val ty)))
-			   assigns)))
-                ;; slot normal
-                (t
-                 (push (format nil "~a = ~a" (%ident col)
-                               (funcall emit (coerce-out val ty)))
-		       assigns))))))
-          ;; En mode patch, si aucun assign sélectionné, on peut quand même toucher updated_at
-          (when (and patch ts-updated (null assigns))
-            (push (format nil "~a = ~a" (%ident ts-updated) ts-fn) assigns))
-          ;; S'assurer qu'il y a au moins un SET (sinon no-op)
-	  (format t "~&ENTITY-UPDATE!:ASSIGNS: ~A~%" assigns)
-          (let* ((assigns* (if assigns (nreverse assigns) '("/* no-op */")))
-                 (returning-sql
-		   (cond
-                     ;;((eq returning t) " returning *")
-		     ;; Cas 1 : On veut tout retourner -> On liste explicitement les colonnes connues
-                     ((eq returning t) 
-                      (format nil " RETURNING ~{~a~^, ~}" 
-                              (mapcar #'%ident (mapcar (lambda (f) (getf f :col)) fields))))
-		     ;; Cas 2 : Liste explicite demandée par l'appelant
-                     ((and (listp returning) (every #'keywordp returning))
-                      (format nil " returning ~{~a~^, ~}" (mapcar #'%ident returning)))
-		     ;; Cas 3 : Rien
-                     ((null returning) "")
-		     ;; Fallback
-                     (t " RETURNING *")))
-                 (sql (format nil "update ~a set ~a where ~a~a"
-                              table (%comma-join assigns*) where returning-sql)))
-            (before-update entity)
-	    (format t "~&ENTITY-UPDATE!: BEFORE UPDATE OK~%")
-            (multiple-value-bind (affected ret)
-                (apply #'lumen.data.db:exec sql (funcall params-f))
-
-              ;; Verrou optimiste: si 0 lignes affectées → conflit
-              (when (and lv-col (= (or affected 0) 0))
-                (error 'concurrent-update-error :entity entity :where where))
-              ;; Si on a RETURNING, mapper la ligne ; sinon renvoyer l'entité modifiée
-              (let ((row (or (first ret) (and (not (null returning))
-                                      (apply #'query-1a sql (funcall params-f))))))
-                (let ((new (if row (row->entity class row) entity)))
-                  (clear-dirty new)
-		  (snapshot-entity! new)
-                  (after-update entity new)
-                  (values affected new))))))))))
-|#
-
 (defmethod entity-update! ((entity standard-object) &key (returning t) (force-all nil))
   (let* ((class (class-name (class-of entity)))
          (md    (entity-metadata class))
@@ -746,10 +612,6 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
 ;;; ----------------------------------------------------------------------------
 ;;; Macro defentity
 ;;; ----------------------------------------------------------------------------
-;; slot %%dirty pour suivre les modifications
-(defparameter +dirty-slot-name+ '%%dirty)
-(defparameter +original-slot-name+ '%%original)
-
 (defun %entity-field-specs (class)
   "Retourne la liste des plists field pour CLASS depuis le registry."
   (let ((md (entity-metadata class)))

@@ -7,7 +7,7 @@
    :cfg                       ; (cfg :get key &key default) | (cfg :set! key val) | (cfg :load-env path &key override)
    :cfg-get :cfg-get-int :cfg-get-bool :cfg-get-duration :cfg-get-list
    :cfg-set! :cfg-load-env :cfg-profile
-   :*getenv-fn*))  ;; <-- exporter le hook pour les tests
+   :*getenv-fn* :*profile*))
 
 (in-package :lumen.core.config)
 

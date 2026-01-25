@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"13ff32171cb5319a624d0bb27df123f834aa7887"
+"92f32e1e28e429799b37cf0121057e657d1b9068"
 [nil nil nil nil (26801 56058 557199 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 6295 . 6296) (nil fontified nil 1 . 6296) (1 . 6296) (t . -1)) nil (26801 56058 557198 0) 0 nil])
 ([nil nil ((2096 . 2098)) nil (26801 56058 557197 0) 0 nil])
@@ -245,5 +245,10 @@
                     (declare (ignore unit))" 0 22 (fontified t) 22 29 (face font-lock-keyword-face fontified t) 29 44 (fontified t)) . 6981) (undo-tree-id0 . -44) (t 26810 37955 0 0)) nil (26812 50623 791120 0) 0 nil])
 ([nil nil ((4578 . 4580) (t 26812 50623 0 0)) nil (26822 36400 675283 0) 0 nil])
 ([nil nil ((4595 . 4597)) nil (26822 36400 675282 0) 0 nil])
-([nil current ((4639 . 4641)) nil (26822 36400 675278 0) 0 nil])
+([nil nil ((4639 . 4641)) nil (26822 36400 675278 0) 0 nil])
+([nil nil ((395 . 396) (t 26993 53276 0 0)) nil (26994 16091 762656 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 404 . 405) (nil fontified nil 396 . 405) (396 . 405)) nil (26994 16091 762655 0) 0 nil])
+([nil nil ((#(" ;; <-- exporter le hook pour les tests" 0 1 (fontified t) 1 4 (face font-lock-comment-delimiter-face fontified t) 4 39 (face font-lock-comment-face fontified t)) . -408) (undo-tree-id2 . -39) 447) nil (26994 16091 762654 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -407) (undo-tree-id0 . -1) (undo-tree-id1 . -1) 408) nil (26994 16091 762651 0) 0 nil])
+([nil current ((396 . 397)) nil (26994 16091 762632 0) 0 nil])
 nil

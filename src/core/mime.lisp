@@ -47,8 +47,6 @@
         "application/octet-stream")))
 
 (defun guess-content-type (pathname-or-name)
-  (print pathname-or-name)
-  (print (content-type-for pathname-or-name))
   (content-type-for pathname-or-name))
 
 

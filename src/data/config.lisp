@@ -114,8 +114,6 @@
 Returns plist:
   :URL :POOL-SIZE :POOL-TIMEOUT-MS :SSLMODE :APPLICATION-NAME
   :HOST :PORT :DATABASE :USER :PASSWORD (convenience)"
-  (print "IN DB-CONFIG")
-  (print lumen.core.config::*cfg-file*)
   (let* ((url (lumen.core.config:cfg-get "DATABASE_URL"))
          (from-url (parse-postgres-url url))
          (from-env (list :host (uiop:getenv "PGHOST")

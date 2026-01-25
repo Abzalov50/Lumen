@@ -7,7 +7,7 @@
    :request :response :url-encode :make-content-disposition
    :req-method :req-path :req-headers :req-query :req-cookies :req-params :req-body-stream :req-ctx :ctx-from-req :resp-status :resp-headers :resp-body
    :respond-text :respond-json :respond-404 :respond-401 :respond-500 :respond-422
-   :respond-413 :respond-400 :respond-403 :respond-415 :normalize-json
+   :respond-413 :respond-400 :respond-403 :respond-405 :normalize-json
    :respond-html :respond-redirect
    ;; Contexte (Files, fields)
    :ctx-get :ctx-set!

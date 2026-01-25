@@ -151,48 +151,4 @@
             (make-instance 'lumen.core.http:response
                            :status 200
                            :headers hdrs
-                           :body (lambda (send)
-                                   (with-open-file (in pn :direction :input
-                                                          :element-type '(unsigned-byte 8))
-                                     (let ((buf (make-array 65536 :element-type '(unsigned-byte 8))))
-                                       (loop
-                                         (let ((rd (read-sequence buf in)))
-                                           (when (or (null rd) (= rd 0)) (return))
-                                           (funcall send (if (= rd (length buf))
-                                                             buf
-                                                             (subseq buf 0 rd)))))))))))))))
-
-(defun respond-file (req pn &key content-type headers last-modified-rfc1123 etag cache-secs)
-  "Répond 200 (entier) ou 206 (Range) selon le header Range. Respecte HEAD."
-  (unless (probe-file pn)
-    (return-from respond-file (lumen.core.http:respond-404 "File not found")))
-  (let* ((total (%file-size pn))
-         (ct    (or content-type (guess-content-type pn)))
-         (lm    (or last-modified-rfc1123 (%http-date pn)))
-         (tg    (or etag (%weak-etag-from-file pn)))
-         (range (cdr (assoc "range" (lumen.core.http:req-headers req)
-                            :test #'string-equal))))
-    (format t "~&TOTAl: ~A~%RANGE: ~A~%LM: ~A~%TAG: ~A~%" total range lm tg)
-    (multiple-value-bind (s e) (%parse-range range total)
-      (format t "~&S: ~A~%E: ~A~%" s e)
-      (if (and s e)
-          ;; 206
-          (respond-file-range req pn s e
-                              :content-type ct :etag tg
-                              :last-modified-rfc1123 lm :cache-secs cache-secs)
-        ;; 200 plein
-        (let* ((hdrs `(("Content-Type"   . ,ct)
-                       ("Accept-Ranges"  . "bytes")
-                       ("Content-Length" . ,(write-to-string total))
-		       ,@(when headers headers)
-                       ,@(when cache-secs
-                           `(("Cache-Control" . ,(format nil "public, max-age=~D" cache-secs))))
-                       ,@(when lm `(("Last-Modified" . ,lm)))
-                       ,@(when tg `(("ETag" . ,tg))))))
-          (if (string= (lumen.core.http:req-method req) "HEAD")
-              (make-instance 'lumen.core.http:response
-                             :status 200 :headers hdrs :body "")
-            (make-instance 'lumen.core.http:response
-                           :status 200
-                           :headers hdrs
                            :body (read-file-into-byte-vector pn))))))))

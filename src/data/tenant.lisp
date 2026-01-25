@@ -6,10 +6,12 @@
   (:import-from :lumen.core.config :cfg-get :cfg-get-bool :cfg-get-int)
   (:import-from :lumen.data.db    :ensure-connection :query-1a)
   (:import-from :lumen.data.repo.query :select*)
+  (:import-from :lumen.core.pipeline :defmiddleware)
   (:export :normalize-host
            :tenant-id-by-code
            :tenant-id-for-host
-           :tenant-code-by-id))
+   :tenant-code-by-id
+   :tenant-middleware :tenant-auto))
 
 (in-package :lumen.data.tenant)
 
@@ -115,3 +117,69 @@
                    (when (and row (first row))
                      (%cache-put key (or (cdr (assoc :tenant_id (first row)))
 					 (cdr (assoc :tenant-id (first row)))))))))))))
+
+;;;; -----------------------------------------------------------------------------
+;;;; TENANT FROM HOST MIDDLEWARE
+;;;; -----------------------------------------------------------------------------
+(defun %host-header (req)
+  (let ((h (lumen.core.http:req-headers req)))
+    (or (cdr (assoc "x-forwarded-host" h :test #'string-equal))
+        (cdr (assoc "x-real-host"      h :test #'string-equal))
+        (cdr (assoc "host"             h :test #'string-equal)))))
+
+(defun %normalize-host (raw)
+  (when raw
+    (let ((pos (position #\: raw)))
+      (if pos (subseq raw 0 pos) raw))))
+
+(defmiddleware tenant-middleware
+    ((require-host :initarg :require-host :initform nil)
+     (allow-headers :initarg :allow-headers :initform t)
+     (resolver-fn :initarg :resolver-fn :initform 'tenant-id-for-host))
+    (req next)
+  
+  (with-slots (require-host allow-headers resolver-fn) mw
+    (labels ((fallback-from-headers ()
+               (let* ((h (lumen.core.http:req-headers req))
+                      (tid (cdr (assoc "x-tenant-id" h :test #'string-equal)))
+                      (tcd (cdr (assoc "x-tenant-code" h :test #'string-equal))))
+                 (cond
+                   (tid (values tid (tenant-code-by-id tid)))
+                   (tcd (let ((tid2 (tenant-id-by-code tcd)))
+                          (when tid2 (values tid2 tcd))))
+                   (t (values nil nil))))))
+      
+      (let* ((host-raw (%host-header req))
+             (host (%normalize-host host-raw))
+             ;; On utilise funcall pour permettre l'injection de mock en test
+             (tid (and host (handler-case (funcall resolver-fn host) (error () nil))))
+             (code (and tid (tenant-code-by-id tid))))
+        
+        (multiple-value-bind (tid2 code2)
+            (if tid
+                (values tid code)
+                (and allow-headers (fallback-from-headers)))
+          
+          (cond
+            ;; Cas Succès : Tenant Trouvé
+            (tid2
+             (lumen.core.http:ctx-set! req :tenant-id tid2)
+             (when code2 (lumen.core.http:ctx-set! req :tenant-code code2))
+             (funcall next req))
+            
+            ;; Cas Échec Strict : 404
+            (require-host
+             (lumen.core.http:respond-json 
+              '((:error . ((:type . "tenant") (:message . "Unknown tenant for host")))) 
+              :status 404))
+            
+            ;; Cas Échec Permissif : On continue (Mode "Public" ou "Admin global")
+            (t 
+             (funcall next req))))))))
+
+;;; Factory Helper (Optionnel)
+(defun tenant-auto ()
+  "Configure le middleware Tenant via ENV."
+  (make-instance 'tenant-middleware
+                 :require-host (lumen.core.config:cfg-get-bool :tenant/require-host :default nil)
+                 :allow-headers (lumen.core.config:cfg-get-bool :tenant/allow-headers :default t)))

@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"c92b962a9d3b7e6ed3da279e8e3d7d7e4f73cfc6"
+"51c2afbf4a2894550921901d51a017b653f08eb7"
 [nil nil nil nil (26813 40471 650371 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 1176 . 1177) (nil fontified nil 1 . 1177) (1 . 1177) (t . -1)) nil (26813 40471 650367 0) 0 nil])
 ([nil nil ((nil fontified nil 92 . 93) (nil fontified nil 91 . 92) (nil fontified nil 74 . 91) (nil fontified nil 73 . 74) (nil fontified nil 54 . 73) (nil fontified nil 53 . 54) (nil fontified nil 46 . 53) (nil fontified nil 41 . 46) (nil fontified nil 38 . 41) (nil fontified nil 37 . 38) (nil fontified nil 33 . 37) (nil fontified nil 29 . 33) (nil fontified nil 13 . 29) (nil fontified nil 12 . 13) (nil fontified nil 2 . 12) (nil fontified nil 1 . 2) (1 . 93) (t 26813 40471 0 0)) nil (26813 40556 430107 0) 0 nil])
@@ -60,5 +60,8 @@
 ([nil nil ((2988 . 2989)) nil (26823 13 474482 0) 0 nil])
 ([nil nil ((124 . 125) (t 26823 13 0 0)) nil (26823 340 599282 0) 0 nil])
 ([nil nil ((125 . 126)) nil (26823 340 599280 0) 0 nil])
-([nil current ((nil rear-nonsticky nil 145 . 146) (nil fontified nil 126 . 146) (126 . 146)) nil (26823 340 599276 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 145 . 146) (nil fontified nil 126 . 146) (126 . 146)) nil (26823 340 599276 0) 0 nil])
+([nil current ((#("
+  (print pathname-or-name)
+  (print (content-type-for pathname-or-name))" 0 73 (fontified t)) . 2023) (undo-tree-id0 . -73) (undo-tree-id1 . -73) (undo-tree-id2 . -73) (t 26993 53276 0 0)) nil (26998 1036 408710 0) 0 nil])
 nil

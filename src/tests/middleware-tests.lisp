@@ -67,7 +67,8 @@
                  resp))
          (out  (with-output-to-string (s)
                  (let ((*standard-output* s)
-                       (lumen.core.middleware:*debug* t))
+                       (lumen.core.middleware::debug-p t)
+		       )
                    (funcall (funcall (lumen.core.middleware:logger) next) req)))))
     ;; Renvoie bien la réponse
     (is (typep (funcall (funcall (lumen.core.middleware:logger) next) req) 'lumen.core.http:response))
@@ -84,7 +85,8 @@
          (next (lambda (r) (declare (ignore r)) resp))
          (out  (with-output-to-string (s)
                  (let ((*standard-output* s)
-                       (lumen.core.middleware:*debug* nil))
+                       (lumen.core.middleware::debug-p nil)
+		       )
                    (funcall (funcall (lumen.core.middleware:logger) next) req)))))
     (is (string= out ""))))
 

@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"35647db925fd60b3003b72a76c781a4ced895cd8"
+"13c743a94683f0d123c146bf094d9b0c78e4fa28"
 [nil nil nil nil (26804 51808 316578 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 4263 . 4264) (nil fontified nil 1 . 4264) (1 . 4264) (t . -1)) nil (26804 53255 15764 0) 0 nil])
 ([nil nil ((#(")" 0 1 (fontified t)) . -2545) (undo-tree-id31 . -1) (undo-tree-id32 . -1) (undo-tree-id33 . -1) (undo-tree-id34 . -1) (undo-tree-id35 . -1) (undo-tree-id36 . -1) (undo-tree-id37 . -1) (undo-tree-id38 . -1) 2546 (t 26804 51808 0 0)) nil (26804 53280 433457 0) 0 nil] [nil nil ((#("`" 0 1 (fontified t)) . -2178) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) 2179 (t 26804 51808 0 0)) ((2178 . 2179)) (26804 53255 15190 0) 0 nil])
@@ -236,5 +236,54 @@ nil
 ([nil nil ((779 . 781) (t 26945 37713 0 0)) nil (26945 37893 420490 0) 0 nil])
 ([nil nil ((nil rear-nonsticky nil 1118 . 1119) (nil fontified nil 781 . 1119) (781 . 1119)) nil (26945 37893 420489 0) 0 nil])
 ([nil nil ((#("pn" 0 2 (fontified t)) . -9763) (undo-tree-id9 . -2) (undo-tree-id10 . -2) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -2) (undo-tree-id17 . -2) (undo-tree-id18 . -2) (undo-tree-id19 . -2) (undo-tree-id20 . -2) (undo-tree-id21 . -2) (undo-tree-id22 . -2) (undo-tree-id23 . -2) 9765) nil (26945 37893 420487 0) 0 nil])
-([nil current ((nil rear-nonsticky nil 9793 . 9794) (nil fontified nil 9763 . 9794) (9763 . 9794)) nil (26945 37893 420462 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 9793 . 9794) (nil fontified nil 9763 . 9794) (9763 . 9794)) nil (26945 37893 420462 0) 0 nil])
+([nil nil ((1 . 2) (t 26993 53276 0 0)) nil (26996 60740 575043 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -1) (undo-tree-id54 . -1) 2) nil (26996 60740 575042 0) 0 nil])
+([nil nil ((#("
+(defun respond-file (req pn &key content-type headers last-modified-rfc1123 etag cache-secs)
+  \"Répond 200 (entier) ou 206 (Range) selon le header Range. Respecte HEAD.\"
+  (unless (probe-file pn)
+    (return-from respond-file (lumen.core.http:respond-404 \"File not found\")))
+  (let* ((total (%file-size pn))
+         (ct    (or content-type (guess-content-type pn)))
+         (lm    (or last-modified-rfc1123 (%http-date pn)))
+         (tg    (or etag (%weak-etag-from-file pn)))
+         (range (cdr (assoc \"range\" (lumen.core.http:req-headers req)
+                            :test #'string-equal))))
+    (format t \"~&TOTAl: ~A~%RANGE: ~A~%LM: ~A~%TAG: ~A~%\" total range lm tg)
+    (multiple-value-bind (s e) (%parse-range range total)
+      (format t \"~&S: ~A~%E: ~A~%\" s e)
+      (if (and s e)
+          ;; 206
+          (respond-file-range req pn s e
+                              :content-type ct :etag tg
+                              :last-modified-rfc1123 lm :cache-secs cache-secs)
+        ;; 200 plein
+        (let* ((hdrs `((\"Content-Type\"   . ,ct)
+                       (\"Accept-Ranges\"  . \"bytes\")
+                       (\"Content-Length\" . ,(write-to-string total))
+		       ,@(when headers headers)
+                       ,@(when cache-secs
+                           `((\"Cache-Control\" . ,(format nil \"public, max-age=~D\" cache-secs))))
+                       ,@(when lm `((\"Last-Modified\" . ,lm)))
+                       ,@(when tg `((\"ETag\" . ,tg))))))
+          (if (string= (lumen.core.http:req-method req) \"HEAD\")
+              (make-instance 'lumen.core.http:response
+                             :status 200 :headers hdrs :body \"\")
+            (make-instance 'lumen.core.http:response
+                           :status 200
+                           :headers hdrs
+                           :body (lambda (send)
+                                   (with-open-file (in pn :direction :input
+                                                          :element-type '(unsigned-byte 8))
+                                     (let ((buf (make-array 65536 :element-type '(unsigned-byte 8))))
+                                       (loop
+                                         (let ((rd (read-sequence buf in)))
+                                           (when (or (null rd) (= rd 0)) (return))
+                                           (funcall send (if (= rd (length buf))
+                                                             buf
+                                                             (subseq buf 0 rd)))))))))))))))" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 20 (face font-lock-function-name-face fontified t) 20 29 (fontified t) 29 33 (face font-lock-type-face fontified t) 33 96 (fontified t) 96 170 (face font-lock-doc-face fontified t) 170 174 (fontified t) 174 180 (face font-lock-keyword-face fontified t) 180 202 (fontified t) 202 213 (face font-lock-keyword-face fontified t) 213 256 (fontified t) 256 272 (face font-lock-string-face fontified t) 272 279 (fontified t) 279 283 (face font-lock-keyword-face fontified t) 283 509 (fontified t) 509 516 (face font-lock-string-face fontified t) 516 579 (fontified t) 579 584 (face font-lock-builtin-face fontified t) 584 618 (fontified t) 618 661 (face font-lock-string-face fontified t) 661 686 (fontified t) 686 705 (face font-lock-keyword-face fontified t) 705 735 (fontified t) 735 739 (fontified t) 739 755 (fontified t) 755 773 (face font-lock-string-face fontified t) 773 786 (fontified t) 786 788 (face font-lock-keyword-face fontified t) 788 809 (fontified t) 809 812 (face font-lock-comment-delimiter-face fontified t) 812 816 (face font-lock-comment-face fontified t) 816 887 (fontified t) 887 900 (face font-lock-builtin-face fontified t) 900 904 (fontified t) 904 909 (face font-lock-builtin-face fontified t) 909 943 (fontified t) 943 965 (face font-lock-builtin-face fontified t) 965 969 (fontified t) 969 980 (face font-lock-builtin-face fontified t) 980 1001 (fontified t) 1001 1004 (face font-lock-comment-delimiter-face fontified t) 1004 1014 (face font-lock-comment-face fontified t) 1014 1023 (fontified t) 1023 1027 (face font-lock-keyword-face fontified t) 1027 1038 (fontified t) 1038 1052 (face font-lock-string-face fontified t) 1052 1086 (fontified t) 1086 1101 (face font-lock-string-face fontified t) 1101 1105 (fontified t) 1105 1112 (face font-lock-string-face fontified t) 1112 1138 (fontified t) 1138 1154 (face font-lock-string-face fontified t) 1154 1195 (fontified t) 1195 1199 (face font-lock-keyword-face fontified t) 1199 1243 (fontified t) 1243 1247 (face font-lock-keyword-face fontified t) 1247 1289 (fontified t) 1289 1304 (face font-lock-string-face fontified t) 1304 1320 (fontified t) 1320 1340 (face font-lock-string-face fontified t) 1340 1382 (fontified t) 1382 1386 (face font-lock-keyword-face fontified t) 1386 1393 (fontified t) 1393 1408 (face font-lock-string-face fontified t) 1408 1444 (fontified t) 1444 1448 (face font-lock-keyword-face fontified t) 1448 1455 (fontified t) 1455 1461 (face font-lock-string-face fontified t) 1461 1485 (fontified t) 1485 1487 (face font-lock-keyword-face fontified t) 1487 1530 (fontified t) 1530 1536 (face font-lock-string-face fontified t) 1536 1622 (fontified t) 1622 1629 (face font-lock-builtin-face fontified t) 1629 1634 (fontified t) 1634 1642 (face font-lock-builtin-face fontified t) 1642 1648 (fontified t) 1648 1653 (face font-lock-builtin-face fontified t) 1653 1654 (fontified t) 1654 1656 (face font-lock-string-face fontified t) 1656 1738 (fontified t) 1738 1745 (face font-lock-builtin-face fontified t) 1745 1777 (fontified t) 1777 1785 (face font-lock-builtin-face fontified t) 1785 1818 (fontified t) 1818 1823 (face font-lock-builtin-face fontified t) 1823 1825 (fontified t) 1825 1831 (face font-lock-keyword-face fontified t) 1831 1875 (fontified t) 1875 1889 (face font-lock-keyword-face fontified t) 1889 1897 (fontified t) 1897 1907 (face font-lock-builtin-face fontified t) 1907 1908 (fontified t) 1908 1914 (face font-lock-builtin-face fontified t) 1914 1973 (fontified t) 1973 1986 (face font-lock-builtin-face fontified t) 1986 2045 (fontified t) 2045 2048 (face font-lock-keyword-face fontified t) 2048 2073 (fontified t) 2073 2086 (face font-lock-builtin-face fontified t) 2086 2149 (fontified t) 2149 2153 (face font-lock-keyword-face fontified t) 2153 2196 (fontified t) 2196 2199 (face font-lock-keyword-face fontified t) 2199 2239 (fontified t) 2239 2274 (fontified t) 2274 2278 (face font-lock-keyword-face fontified t) 2278 2304 (fontified t) 2304 2310 (face font-lock-keyword-face fontified t) 2310 2313 (fontified t) 2313 2371 (fontified t) 2371 2373 (face font-lock-keyword-face fontified t) 2373 2551 (fontified t)) . 5387) (undo-tree-id30 . -2551) (undo-tree-id31 . -1915) (undo-tree-id32 . -1915) (undo-tree-id33 . -1915) (undo-tree-id34 . -1915) (undo-tree-id35 . -1915) (undo-tree-id36 . -2551) (undo-tree-id37 . -2551) (undo-tree-id38 . -2551) (undo-tree-id39 . -993) (undo-tree-id40 . -913) (undo-tree-id41 . -857) (undo-tree-id42 . -816) (undo-tree-id43 . -799) (undo-tree-id44 . -779) (undo-tree-id45 . -681) (undo-tree-id46 . -551) (undo-tree-id47 . -428) (undo-tree-id48 . -309) (undo-tree-id49 . -197) (undo-tree-id50 . -94) (undo-tree-id51 . -1) (undo-tree-id52 . -2551) (undo-tree-id53 . -2551)) nil (26996 60740 575039 0) 0 nil])
+([nil current ((#("
+" 0 1 (fontified t)) . -5386) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -1) 5387) nil (26996 60740 575023 0) 0 nil])
 nil

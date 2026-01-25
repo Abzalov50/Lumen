@@ -4,9 +4,10 @@
   (:use :cl :alexandria)
   (:import-from :lumen.utils :ensure-header)
   (:import-from :lumen.core.http :request :response :resp-status :resp-headers :resp-body :respond-sse)
-  (:import-from :lumen.core.error :*error-handler*)
+  (:import-from :lumen.core.error :*error-handler*)  
   (:import-from :lumen.core.shutdown :register-connection :unregister-connection
-		:draining-p)
+   :draining-p)
+  (:import-from :lumen.core.config :*profile*)
   (:export :start :stop))
 
 (in-package :lumen.core.server)
@@ -107,16 +108,18 @@
 (defun %write-chunk (flexi data)
   (etypecase data
     (string
+     ;; On convertit TOUT DE SUITE en octets
      (let* ((bytes (trivial-utf-8:string-to-utf-8-bytes data))
             (n (length bytes)))
-       (format flexi "~X" n) (%wr-crlf flexi) ; fin de la ligne “taille”
-       (write-string data flexi)
-       (%wr-crlf flexi)                       ; fin du chunk
+       (format flexi "~X" n) (%wr-crlf flexi)
+       ;; On écrit les octets, pas la string
+       (write-sequence bytes flexi)
+       (%wr-crlf flexi)
        (finish-output flexi)))
     ((simple-array (unsigned-byte 8) (*))
      (let ((n (length data)))
        (format flexi "~X" n) (%wr-crlf flexi)
-       (write-sequence data flexi)            ; CL:WRITE-SEQUENCE OK sur octets
+       (write-sequence data flexi)
        (%wr-crlf flexi)
        (finish-output flexi)))))
 
@@ -222,17 +225,21 @@
 
         ;; ===== BODY = string =====
         ((stringp body)
-         ;; Pas de TE chunked pour un corps à longueur connue
          (setf headers (%rm headers "transfer-encoding"))
+         ;; 1. On convertit en octets
          (let* ((bytes (trivial-utf-8:string-to-utf-8-bytes body))
                 (len   (length bytes)))
+           ;; 2. On déclare la taille exacte de ces octets
            (setf headers (%ensure (%rm headers "content-length") "Content-Length" (write-to-string len)))
            (unless (%has headers "content-type")
              (setf headers (%ensure headers "Content-Type" "text/plain; charset=utf-8")))
-	   ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
+           
            (%emit-headers headers) (crlf flexi)
+           
            (unless (string= method "HEAD")
-             (write-string body flexi)
+             ;; 3. CORRECTION ICI : On envoie les octets BRUTS. 
+             ;; Flexi-stream ne touchera pas aux EOL car c'est un tableau d'octets.
+             (write-sequence bytes flexi) 
              (finish-output flexi))))
 
         ;; ===== BODY = octets =====
@@ -593,6 +600,7 @@
           (setf *accept-thread-tls*
                 (bt:make-thread (lambda () (accept-loop *server-socket-tls* :ssl t))
                                 :name (format nil "lumen-accept-tls-~A" ssl-port)))
+	  
           (format t "~&Lumen HTTPS listening on ~A~%" ssl-port))
       (error (e)
         (format t "~&[FATAL] Cannot bind HTTPS port ~A: ~A~%" ssl-port e))))

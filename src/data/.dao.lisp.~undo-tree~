@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"2e76ff35f355141a7eb9321f6a6d33d6a243d8e7"
+"a2b4ad842f5c0632943f1131ca860b546728eb33"
 [nil nil nil nil (26803 14922 171603 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 15493 . 15494) (nil fontified nil 1 . 15494) (1 . 15494) (t . -1)) nil (26803 14922 171602 0) 0 nil])
 ([nil nil ((5498 . 5500)) nil (26803 14922 171601 0) 0 nil])
@@ -2427,5 +2427,160 @@ nil
 ([nil nil ((20207 . 20215) (t 26991 35205 0 0)) nil (26991 35612 805046 0) 0 nil])
 ([nil nil ((20215 . 20221)) nil (26991 35612 805045 0) 0 nil])
 ([nil nil ((20221 . 20222)) nil (26991 35612 805044 0) 0 nil])
-([nil current ((20222 . 20226)) nil (26991 35612 805040 0) 0 nil])
+([nil nil ((20222 . 20226)) nil (26991 35612 805040 0) 0 nil])
+([nil nil ((#(";; slot %%dirty pour suivre les modifications
+(defparameter +dirty-slot-name+ '%%dirty)
+(defparameter +original-slot-name+ '%%original)" 0 3 (face font-lock-comment-delimiter-face fontified t) 3 46 (face font-lock-comment-face fontified t) 46 47 (fontified t) 47 59 (face font-lock-keyword-face fontified t) 59 60 (fontified t) 60 77 (face font-lock-variable-name-face fontified t) 77 88 (fontified t) 88 89 (fontified t) 89 101 (face font-lock-keyword-face fontified t) 101 102 (fontified t) 102 122 (face font-lock-variable-name-face fontified t) 122 135 (fontified t)) . 33017) (undo-tree-id9 . -135) 33152 (t 26993 53276 0 0)) nil (26997 987 365000 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . -33016) (undo-tree-id7 . -1) (undo-tree-id8 . -1) 33017) nil (26997 987 364999 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . 33016)) nil (26997 987 364996 0) 0 nil])
+([nil nil ((#("|
+(defmethod entity-update! ((entity standard-object) &key (returning t) (patch nil))
+  (let* ((class (class-name (class-of entity)))
+         (md (entity-metadata class))
+         (table (%ident (getf md :table)))
+         (pk (or (getf md :primary-key) :id))
+         (fields (getf md :fields))
+         (lv-col (getf md :lock-version)) ; keyword ou NIL
+         (ts (%timestamps-of md))
+         (ts-updated (and ts (getf ts :updated)))
+         (ts-fn (or (and ts (getf ts :db-fn)) \"CURRENT_TIMESTAMP\")))
+    ;; Validations avant update (toujours)
+    (validate-entity! entity)
+    (let ((assigns '()) where)
+      (multiple-value-bind (emit params-f) (%make-param-emitter)
+        ;; Déterminer l’ensemble des slots “à considérer”
+        (let* ((candidate-slots
+                 (if patch (dirty-slots entity)
+                     (mapcar (lambda (f) (getf f :slot)) fields)))
+               ;; Récupérer slot/ty de PK & lock-version s'ils existent
+               (pk-slot (getf (or (%field-by-col fields pk)
+                                  (error \"PK ~a introuvable pour ~a\" pk class))
+                              :slot))
+               (pk-ty   (getf (or (%field-by-col fields pk)) :type))
+               (lv-slot (and lv-col (getf (or (%field-by-col fields lv-col)) :slot)))
+               (lv-ty   (and lv-col (getf (or (%field-by-col fields lv-col)) :type)))
+               (lv-val  (and lv-slot (%slot-value entity lv-slot))))
+          ;; WHERE: PK obligatoire
+          (let ((pk-val (%slot-value entity pk-slot)))
+            (unless pk-val (error \"Primary key manquante (~a) pour UPDATE\" pk))
+            (setf where (format nil \"~a = ~a\" (%ident pk)
+                                (funcall emit (coerce-out pk-val pk-ty)))))
+          ;; WHERE: lock-version si configuré
+          (when lv-col
+            (unless lv-val
+              (error \"Optimistic locking activé mais slot ~a est NIL\" lv-col))
+            (setf where (format nil \"~a AND ~a = ~a\"
+                                where
+                                (%ident lv-col)
+                                (funcall emit (coerce-out lv-val lv-ty)))))
+          ;; SET: construire la liste d'assignations
+          (dolist (f fields)
+            (let* ((col (getf f :col))
+                   (slot (getf f :slot))
+                   (ty   (getf f :type))
+                   (val  (%slot-value entity slot))
+                   (is-pk (eq col pk))
+                   (is-lv (and lv-col (eq col lv-col)))
+                   (is-up (and ts-updated (eq col ts-updated)))
+                   (selected (member slot candidate-slots :test #'eq))
+		   ;; MODIF: On ignore les colonnes virtuelles
+                   (is-virtual (%virtual-col-p f)))
+	      (unless is-virtual
+              (cond
+                ;; Ne pas SET la PK
+                (is-pk nil)
+                ;; lock-version: on force \"col = col + 1\" (littéral SQL), jamais paramétré
+                (is-lv (push (format nil \"~a = ~a + 1\" (%ident col) (%ident col)) assigns))
+                ;; PATCH: ignorer les slots non dirty
+                ((and patch (not selected)) nil)
+                ;; updated_at: si NIL → forcer ts-fn, sinon paramétrer
+                (is-up
+                 (if (null val)
+                     (push (format nil \"~a = ~a\" (%ident col) ts-fn) assigns)
+                     (push (format nil \"~a = ~a\" (%ident col)
+                                   (funcall emit (coerce-out val ty)))
+			   assigns)))
+                ;; slot normal
+                (t
+                 (push (format nil \"~a = ~a\" (%ident col)
+                               (funcall emit (coerce-out val ty)))
+		       assigns))))))
+          ;; En mode patch, si aucun assign sélectionné, on peut quand même toucher updated_at
+          (when (and patch ts-updated (null assigns))
+            (push (format nil \"~a = ~a\" (%ident ts-updated) ts-fn) assigns))
+          ;; S'assurer qu'il y a au moins un SET (sinon no-op)
+	  (format t \"~&ENTITY-UPDATE!:ASSIGNS: ~A~%\" assigns)
+          (let* ((assigns* (if assigns (nreverse assigns) '(\"/* no-op */\")))
+                 (returning-sql
+		   (cond
+                     ;;((eq returning t) \" returning *\")
+		     ;; Cas 1 : On veut tout retourner -> On liste explicitement les colonnes connues
+                     ((eq returning t) 
+                      (format nil \" RETURNING ~{~a~^, ~}\" 
+                              (mapcar #'%ident (mapcar (lambda (f) (getf f :col)) fields))))
+		     ;; Cas 2 : Liste explicite demandée par l'appelant
+                     ((and (listp returning) (every #'keywordp returning))
+                      (format nil \" returning ~{~a~^, ~}\" (mapcar #'%ident returning)))
+		     ;; Cas 3 : Rien
+                     ((null returning) \"\")
+		     ;; Fallback
+                     (t \" RETURNING *\")))
+                 (sql (format nil \"update ~a set ~a where ~a~a\"
+                              table (%comma-join assigns*) where returning-sql)))
+            (before-update entity)
+	    (format t \"~&ENTITY-UPDATE!: BEFORE UPDATE OK~%\")
+            (multiple-value-bind (affected ret)
+                (apply #'lumen.data.db:exec sql (funcall params-f))
+
+              ;; Verrou optimiste: si 0 lignes affectées → conflit
+              (when (and lv-col (= (or affected 0) 0))
+                (error 'concurrent-update-error :entity entity :where where))
+              ;; Si on a RETURNING, mapper la ligne ; sinon renvoyer l'entité modifiée
+              (let ((row (or (first ret) (and (not (null returning))
+                                      (apply #'query-1a sql (funcall params-f))))))
+                (let ((new (if row (row->entity class row) entity)))
+                  (clear-dirty new)
+		  (snapshot-entity! new)
+                  (after-update entity new)
+                  (values affected new))))))))))
+|#
+" 0 1 (face font-lock-comment-delimiter-face fontified t) 1 5789 (face font-lock-comment-face fontified t) 5789 5838 (face font-lock-comment-face fontified t) 5838 5840 (face font-lock-comment-delimiter-face fontified t) 5840 5841 (fontified t)) . 20741) (undo-tree-id6 . -5841)) nil (26997 987 364995 0) 0 nil])
+([nil nil ((#("#" 0 1 (fontified t)) . -20740) (undo-tree-id4 . -1) (undo-tree-id5 . -1) 20741) nil (26997 987 364993 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 20740)) nil (26997 987 364991 0) 0 nil])
+([nil nil ((#("
+#|
+(defun entity->row-alist (entity &key (include-nulls nil))
+  \"Convertit une instance CLOS d’entité en alist au format « row » (clés colonnes).
+Les clés sont normalisées au style Postmodern (:CREATED-AT, :LOCK-VERSION, ...).\"
+  (let* ((cls   (class-of entity))
+         (cname (class-name cls))
+         (md    (entity-metadata cname))
+         (fields (getf md :fields)))
+    (loop for f in fields
+          for col  = (getf f :col)
+          for slot = (getf f :slot)
+          for key  = (%col->alist-key col)
+          for have = (slot-boundp entity slot)
+          for val  = (and have (slot-value entity slot))
+          for out  = (coerce-in val (getf f :type))
+          when (or include-nulls (and have (not (null out))))
+            collect (cons key out))))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 734 (face font-lock-comment-face fontified t) 734 772 (face font-lock-comment-face fontified t) 772 774 (face font-lock-comment-delimiter-face fontified t)) . 12901) (undo-tree-id3 . -774)) nil (26997 987 364990 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 12901)) nil (26997 987 364989 0) 0 nil])
+([nil nil ((#("
+#|
+(defun dirty-slots (entity)
+  (let ((h (slot-value entity '%%dirty)) (acc '()))
+    (maphash (lambda (k v) (declare (ignore v)) (push k acc)) h)
+    (nreverse acc)))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 170 (face font-lock-comment-face fontified t) 170 172 (face font-lock-comment-delimiter-face fontified t)) . 5782) (undo-tree-id0 . -172) (undo-tree-id1 . -172) (undo-tree-id2 . -172)) nil (26997 987 364988 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 5782)) nil (26997 987 364974 0) 0 nil])
+([nil nil ((643 . 644)) nil (26997 987 364973 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 778 . 779) (nil fontified nil 766 . 779) (nil fontified nil 746 . 766) (nil fontified nil 745 . 746) (nil fontified nil 733 . 745) (nil fontified nil 732 . 733) (nil fontified nil 721 . 732) (nil fontified nil 704 . 721) (nil fontified nil 703 . 704) (nil fontified nil 691 . 703) (nil fontified nil 690 . 691) (nil fontified nil 647 . 690) (nil fontified nil 644 . 647) (644 . 779)) nil (26997 987 364972 0) 0 nil])
+([nil current ((779 . 780)) nil (26997 987 364968 0) 0 nil])
 nil

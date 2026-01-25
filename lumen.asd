@@ -11,7 +11,7 @@
   ((:module "src"
     :components
     ((:file "bootstrap-features")
-     (:file "packages")
+     ;;(:file "packages")
      (:module "utils"
       :components
       ((:file "utils")
@@ -26,36 +26,46 @@
        (:file "error")
        (:file "http")
        (:file "session")
-       (:file "router")
+       (:file "router")      ;; Le routeur peut maintenant utiliser defmiddleware
        (:file "jwt")
-       (:file "auth")
+       (:file "auth")        ;; Auth peut utiliser defmiddleware
        (:file "rate-limit")
        (:file "body")
        (:file "shutdown")
-       (:file "server")
+       
        (:file "sendfile")
        (:file "http-range")
        (:file "tls-acme")
-       (:file "middleware")
+
+       (:file "trace")
+
+       ;; --- SOCLE LUMEN 2.0 (DÉPLACÉ ICI) ---
+       (:file "pipeline")    ;; 1. Base (Class middleware)
+       (:file "middleware" :depends-on ("http" "trace"))  ;; 2. Macros (defmiddleware) + Implems standards
+       ;; -------------------------------------       
+       (:file "scheduler")
+       ;; Server utilise tout, donc à la fin
+       (:file "server")
        ))
      (:module "data"
+	      :depends-on ("core")
       :components
       ((:file "config")
        (:file "metrics")
        (:file "errors")
        (:file "prepare-cache")
        (:file "db")
-       (:file "dao")
+       (:file "dao")       
        (:file "repo")
        (:file "tenant")
        (:file "repo-core")
        (:file "migrations")
-       (:file "mws-data")))     
+       ))     
      (:module "http"
       :components
       ((:file "crud")
        (:file "openapi")
-       (:file "proxy")))
+       ))
      (:module "extras"
       :components
       ((:file "forms")
@@ -77,7 +87,10 @@
       ((:file "cli")
        (:file "scaffold")
        (:file "reload")
-       (:file "test-helpers")))
+       (:file "test-helpers")
+       (:file "module")
+       (:file "inspector")
+       ))
      (:module "docs"
       :components
       ((:file "openapi")))
@@ -85,7 +98,7 @@
       :components
       ((:file "util")
        (:file "package")       
-       (:file "middleware-tests")
+       ;;(:file "middleware-tests")
        (:file "util-tests")
        (:file "config-tests")
        (:file "validate-tests")

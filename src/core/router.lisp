@@ -4,14 +4,15 @@
   (:import-from :lumen.core.http
    :request :response :req-method :req-path :req-headers :req-query :req-cookies
 		:req-params :req-body-stream :req-ctx :resp-status :resp-headers
-   :resp-body :respond-text :respond-json :respond-404 :respond-500
+   :resp-body :respond-text :respond-json :respond-404 :respond-500 :respond-405
    :ctx-get :ctx-set!)
   (:import-from :lumen.core.http
    :request :response :req-method :req-path :req-headers :req-query :req-cookies
 		:req-params :req-body-stream :req-ctx :resp-status :resp-headers
    :resp-body :respond-text :respond-json :respond-404 :respond-500)
-  (:export :defroute :router-dispatch :param :with-params :clear-routes
-	   :defprotected :defroles :with-guards :defguarded :def-api-route))
+  (:export :defroute :param :with-params :clear-routes
+   :defprotected :defroles :with-guards :defguarded :def-api-route
+   :%all-routes-registry-list :respond-415 :respond-options))
 
 (in-package :lumen.core.router)
 
@@ -25,7 +26,8 @@
   param-names           ; noms des params extraits du PATH (déjà existant)
   handler               ; (req &rest extras) -> response
   host-scanner          ; scanner cl-ppcre pour l'HÔTE (NIL => match tout)
-  host-param-names)     ; réservé si un jour on veut capturer des variables d'hôte
+  host-param-names      ; réservé si un jour on veut capturer des variables d'hôte
+  source-path)          ; <--- NEW: The original string (e.g. "/users/:id")
 
 (defparameter *routes* (make-array 0 :adjustable t :fill-pointer 0))
 
@@ -39,7 +41,6 @@
 ;;; ===========================================================================
 ;;; Normalisation & compilation des hôtes
 ;;; ===========================================================================
-
 (defun normalize-host (req)
   "Récupère l'hôte 'effectif' d'une requête (sans port), en tenant compte de trust-proxy si présent."
   (let* ((h (or (ctx-get req :host)
@@ -110,31 +111,17 @@
     (t
      (error "Host spec invalide: ~S. Attendu string, liste de strings ou NIL." spec))))
 
+(defun %all-routes-registry-list ()
+  "Returns a list of plists describing all active routes for introspection."
+  ;; *routes* is the vector defined in your router.lisp
+  (loop for r across *routes*
+        collect (list :method (route-method r)
+                      :path   (route-source-path r)
+                      :params (route-param-names r))))
+
 ;;; ===========================================================================
 ;;; Compilation du PATH
 ;;; ===========================================================================
-#|
-(defun compile-path (path)
-  "Ex: \"/api/users/:id\" -> scanner + '(\"id\")"
-  (let ((parts (remove-if #'(lambda (s) (zerop (length s)))
-                          (cl-ppcre:split "/" path)))
-        (rx "^")
-        (params '()))
-    (print path)
-    (print parts)
-    (dolist (p parts)
-      (setf rx (concatenate 'string rx "/"))
-      (print rx)
-      (if (and (> (length p) 1) (char= (char p 0) #\:))
-          (let* ((name (subseq p 1))
-                 (name* (string-downcase name)))
-            (push name* params)
-            (setf rx (concatenate 'string rx "([^/]+)")))
-          (setf rx (concatenate 'string rx (cl-ppcre:quote-meta-chars p)))))
-    (print (concatenate 'string rx "$"))
-    (values (concatenate 'string rx "$") (nreverse params))))
-|#
-
 (defun compile-path (path)
   "Ex: \"/api/users/:id\" -> (values \"^/api/users/([^/]+)$\" '(\"id\"))
    Gère correctement la racine \"/\"."
@@ -184,11 +171,18 @@
      ou (:hosts (\"a.example.com\" \"b.example.com\") :path \"/...\").
    - ARGLIST : comme avant, () ou (REQ [&rest extras])."
   (let* ((m (string-upcase (string method)))
+	 ;; Handle docstrings if present (optional improvement)
+         (doc (when (stringp (first body)) (first body)))
+         (actual-body (if doc (rest body) body))
+
+	 ;; Gensyms for safety
          (rx (gensym "RX"))
          (params (gensym "PARAMS"))
          (host-spec (gensym "HOSTSPEC"))
          (host-sc (gensym "HOSTSC"))
          (handler (gensym "HANDLER"))
+
+	 ;; Standardize request argument
          (default-req (or (find-symbol "REQ" *package*)
                           (intern "REQ" *package*)))
          (req-sym (or (first arglist) default-req))
@@ -205,12 +199,12 @@
                         :pattern (cl-ppcre:create-scanner ,rx)
                         :param-names ,params
                         :handler #',handler
-                        :host-scanner ,host-sc)))))))
+                        :host-scanner ,host-sc
+			:source-path ,path-arg)))))))
 
 ;;; ===========================================================================
 ;;; Dispatch (prise en compte de l'hôte)
 ;;; ===========================================================================
-
 (defun %match-route-host-p (route host)
   "Vrai si ROUTE n'a pas de filtre d'hôte, ou si HOST matche host-scanner."
   (let ((sc (route-host-scanner route)))
@@ -236,87 +230,6 @@
            (old (cdr (assoc :params ctx))))
       (lumen.core.http:ctx-set! req :params (nconc (nreverse alist) old)))))
 
-#|
-(defun router-dispatch (next)
-  "Middleware de dispatch des routes, en tenant compte de l'hôte."
-  (lambda (req)
-    (let* ((method (slot-value req 'lumen.core.http::method))
-           (path   (slot-value req 'lumen.core.http::path))
-           ;; HEAD tombe sur GET pour le matching (write-response gère l’absence de corps)
-           (match-method (if (string= method "HEAD") "GET" method))
-           (host   (normalize-host req))
-           (matched nil))
-      (cond
-        ((string= method "OPTIONS")
-         (respond-options path))
-
-        (t
-         ;; on cherche une route de même pattern, bonne méthode ET (si défini) bon hôte
-         (loop for r across *routes* do
-               (when (and (string= match-method (route-method r))
-                          (%match-route-host-p r host)
-                          (cl-ppcre:scan (route-pattern r) path))
-                 (setf matched r)
-                 (return)))
-         (if matched
-             (progn
-               (setf (slot-value req 'lumen.core.http::params)
-                     (extract-path-params (route-pattern matched)
-                                          (route-param-names matched)
-                                          path))
-               (funcall (route-handler matched) req))
-             ;; si aucun handler, mais pattern existant (pour CET hôte) -> 405 ; sinon -> next
-             (if (allowed-methods-for path)
-                 (respond-405 path)
-                 (funcall next req))))))))
-|#
-
-(defun router-dispatch (next)
-  "Middleware de dispatch des routes, en tenant compte de l'hôte.
-   Capture les interruptions (halt)."
-  (lambda (req)
-    ;; AJOUT : On enveloppe tout le traitement dans un handler-case
-    (handler-case
-        (let* ((method (slot-value req 'lumen.core.http::method))
-               (path   (slot-value req 'lumen.core.http::path))
-               ;; HEAD tombe sur GET pour le matching (write-response gère l’absence de corps)
-               (match-method (if (string= method "HEAD") "GET" method))
-               (host   (normalize-host req))
-               (matched nil))
-          
-          (cond
-            ((string= method "OPTIONS")
-             (respond-options path))
-
-            (t
-             ;; on cherche une route de même pattern, bonne méthode ET (si défini) bon hôte
-             (loop for r across *routes* do
-                   (when (and (string= match-method (route-method r))
-                              (%match-route-host-p r host)
-                              (cl-ppcre:scan (route-pattern r) path))
-                     (setf matched r)
-                     (return)))
-             
-             (if matched
-                 (progn
-                   (setf (slot-value req 'lumen.core.http::params)
-                         (extract-path-params (route-pattern matched)
-                                              (route-param-names matched)
-                                              path))
-                   ;; C'est ici que le code utilisateur est exécuté
-                   ;; Si (halt ...) est appelé dedans, le handler-case ci-dessous l'attrapera
-                   (funcall (route-handler matched) req))
-                 
-                 ;; si aucun handler, mais pattern existant (pour CET hôte) -> 405 ; sinon -> next
-                 (if (allowed-methods-for path)
-                     (respond-405 path)
-                     (funcall next req))))))
-
-      ;; --- INTERCEPTION DU HALT ---
-      (lumen.core.http:http-halt (c)
-        ;; On récupère l'objet réponse stocké dans la condition et on le renvoie
-        (lumen.core.http:halt-response c)))))
-
 (defun extract-path-params (scanner names path)
   (multiple-value-bind (match regs) (cl-ppcre:scan-to-strings scanner path)
     (when match
@@ -327,15 +240,6 @@
 
 (defun param (req name)
   (cdr (assoc (string-downcase name) (req-params req) :test #'string=)))
-
-#|
-(defmacro with-params ((&rest names) &body body)
-  "Lie chaque NAME à (param req \"name\") dans le *contexte où `req` est lexicalement visible*."
-  `(let ,(mapcar (lambda (n)
-                   `(,n (param req ,(string-downcase (string n)))))
-                 names)
-     ,@body))
-|#
 
 (defmacro with-params ((req-sym &rest names) &body body)
   `(let ,(mapcar (lambda (n)
@@ -381,61 +285,53 @@
                    :headers (list (make-allow-header methods))
                    :body "")))
 
+(defun dispatch (req)
+  "Point d'entrée du routeur pour le Pipeline.
+   Ne prend PAS de 'next'. Si pas de route -> 404/405."
+  
+  (handler-case
+      (let* ((method (slot-value req 'lumen.core.http::method))
+             (path   (slot-value req 'lumen.core.http::path))
+             (match-method (if (string= method "HEAD") "GET" method))
+             (host   (normalize-host req))
+             (matched nil))
+        
+        (cond
+          ;; OPTIONS Auto-magic
+          ((string= method "OPTIONS")
+           ;; On vérifie s'il y a des méthodes pour ce chemin
+           (if (allowed-methods-for path)
+               (respond-options path)     ;; <-- CORRECTION : Arity 1 (le path suffit)
+               (respond-404 "Not Found"))) ;; Si aucune route ne matche ce path
+          
+          (t
+           ;; Recherche de route
+           (loop for r across *routes* do
+             (when (and (string= match-method (route-method r))
+                        (%match-route-host-p r host)
+                        (cl-ppcre:scan (route-pattern r) path))
+               (setf matched r)
+               (return)))
+           
+           (if matched
+               ;; MATCH
+               (progn
+                 (setf (slot-value req 'lumen.core.http::params)
+                       (extract-path-params (route-pattern matched)
+                                            (route-param-names matched)
+                                            path))
 
-#|
-(defmacro defroute (method path arglist &body body)
-  "Déclare une route. ARGLIST peut être () ou (REQ [&rest autres]).
-   - Si vide, on lie le paramètre de handler au symbole interne LUMEN.CORE.ROUTER::REQ,
-     ce qui garde la compatibilité avec `with-params` qui référence ce symbole."
-  (let* ((m (string-upcase (string method)))
-         (rx (gensym "RX"))
-         (params (gensym "PARAMS"))
-         (handler (gensym "HANDLER"))
-         ;; Si l'utilisateur n'a pas fourni de nom, on utilise le symbole interne
-         ;; que `with-params` attend (même package que cette macro).
-         (default-req (or (find-symbol "REQ" *package*)
-                          (intern "REQ" *package*)))
-         (req-sym (or (first arglist) default-req))
-         (extra-args (rest arglist)))
-    `(let* ((,rx     (nth-value 0 (compile-path ,path)))
-            (,params (nth-value 1 (compile-path ,path))))
-       (flet ((,handler (,req-sym ,@extra-args)
-                (declare (ignorable ,req-sym ,@extra-args))
-                ,@body))
-         (add-route
-          (make-route :method ,m
-                      :pattern (cl-ppcre:create-scanner ,rx)
-                      :param-names ,params
-:handler #',handler))))))
-
-(defun router-dispatch (next)
-  (lambda (req)
-    (let* ((method (slot-value req 'lumen.core.http::method))
-           (path   (slot-value req 'lumen.core.http::path))
-           ;; HEAD tombe sur GET pour le matching (write-response gère l’absence de corps)
-           (match-method (if (string= method "HEAD") "GET" method))
-           (matched nil))
-      (cond
-        ((string= method "OPTIONS")
-         (respond-options path))
-
-        (t
-         ;; on cherche une route de même pattern et bonne méthode
-         (loop for r across *routes* do
-           (when (and (string= match-method (route-method r))
-                      (cl-ppcre:scan (route-pattern r) path))
-             (setf matched r)
-             (return)))
-         (if matched
-             (progn
-               (setf (slot-value req 'lumen.core.http::params)
-                     (extract-path-params (route-pattern matched)
-                                          (route-param-names matched)
-                                          path))
-               (funcall (route-handler matched) req))
-             ;; si aucun handler, mais pattern existant -> 405 ; sinon -> next (404 plus loin)
-             (if (allowed-methods-for path)
-                 (respond-405 path)
-                 (funcall next req))))))))
-
-|#
+		 ;; Permet aux métriques de savoir que "/users/123" correspond à "/users/:id"
+		 (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
+		 
+                 ;; Exécution Handler
+                 (funcall (route-handler matched) req))
+               
+               ;; NO MATCH -> 405 ou 404
+               (if (allowed-methods-for path)
+                   (respond-405 path)     ;; <-- CORRECTION : Arity 1 (le path suffit)
+                   (respond-404 "Not Found"))))))
+    
+    ;; Gestion (halt 403 "Stop")
+    (lumen.core.http:http-halt (c)
+      (lumen.core.http:halt-response c))))

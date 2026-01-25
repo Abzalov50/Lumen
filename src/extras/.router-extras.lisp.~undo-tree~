@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"17534492a6bc6234e9177bb15a776ac4f02cfbc1"
+"a086989780bee59312a7463a77c0f0c3b8e85519"
 [nil nil nil nil (26798 57467 720239 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 1077 . 1078) (nil fontified nil 1 . 1078) (1 . 1078) (t . -1)) nil (26798 57467 720239 0) 0 nil])
 ([nil nil ((190 . 191)) nil (26798 57467 720238 0) 0 nil])
@@ -202,5 +202,39 @@
 ([nil nil ((4637 . 4638)) nil (26981 9694 247528 0) 0 nil])
 ([nil nil ((6050 . 6051)) nil (26981 9694 247525 0) 0 nil])
 ([nil nil ((#("Nouveaux c" 0 10 (face font-lock-comment-face fontified t)) . -4768) (undo-tree-id3 . -10) 4778 (t 26981 9694 0 0)) nil (26981 62335 535740 0) 0 nil])
-([nil current ((4768 . 4769)) nil (26981 62335 535728 0) 0 nil])
+([nil nil ((4768 . 4769)) nil (26981 62335 535728 0) 0 nil])
+([nil nil ((#("jwt" 0 3 (fontified t)) . -2655) (undo-tree-id0 . -3) 2658 (t 26993 53276 0 0)) nil (26996 52268 518736 0) 0 nil])
+([nil nil ((2655 . 2665)) nil (26996 52268 518721 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3785 . 3786) (nil fontified nil 3775 . 3786) (3775 . 3786)) nil (26996 52268 518717 0) 0 nil])
+([nil nil ((#("
+#|
+(defmacro def-api-route (method path args (&key scopes roles (admin-bypass t))
+			 &body body)
+  \"Wrapper autour de lumen.core.router:defguarded pour QALM.
+   - Force l'authentification (required=t)
+   - Simplifie la syntaxe des scopes\"
+  `(lumen.core.router:defguarded ,method ,path ,args
+     ;; On active auth-jwt
+     (:required t
+     ;; Configuration des permissions
+     :scopes ,scopes
+     :roles  ,roles
+     ;; Bypass Admin (activé par défaut)
+     :admin-bypass-scopes? ,admin-bypass
+     :admin-bypass-roles?  ,admin-bypass
+     ;; Autoriser le token en query param pour SSE (ex: ?access_token=...)
+     :allow-query-token? t )
+     
+     ,@body))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 593 (face font-lock-comment-face fontified t) 593 616 (face font-lock-comment-face fontified t) 616 665 (face font-lock-comment-face fontified t) 665 667 (face font-lock-comment-delimiter-face fontified t)) . 3988) (undo-tree-id0 . -667) (t 26996 52268 0 0)) nil (26997 64194 315976 0) 0 nil])
+([nil nil ((3988 . 3989)) nil (26997 64194 315961 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 7071 . 7072) (nil fontified nil 3989 . 7072) (3989 . 7072)) nil (26997 64194 315960 0) 0 nil])
+([nil nil ((1266 . 1267)) nil (26997 64194 315959 0) 0 nil])
+([nil nil ((1267 . 1269)) nil (26997 64194 315958 0) 0 nil])
+([nil nil ((3991 . 3993)) nil (26997 64194 315957 0) 0 nil])
+([nil nil ((3993 . 3994)) nil (26997 64194 315914 0) 0 nil])
+([nil nil ((#("scopes" 0 6 (face font-lock-builtin-face fontified t)) . -8306) (undo-tree-id33 . -6) (undo-tree-id34 . -3) (undo-tree-id35 . -3) (undo-tree-id36 . -3) (undo-tree-id37 . -3) (undo-tree-id38 . -3) (undo-tree-id39 . -3) (undo-tree-id40 . -6) (undo-tree-id41 . -6) (undo-tree-id42 . -6) (undo-tree-id43 . -6) (undo-tree-id44 . -6) (undo-tree-id45 . -6) (undo-tree-id46 . -6) (undo-tree-id47 . -6) (undo-tree-id48 . -6) (undo-tree-id49 . -6) 8312 (t 26997 64194 0 0)) nil (26997 64355 858897 0) 0 nil])
+([nil nil ((#("-" 0 1 (face font-lock-builtin-face fontified t)) . -8305) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) (undo-tree-id31 . -1) (undo-tree-id32 . -1) 8306) nil (26997 64355 858886 0) 0 nil])
+([nil current ((#("
+        :admin-bypass-roles?  ,admin-bypass" 0 1 (fontified t) 1 9 (fontified t) 9 29 (face font-lock-builtin-face fontified t) 29 44 (fontified t)) . 8320) (undo-tree-id1 . -44) (undo-tree-id2 . -1) (undo-tree-id3 . -44) (undo-tree-id4 . -44) (undo-tree-id5 . -44) (undo-tree-id6 . -44) (undo-tree-id7 . -44)) nil (26997 64355 858866 0) 0 nil])
 nil

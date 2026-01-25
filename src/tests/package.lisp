@@ -5,8 +5,7 @@
   (:import-from :uiop :with-temporary-file)
   (:import-from :lumen.core.middleware
                 :parse-query-string-to-alist
-                :logger :*app*
-                :*debug*)
+                :logger-middleware)
   (:import-from :lumen.core.http
                 :request :response
                 :req-method :req-path

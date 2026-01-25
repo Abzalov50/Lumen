@@ -71,6 +71,18 @@
        (cl-ppcre:scan "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
                       (string-downcase s))))
 
+(defun %entity-tenant-col (entity &optional md)
+  "Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields."
+  (let* ((md     (or md (entity-metadata entity)))
+         (fields (getf md :fields))
+         (decl   (getf md :tenant-id-col)))
+    (labels ((has-col-p (kw)
+               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
+      (cond
+        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
+        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
+        (t nil)))))                                   ; sinon pas de colonne tenant
+
 ;;; ------------------------------------------------------------
 ;;; Sanitation tenant_id
 ;;;   - ctx :tenant-id prioritaire (UUID attendu)
@@ -144,19 +156,7 @@
                      payload)
                  :key #'car :test #'eq)))
 
-      (t payload))))
-
-(defun %entity-tenant-col (entity &optional md)
-  "Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields."
-  (let* ((md     (or md (entity-metadata entity)))
-         (fields (getf md :fields))
-         (decl   (getf md :tenant-id-col)))
-    (labels ((has-col-p (kw)
-               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
-      (cond
-        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
-        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
-        (t nil)))))                                   ; sinon pas de colonne tenant
+      (t payload))))                                ; sinon pas de colonne tenant
 
 (defun entity-field-cols (entity)
   "Colonnes déclarées dans :fields."
@@ -182,18 +182,6 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
                      (entity-timestamp-cols entity)  ; created_at/updated_at si timestamps présents
                      (list pk tenantcol lockcol)))
      :test #'eq)))
-
-(defun %entity-tenant-col (entity &optional md)
-  "Retourne la colonne tenant-id *si et seulement si* elle est déclarée ET présente dans :fields."
-  (let* ((md     (or md (entity-metadata entity)))
-         (fields (getf md :fields))
-         (decl   (getf md :tenant-id-col)))
-    (labels ((has-col-p (kw)
-               (and kw (some (lambda (f) (eq (getf f :col) kw)) fields))))
-      (cond
-        ((and decl (has-col-p decl)) decl)          ; colonne explicitement déclarée et présente
-        ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
-        (t nil)))))                                   ; sinon pas de colonne tenant
 
 (defun entity-timestamp-cols (entity)
   "Retourne la liste des colonnes timestamps (:created / :updated) si définies via :timestamps."
@@ -279,7 +267,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 ;; Hooks par défaut
 (defmethod repo-authorize (op (entity symbol) ctx &key id payload)  
   (declare (ignore id payload))
-  (format t "~&[Lumen] In REPO AUTHORIZE (Ent: ~A | Op: ~A)~%" entity op)
+  ;;(format t "~&[Lumen] In REPO AUTHORIZE (Ent: ~A | Op: ~A)~%" entity op)
   (let* ((md (entity-metadata entity))
          (table (string-downcase (or (getf md :table) (symbol-name entity))))
          (write? (member op '(:create :patch :delete))))
@@ -289,23 +277,23 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 
 (defmethod repo-normalize (op (entity symbol) ctx payload)  
   (declare (ignore op entity ctx))
-  (format t "~&[Lumen] In REPO NORMALIZE (Ent: ~A | Op: ~A)~%" entity op)
+  ;;(format t "~&[Lumen] In REPO NORMALIZE (Ent: ~A | Op: ~A)~%" entity op)
   payload)
 
 (defmethod repo-validate (op (entity symbol) ctx payload)  
   (declare (ignore op))
-  (format t "~&[Lumen] In REPO VALIDATE (Ent: ~A | Op: ~A)~%" entity op)
+  ;;(format t "~&[Lumen] In REPO VALIDATE (Ent: ~A | Op: ~A)~%" entity op)
   (ignore-errors (validate-entity! (row->entity entity payload)))
   payload)
 
 (defmethod repo-before (op (entity symbol) ctx &key id payload)  
   (declare (ignore op entity ctx id payload))
-  (format t "~&[Lumen] In REPO BEFORE (Ent: ~A | Op: ~A)~%" entity op)
+  ;;(format t "~&[Lumen] In REPO BEFORE (Ent: ~A | Op: ~A)~%" entity op)
   (values))
 
 (defmethod repo-after (op (entity symbol) ctx result &key id payload)
   (declare (ignore id payload))
-  (format t "~&[Lumen] In REPO AFTER (~A)~%" entity)
+  ;;(format t "~&[Lumen] In REPO AFTER (~A)~%" entity)
   (let* ((req   (getf ctx :req))
          ;; fallbacks : si :actor-id absent, on essaie via req/JWT
          (actor (or (getf ctx :actor-id)
@@ -331,37 +319,6 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
   result)
 
 ;; Implémentations CRUD
-#|
-(defmethod repo-index ((entity symbol) ctx
-                       &key filters order select page page-size limit offset
-                         after before key)
-  (format t "~&[Lumen] In REPO INDEX (~A)~%" entity)
-  (let* ((md      (entity-metadata entity))
-         (table   (getf md :table))
-         (allowed (entity-allowed-cols entity :include-pk? t :include-tenant? t))
-         (tid     (getf ctx :tenant-id))
-         (tcol    (%entity-tenant-col entity md))
-         (filters* (%maybe-add-tenant-filter filters tcol tid)))
-    (lumen.data.db:ensure-connection
-      (cond
-        ((or after before)
-         (select-page-keyset* table
-                              :filters filters*
-                              :order   order
-                              :key     key
-                              :after   after
-                              :limit   (or limit 20)
-                              :order-whitelist allowed))
-        (t
-         (select* table
-                  :filters filters*
-                  :order   order
-                  :select  (or select :*)
-                  :limit   (or (and page-size (* 1 page-size)) limit 20)
-                  :offset  (or offset (and page page-size (* (max 0 (1- page)) page-size)))
-                  :order-whitelist allowed))))))
-|#
-
 (defmethod repo-index ((entity symbol) ctx
                        &key filters order select page page-size limit offset
                           after before key)
@@ -406,24 +363,6 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
           (%rows->serialized-entities entity rows)))))
 
 ;; SHOW (lecture par PK, filtrée tenant si présent)
-#|
-(defmethod repo-show ((entity symbol) ctx id)
-  (format t "~&[Lumen] In REPO SHOW (~A)~%" entity)
-  (let* ((md   (entity-metadata entity))
-         (tbl  (getf md :table))
-         (pk   (or (getf md :primary-key) :id))
-         (base (list '= pk id))
-         (tid  (getf ctx :tenant-id))
-         (tcol (%entity-tenant-col entity md))
-         (filters (if (and tcol tid)
-                      (list 'and base (list '= tcol tid))
-                      base)))
-    (lumen.data.db:ensure-connection
-      (let ((rows (select* tbl :filters filters :limit 1)))
-	
-        (and rows (first rows))))))
-|#
-
 (defmethod repo-show ((entity symbol) ctx id)
   (let* ((md   (entity-metadata entity))
          (tbl  (getf md :table))
@@ -461,24 +400,6 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
       (multiple-value-bind (_n ent2) (entity-insert! ent :returning t)
         (declare (ignore _n))
         (entity->row-alist ent2))))
-
-#|
-(defmethod repo-persist ((op (eql :patch)) (entity symbol) ctx &key id payload)
-  (let* ((cur (repo-show entity ctx id)))
-    (unless cur (error 'lumen.data.errors:not-found-error))
-    (let* ((payload* (%ensure-tenant-on-payload entity ctx payload :op :patch))
-           (ent      (row->entity entity cur)))
-      ;; appliquer le patch (hors tenant col)
-      (dolist (kv payload*)
-        (let* ((col (%norm-col-name (car kv)))
-               (val  (cdr kv))
-               (slot (entity-slot-symbol entity col)))
-          (when slot (setf (slot-value ent slot) val))))
-      (validate-entity! ent)
-        (multiple-value-bind (_n ent2) (entity-update! ent :patch t :returning t)
-          (declare (ignore _n))
-          (entity->row-alist ent2)))))
-|#
 
 (defmethod repo-persist ((op (eql :patch)) (entity symbol) ctx &key id payload)
   (let* ((cur (repo-show entity ctx id)))

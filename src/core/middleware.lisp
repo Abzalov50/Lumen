@@ -1,121 +1,45 @@
 (in-package :cl)
 
 (defpackage :lumen.core.middleware
-  (:use :cl :alexandria)
-  (:import-from :lumen.core.http :request :response :resp-body :resp-status
-   :resp-headers :respond-500 :respond-404 :req-query :ctx-get :ctx-set!)
+  (:use :cl :alexandria :lumen.core.body :lumen.core.http)
+  (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)
   (:import-from :lumen.utils :-> :->> :str-prefix-p :ensure-header :parse-http-date
 		:format-http-date)
   (:import-from :lumen.core.mime :guess-content-type)
-  (:import-from :lumen.core.body :parse-urlencoded)
   (:import-from :lumen.core.session :session-id :session-data :session-get :session-set! :session-del! :verify-signed-sid :sign-sid :store-get :store-put! :store-del! :rand-bytes :*session-ttl* :*session-cookie* :*secure-cookie*)
   (:import-from :lumen.core.jwt :*jwt-secret* :jwt-encode :jwt-decode)
   (:import-from :lumen.core.ratelimit :allow?)
   (:import-from :lumen.core.http-range :respond-file)
-  (:export :define-middleware :my-compose :*app* :logger :json-only :query-parser
-	   :parse-query-string-to-alist :*debug* :set-app! :*pipeline-signature*
-	   :named :->mw :static :cors :cors-auto :static-many
-	   :form-parser :multipart-parser
-	   ;; Erreur Handlers
-   :*error-handler* :error-wrapper
-   ;; Cookies
-   :request-id :request-context :set-cookie! :cookie :cookies-parser
-   ;; ETag
-   :etag
-   ;; Compression
-   :compression
-   :last-modified-conditional
-   ;; Session
-	   :session
-   :csrf
-	   :auth-jwt
-   :https-redirect
-	   :auth-required :roles-allowed :rate-limit
-	   :request-timeout :max-body-size :access-log-json))
+  (:import-from :lumen.core.router :dispatch)
+  (:import-from :lumen.core.trace :with-tracing :*trace-root* :print-trace-waterfall
+		:current-context :with-propagated-context)
+  (:export :defmiddleware :logger-middleware :json-only-middleware
+   :cors-middleware :cors-auto :static-middleware :cookie-middleware
+   :form-parser-middleware :body-parser-middleware :query-parser-middleware
+	   :request-id-middleware :error-middleware :form-parser-middleware
+   :multipart-parser-middleware :router-middleware
+   :etag-middleware :compression-middleware
+	   :last-modified-middleware :session-middleware :csrf-middleware
+   :auth-middleware :auth-required :roles-allowed
+	   :https-redirect-middleware :rate-limit-middleware :timeout-middleware
+	   :max-body-size-middleware :context-middleware :access-log-middleware
+   :parse-query-string-to-alist :trust-proxy-middleware :inspector-middleware
+   :trace-middleware))
 
 (in-package :lumen.core.middleware)
 
-(defparameter *debug* nil)  ;; active les prints si T
-
-(defvar *app* (lambda (req)
-                (declare (ignore req))
-                (lumen.core.http:respond-404 "No handler"))
-  "La pile de middlewares active. Toujours mise à jour via (set-app!).")
-
-(defvar *pipeline-signature* nil
-  "Liste symbolique des middlewares dans l'ordre actuel.")
-
-(defstruct mw-entry
-  name   ;; string (affichage)
-  fn)    ;; le factory: (next) -> (lambda (req) ...)
-
-(defun %entry-name (x)
-  (etypecase x
-    (mw-entry (mw-entry-name x))
-    (function "<fn>")))  ;; fallback lisible
-
-(defun %entry-fn (x)
-  (etypecase x
-    (mw-entry (mw-entry-fn x))
-    (function x)))
-
-(defun named (name fn-factory)
-  "Wrappe un middleware factory avec un nom (string)."
-  (make-mw-entry :name (string name) :fn fn-factory))
-
-(defmacro ->mw (name form)
-  `(lumen.core.middleware:named ,name ,form))
-
-(defun set-app! (&rest middlewares)
-  "Compose la pile. Chaque élément peut être:
-   - un FUNCTION (factory classique),
-   - ou (named \"Nom\" FUNCTION)."
-  (let* ((fns   (mapcar #'%entry-fn   middlewares))
-         (names (mapcar #'%entry-name middlewares)))
-    (setf *app* (apply #'my-compose fns)
-          *pipeline-signature* names)))
-
-(defun header-ref (headers name)
-  (cdr (assoc (string-downcase name) headers :test #'string=)))
-
-(defun my-compose (&rest middlewares)
-  "Construit (req -> resp) en enchaînant les middlewares dans l’ordre donné."
-  (let ((terminal (lambda (req)
-                    (declare (ignore req))
-                    (respond-404 "No handler"))))
-    (dolist (mw (reverse middlewares) terminal)
-      (setf terminal (funcall mw terminal)))))  ; <-- APPELLE le mw AVEC `next`
-
-(defmacro define-middleware (name (req-sym next-sym) &body body)
-  `(defun ,name (,next-sym)
-     (lambda (,req-sym)
-       ,@body)))
-
-#|
-(define-middleware logger (req next)
-  (let* ((start (get-internal-real-time))
-         (resp (funcall next req))
-         (end  (get-internal-real-time))
-         (ms   (floor (* 1000.0 (/ (- end start)
-                                   internal-time-units-per-second)))))
-    (when *debug*
-      (format t "~&[lumen] ~A ~A -> ~A (~A ms)~%"
-              (slot-value req 'lumen.core.http::method)
-              (slot-value req 'lumen.core.http::path)
-              (lumen.core.http:resp-status resp)
-              ms))
-    resp))
-|#
+;;; ---------------------------------------------------------------------------
+;;; 2. HELPERS (Logger Utils)
+;;; ---------------------------------------------------------------------------
 
 (defun %status-color (status)
   (cond
     ((<= 200 status 299) "32")  ; vert
     ((<= 300 status 399) "36")  ; cyan
     ((<= 400 status 499) "33")  ; jaune
-    (t                          "31"))) ; rouge
+    (t                   "31"))) ; rouge
 
 (defun %emacs-repl-p ()
-  "Vrai si on est dans un REPL Emacs (SLIME/SLY) ou INSIDE_EMACS."
   (or (member :swank *features*)
       (member :slynk *features*)
       (uiop:getenv "INSIDE_EMACS")))
@@ -127,1689 +51,993 @@
        (let ((term (uiop:getenv "TERM")))
          (and term (not (string= term "")) (not (string-equal term "dumb"))))))
 
-(defun logger (&key (stream *terminal-io*) (color :auto))
-  "Logger concis: [ts] ip METHOD host path -> status (ms).
-COLOR ∈ (:auto T NIL) — par défaut :auto (désactivé sur consoles sans ANSI)."
-  (let ((color-enabled (if (eq color :auto) (%supports-ansi-p stream) (not (null color)))))
-    (lambda (next)
-      (lambda (req)
-        (labels ((h (name)
-                   (cdr (assoc name (lumen.core.http:req-headers req) :test #'string-equal))))
-          (let* ((t0   (get-internal-real-time))
-                 ;; IP: XFF → X-Real-IP → ctx[:remote-addr] → "-"
-                 (ip   (or (let* ((xff (h "x-forwarded-for")))
-                             (and xff (string-trim " " (car (uiop:split-string xff :separator ",")))))
-                           (h "x-real-ip")
-                           (lumen.core.http:ctx-get req :remote-addr)
-                           "-"))
-                 (host (or (h "host") ""))
-                 (meth (or (lumen.core.http:req-method req) "GET"))
-                 (path (or (lumen.core.http:req-path req) "/"))
-                 (resp (funcall next req))
-                 (ms   (/ (- (get-internal-real-time) t0)
-                          (/ internal-time-units-per-second 1000.0)))
-                 (msi  (round ms))
-                 (st   (lumen.core.http:resp-status resp))
-                 (ts   (local-time:format-timestring
-                        nil (local-time:now)
-                        :format '(:year "-" (:month 2) "-" (:day 2) " "
-                                  (:hour 2) ":" (:min 2) ":" (:sec 2)))))
-            (if color-enabled
-                ;; Placeholders: ts ip meth host path ESC color st ESC msi
-                (format stream "~&[~A] ~A ~A ~A ~A -> ~C[0;~am~D~C[0m (~D ms)~%"
-                        ts ip meth host path
-                        #\Esc (%status-color st) st #\Esc msi)
-              (format stream "~&[~A] ~A ~A ~A ~A -> ~D (~D ms)~%"
-                      ts ip meth host path st msi))
-            (finish-output stream)
-            resp))))))
+;;; ---------------------------------------------------------------------------
+;;; 3. LOGGER MIDDLEWARE (Refactorisé en CLOS)
+;;; ---------------------------------------------------------------------------
 
-;; --- Query parser -----------------------------------------------------------
+(defmiddleware logger-middleware
+    ((stream :initarg :stream 
+             :initform *terminal-io* :accessor logger-stream)
+     (color  :initarg :color  
+             :initform :auto)
+     (color-enabled-p :initform nil :accessor logger-color-p)
+     ;; --- AJOUT DU LOCK ---
+     ;; Chaque instance de logger a son propre verrou pour protéger son stream
+     (lock :initform (bt:make-lock "logger-lock") :accessor logger-lock))
+    (req next)
+  
+  (labels ((h (name)
+             (cdr (assoc name (lumen.core.http:req-headers req) :test #'string-equal))))
+    (let* ((t0   (get-internal-real-time))
+           (ip   (or (let* ((xff (h "x-forwarded-for")))
+                       (and xff (string-trim " " (car (uiop:split-string xff :separator ",")))))
+                     (h "x-real-ip")
+                     (lumen.core.http:ctx-get req :remote-addr)
+                     "-"))
+           (host (or (h "host") ""))
+           (meth (or (lumen.core.http:req-method req) "GET"))
+           (path (or (lumen.core.http:req-path req) "/"))
+           
+           ;; Exécution
+           (resp (funcall next req))
+           
+           ;; Mesures
+           (ms    (/ (- (get-internal-real-time) t0)
+                     (/ internal-time-units-per-second 1000.0)))
+           (msi   (round ms))
+           (st    (lumen.core.http:resp-status resp))
+           (ts    (local-time:format-timestring
+                   nil (local-time:now)
+                   :format '(:year "-" (:month 2) "-" (:day 2) " "
+                             (:hour 2) ":" (:min 2) ":" (:sec 2))))
+           
+           ;; Récupération des slots via 'mw' (l'instance)
+           (out   (slot-value mw 'stream))
+           (lock  (slot-value mw 'lock))
+           (use-color (slot-value mw 'color-enabled-p)))
+
+      ;; Écriture Thread-Safe avec le lock de l'instance
+      (bt:with-lock-held (lock) 
+        (if use-color
+            (format out "~&[~A] ~A ~A ~A ~A -> ~C[0;~am~D~C[0m (~D ms)~%"
+                    ts ip meth host path
+                    #\Esc (%status-color st) st #\Esc msi)
+            (format out "~&[~A] ~A ~A ~A ~A -> ~D (~D ms)~%"
+                    ts ip meth host path st msi))
+        (finish-output out))
+      
+      resp)))
+
+;;; Méthode d'initialisation pour optimiser le flag couleur
+(defmethod initialize-instance :after ((mw logger-middleware) &key)
+  (with-slots (stream color color-enabled-p) mw
+    (setf color-enabled-p 
+          (if (eq color :auto) 
+              (%supports-ansi-p stream) 
+              (not (null color))))))
+
+;;; ---------------------------------------------------------------------------
+;;; 3. QUERY PARSER MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
 (defun %url-decode (s)
-  "Decode minimal: %HH et '+' -> espace."
-  (when s
-    (with-output-to-string (out)
-      (loop for i from 0 below (length s) do
-            (let ((c (char s i)))
-              (cond
-                ((char= c #\+) (write-char #\Space out))
-                ((and (char= c #\%)
-                      (<= (+ i 2) (1- (length s))))
-                 (let* ((h1 (digit-char-p (char s (1+ i)) 16))
-                        (h2 (digit-char-p (char s (+ i 2)) 16)))
-                   (if (and h1 h2)
-                       (progn
-                         (write-char (code-char (+ (* h1 16) h2)) out)
-                         (incf i 2))
-                       (write-char c out))))
-                (t (write-char c out))))))))
+  (when s (with-output-to-string (out)
+            (loop for i from 0 below (length s) do
+              (let ((c (char s i)))
+                (cond ((char= c #\+) (write-char #\Space out))
+                      ((and (char= c #\%) (<= (+ i 2) (1- (length s))))
+                       (let ((h1 (digit-char-p (char s (1+ i)) 16)) (h2 (digit-char-p (char s (+ i 2)) 16)))
+                         (if (and h1 h2) (progn (write-char (code-char (+ (* h1 16) h2)) out) (incf i 2)) (write-char c out))))
+                      (t (write-char c out))))))))
 
 (defun parse-query-string-to-alist (qs)
-  "Transforme \"a=1&q[s][!=]=done\" -> ((\"a\" . \"1\") (\"q[s][!=]\" . \"done\")).
-   Gère intelligemment les opérateurs !=, >=, <= dans les clés."
-  (if (or (null qs) (zerop (length qs)))
-      nil
+  (if (or (null qs) (zerop (length qs))) nil
       (loop for pair in (uiop:split-string qs :separator "&")
-            ;; On cherche la position du séparateur '='
             for p = (let ((len (length pair)))
-                      (loop for i from 0 below len
-                            ;; On a trouvé un '='
-                            when (char= (char pair i) #\=)
-                              ;; EST-CE LE VRAI SÉPARATEUR ?
-                              ;; Oui si c'est le tout premier caractère (clé vide)
-                              ;; OU si le caractère précédent n'est PAS un morceau d'opérateur (!, >, <)
-                              when (or (zerop i)
-                                       (not (member (char pair (1- i)) '(#\! #\> #\<))))
-                                return i))
-            
-            ;; Extraction Clé / Valeur
+                      (loop for i from 0 below len when (char= (char pair i) #\=) when (or (zerop i) (not (member (char pair (1- i)) '(#\! #\> #\<)))) return i))
             for k = (%url-decode (subseq pair 0 (or p (length pair))))
             for v = (%url-decode (if p (subseq pair (1+ p)) ""))
             collect (cons k v))))
 
-(define-middleware query-parser (req next)
-  ;; Si req-query est une string, on la remplace par une alist.
-  (let* ((q (lumen.core.http:req-query req)))
+(defmiddleware query-parser-middleware () (req next)
+  (let ((q (lumen.core.http:req-query req)))
     (when (stringp q)
       (setf (lumen.core.http:req-query req) (parse-query-string-to-alist q)))
     (funcall next req)))
 
+;;; ---------------------------------------------------------------------------
+;;; 4. JSON ONLY MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
 (defun path-matches? (path paths prefixes)
   (or (and paths (member path paths :test #'string=))
-      (and prefixes
-           (some (lambda (pfx)
-                   (and (<= (length pfx) (length path))
-                        (string= pfx path :end2 (length pfx))))
-                 prefixes))))
+      (and prefixes (some (lambda (pfx) (and (<= (length pfx) (length path)) (string= pfx path :end2 (length pfx)))) prefixes))))
 
-(defun json-only (&key paths prefixes exclude-paths exclude-prefixes (respect-existing t))
-  "Forcer JSON uniquement pour les endpoints API ciblés,
-   sans écraser les assets (MIME issu de lumen.core.mime)."
-  (lambda (next)
-    (lambda (req)
-      (let* ((resp (funcall next req))
-             (path (lumen.core.http:req-path req))
-             ;; MIME déduit de l’URL (utile pour URLs statiques /app/...):
-             (guess (lumen.core.mime:content-type-for path))
-             (ct (cdr (assoc "content-type" (lumen.core.http:resp-headers resp)
-                             :test #'string-equal)))
-             (should-apply (and (path-matches? path paths prefixes)
-                                (not (path-matches? path exclude-paths exclude-prefixes))
-                                ;; si l’URL ressemble à un asset connu (js, css, …), on n’applique pas
-                                (not (string/= guess "application/octet-stream")) ; => connu
-                                ;; on veut **forcer** JSON uniquement si guess n'est PAS un type d’asset
-                                ;; donc on inverse : n'appliquer que si guess est octet-stream (inconnu)
-                                )))
-        ;; Si la route est explicitement API (ex: /api, /auth, /openapi.json),
-        ;; passe plutôt paths/prefixes pour matcher celles-ci. Exemple d’usage plus bas.
-        (cond
-          ;; si l’URL est un asset (guess ≠ octet-stream), NE RIEN FAIRE
-          ((and guess (not (string= (string-downcase guess) "application/octet-stream")))
-           resp)
-          ;; si on respecte un type existant non JSON (SSE, CSV, etc.), NE RIEN FAIRE
-          ((and respect-existing ct
-                (not (cl-ppcre:scan "^application/json" (string-downcase ct))))
-           resp)
-          ;; si SSE, NE RIEN FAIRE
-          ((and ct (string= (string-downcase ct) "text/event-stream"))
-           resp)
-          ;; pour les endpoints API sans CT explicite : forcer JSON
-          ((path-matches? path paths prefixes)
-           (setf (lumen.core.http:resp-headers resp)
-                 (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                            "content-type"
-                                            "application/json; charset=utf-8"))
-           resp)
-          (t resp))))))
+(defmiddleware json-only-middleware
+    ((paths :initarg :paths :initform nil)
+     (prefixes :initarg :prefixes :initform '("/api"))
+     (exclude-paths :initarg :exclude-paths :initform nil)
+     (exclude-prefixes :initarg :exclude-prefixes :initform nil)
+     (respect-existing :initarg :respect-existing :initform t))
+    (req next)
+  
+  (let* ((resp (funcall next req))
+         (path (lumen.core.http:req-path req))
+         (guess (lumen.core.mime:content-type-for path))
+         (ct (cdr (assoc "content-type" (lumen.core.http:resp-headers resp) :test #'string-equal))))
+    
+    (with-slots (paths prefixes exclude-paths exclude-prefixes respect-existing) mw
+      (cond
+        ;; Asset (connu via extension) -> Skip
+        ((and guess (not (string= (string-downcase guess) "application/octet-stream"))) resp)
+        ;; Exclu explicitement -> Skip
+        ((path-matches? path exclude-paths exclude-prefixes) resp)
+        ;; Respect existant -> Skip
+        ((and respect-existing ct (not (cl-ppcre:scan "^application/json" (string-downcase ct)))) resp)
+        ;; Match API -> Force JSON
+        ((path-matches? path paths prefixes)
+         (setf (lumen.core.http:resp-headers resp)
+               (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "content-type" "application/json; charset=utf-8"))
+         resp)
+        ;; Default -> Skip
+        (t resp)))))
 
-#|
-(defun cors (&key (origins '("*")) (methods '("GET" "POST" "PUT" "PATCH" "DELETE" "OPTIONS"))
-                  (headers '("Content-Type" "Authorization"))
-                  (expose '()) (credentials nil) (max-age 600))
-  "CORS middleware. Répond aux préflights (OPTIONS) et enrichit toutes les réponses."
-  (lambda (next)
-    (lambda (req)
-      (let* ((req-h (lumen.core.http:req-headers req))
-             (origin (cdr (assoc "origin" req-h :test #'string-equal)))
-             (req-method (cdr (assoc "access-control-request-method" req-h :test #'string-equal)))
-             (preflight (and (stringp req-method)
-                             (string= (slot-value req 'lumen.core.http::method) "OPTIONS")))
-             (allow-origin (cond
-                             ((or (null origin) (member "*" origins :test #'string=)) "*")
-                             ((member origin origins :test #'string=) origin)
-                             (t nil))))
-        (labels ((decorate (resp)
-                   (when allow-origin
-                     (setf (lumen.core.http:resp-headers resp)
-                           (-> (lumen.core.http:resp-headers resp)
-                               (lumen.utils:ensure-header "access-control-allow-origin" allow-origin)
-                               (lumen.utils:ensure-header "vary" "Origin"))))
-                   (when credentials
-                     (setf (lumen.core.http:resp-headers resp)
-                           (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                          "access-control-allow-credentials" "true")))
-                   (when expose
-                     (setf (lumen.core.http:resp-headers resp)
-                           (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                          "access-control-expose-headers"
-                                          (format nil "~{~A~^, ~}" expose))))
-                   resp))
-          (if preflight
-              (let ((resp (make-instance 'lumen.core.http:response
-                                         :status 204 :headers nil :body "")))
-                (when allow-origin
-                  (setf (lumen.core.http:resp-headers resp)
-                        (-> (lumen.core.http:resp-headers resp)
-                            (lumen.utils:ensure-header "access-control-allow-origin" allow-origin)
-                            (lumen.utils:ensure-header "access-control-allow-methods" (format nil "~{~A~^, ~}" methods))
-                            (lumen.utils:ensure-header "access-control-allow-headers" (format nil "~{~A~^, ~}" headers))
-                            (lumen.utils:ensure-header "access-control-max-age" (princ-to-string max-age)))))
-                (when credentials
-                  (setf (lumen.core.http:resp-headers resp)
-                        (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                       "access-control-allow-credentials" "true")))
-                resp)
-(decorate (funcall next req))))))))
-|#
+;;; ---------------------------------------------------------------------------
+;;; 5. CORS MIDDLEWARE (Stateful)
+;;; ---------------------------------------------------------------------------
 
-;;;; ----------------------------------------------------------------------------
-;;;; CORS dual-mode (dev permissif / prod strict) + factory via lumen.core.config
-;;;; ----------------------------------------------------------------------------
-(defun cors (&key (mode :dev)                       ; :dev | :prod
-                  (origins '("*"))                  ; whitelist en :prod, ou '("*") en :dev
-                  (methods '("GET" "POST" "PUT" "PATCH" "DELETE" "OPTIONS"))
-                  (headers '("Content-Type" "Authorization"))
-                  (expose '()) (credentials nil) (max-age 600))
-  "CORS middleware dual-mode (dev permissif / prod strict).
-- MODE       : :dev (permissif) | :prod (strict whitelist)
-- ORIGINS    : liste d'origines autorisées (prod) ou '(\"*\") (dev)
-- CREDENTIALS: si T, on n’émet jamais \"*\" ; on renvoie l’Origin effectif si autorisé
-- MAX-AGE    : secondes de cache préflight"
-  (lambda (next)
-    (lambda (req)
-      (let* ((req-h (lumen.core.http:req-headers req))
-             (origin (cdr (assoc "origin" req-h :test #'string-equal)))
-             (acr-method (cdr (assoc "access-control-request-method" req-h :test #'string-equal)))
-             (acr-headers-req (cdr (assoc "access-control-request-headers" req-h :test #'string-equal)))
-             (is-options (string= (slot-value req 'lumen.core.http::method) "OPTIONS"))
-             (preflight (and is-options (stringp acr-method)))
-             (allow-origin
-               (cond
-                 ((eq mode :dev)
-                  ;; En dev: permissif ; si credentials, renvoyer origin (si présent) plutôt que "*"
-                  (or (and credentials origin) "*"))
-                 ((eq mode :prod)
-                  (cond
-                    ((and origin (member origin origins :test #'string=)) origin)
-                    ((member "*" origins :test #'string=) "*") ; si on veut forcer permissif en prod (déconseillé)
-                    (t nil)))
-                 (t nil))))
-        (labels
-            ((%ensure (resp name value)
-               (setf (lumen.core.http:resp-headers resp)
-                     (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) name value)))
-             (decorate (resp)
-               ;; Toujours Vary: Origin (CDN-safe)
-               (%ensure resp "vary" "Origin")
-               ;; Allow-Origin (+ credentials si applicable)
-               (when allow-origin
-                 (let ((effective
-                         (if (and credentials (string= allow-origin "*") (stringp origin))
-                             origin
-                             allow-origin)))
-                   (%ensure resp "access-control-allow-origin" effective)
-                   (when (and credentials (not (string= effective "*")))
-                     (%ensure resp "access-control-allow-credentials" "true"))))
-               ;; Expose-Headers
-               (when expose
-                 (%ensure resp "access-control-expose-headers" (format nil "~{~A~^, ~}" expose)))
-               resp))
-          (if preflight
-              (let ((resp (make-instance 'lumen.core.http:response
-                                         :status 204 :headers nil :body "")))
-                ;; Vary complet pour préflight
-                (dolist (h '("Origin" "Access-Control-Request-Method" "Access-Control-Request-Headers"))
-                  (%ensure resp "vary" h))
-                (when allow-origin
-                  (let* ((effective
-                           (if (and credentials (string= allow-origin "*") (stringp origin))
-                               origin
-                               allow-origin))
-                         (allow-headers
-                           ;; écho des headers demandés par le client + base configurée
-                           (let ((base (format nil "~{~A~^, ~}" headers)))
-                             (if (and acr-headers-req (plusp (length acr-headers-req)))
-                                 (format nil "~A, ~A" base acr-headers-req)
-                                 base))))
-                    (%ensure resp "access-control-allow-origin" effective)
-                    (%ensure resp "access-control-allow-methods" (format nil "~{~A~^, ~}" methods))
-                    (%ensure resp "access-control-allow-headers" allow-headers)
-                    (%ensure resp "access-control-max-age" (princ-to-string max-age))
-                    (when (and credentials (not (string= effective "*")))
-                      (%ensure resp "access-control-allow-credentials" "true"))))
-                resp)
-              (decorate (funcall next req))))))))
+(defmiddleware cors-middleware
+    ((mode :initarg :mode :initform :dev) ;; :dev | :prod
+     (origins :initarg :origins :initform '("*"))
+     (methods :initarg :methods :initform '("GET" "POST" "PUT" "PATCH" "DELETE" "OPTIONS"))
+     (headers :initarg :headers :initform '("Content-Type" "Authorization"))
+     (expose :initarg :expose :initform nil)
+     (credentials :initarg :credentials :initform nil)
+     (max-age :initarg :max-age :initform 600))
+    (req next)
+  
+  (with-slots (mode origins methods headers expose credentials max-age) mw
+    (let* ((req-h (lumen.core.http:req-headers req))
+           (origin (cdr (assoc "origin" req-h :test #'string-equal)))
+           (acr-method (cdr (assoc "access-control-request-method" req-h :test #'string-equal)))
+           (acr-headers (cdr (assoc "access-control-request-headers" req-h :test #'string-equal)))
+           (is-options (string= (lumen.core.http:req-method req) "OPTIONS"))
+           (preflight (and is-options acr-method))
+           
+           ;; Calcul Allow-Origin
+           (allow-origin 
+             (cond 
+               ((eq mode :dev) (or (and credentials origin) "*"))
+               ((eq mode :prod)
+                (cond ((and origin (member origin origins :test #'string=)) origin)
+                      ((member "*" origins :test #'string=) "*")
+                      (t nil)))
+               (t nil))))
 
-;;; --------------------------------------------------------------------------
-;;; Factory branchée sur lumen.core.config
-;;; --------------------------------------------------------------------------
+      (labels ((ensure (r n v) 
+                 (setf (lumen.core.http:resp-headers r)
+                       (lumen.utils:ensure-header (lumen.core.http:resp-headers r) n v)))
+               (decorate (r)
+                 (ensure r "vary" "Origin")
+                 (when allow-origin
+                   (let ((eff (if (and credentials (string= allow-origin "*") origin) origin allow-origin)))
+                     (ensure r "access-control-allow-origin" eff)
+                     (when (and credentials (not (string= eff "*")))
+                       (ensure r "access-control-allow-credentials" "true"))))
+                 (when expose
+                   (ensure r "access-control-expose-headers" (format nil "~{~A~^, ~}" expose)))
+                 r))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (unless (find-package :lumen.core.config)
-    (error "Le package :lumen.core.config doit être chargé avant cors-auto.")))
+        (if preflight
+            ;; -- PREFLIGHT RESPONSE --
+            (let ((resp (make-instance 'lumen.core.http:response :status 204 :body "")))
+              (ensure resp "vary" "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
+              (when allow-origin
+                (let* ((eff (if (and credentials (string= allow-origin "*") origin) origin allow-origin))
+                       (all-hdrs (let ((base (format nil "~{~A~^, ~}" headers)))
+                                   (if (and acr-headers (plusp (length acr-headers)))
+                                       (format nil "~A, ~A" base acr-headers) base))))
+                  (ensure resp "access-control-allow-origin" eff)
+                  (ensure resp "access-control-allow-methods" (format nil "~{~A~^, ~}" methods))
+                  (ensure resp "access-control-allow-headers" all-hdrs)
+                  (ensure resp "access-control-max-age" (princ-to-string max-age))
+                  (when (and credentials (not (string= eff "*")))
+                    (ensure resp "access-control-allow-credentials" "true"))))
+              resp)
+            
+            ;; -- NORMAL RESPONSE --
+            (decorate (funcall next req)))))))
 
-(defun %prod-profile-p (profile)
-  "Renvoie T si le profil indique un environnement de prod/staging."
-  (member profile '(:prod :production :staging) :test #'eq))
+;;; ---------------------------------------------------------------------------
+;;; 6. FACTORY AUTO-CONFIGURATION
+;;; ---------------------------------------------------------------------------
 
 (defun cors-auto ()
-  "Construit un mw CORS depuis lumen.core.config.
-Clés supportées (profilées par ENV grâce à lumen.core.config):
-  - :cors/origins        → liste (CSV ou multiple) d’origines autorisées
-  - :cors/credentials    → bool
-  - :cors/max-age        → durée (ex: \"600s\", \"10m\")
-  - :cors/headers        → liste d’en-têtes acceptés au préflight
-  - :cors/methods        → liste de méthodes autorisées
-  - :cors/expose         → liste d’en-têtes exposés côté client"
+  "Créer une instance de CORS middleware basée sur la config Lumen."
   (let* ((profile (lumen.core.config:cfg-profile))
-         (mode    (if (%prod-profile-p profile) :prod :dev))
-         (origins (or (lumen.core.config:cfg-get-list :cors/origins) (if (eq mode :prod) '() '("*"))))
-         (creds   (or (lumen.core.config:cfg-get-bool :cors/credentials :default nil) nil))
-         (max-age (or (lumen.core.config:cfg-get-duration :cors/max-age :default "600s") 600))
-         (hdrs    (or (lumen.core.config:cfg-get-list :cors/headers) '("Content-Type" "Authorization")))
-         (meths   (or (lumen.core.config:cfg-get-list :cors/methods)
-                      '("GET" "POST" "PUT" "PATCH" "DELETE" "OPTIONS")))
-         (xpose   (or (lumen.core.config:cfg-get-list :cors/expose) '())))
-    (cors :mode mode
-          :origins origins
-          :credentials creds
-          :max-age max-age
-          :headers hdrs
-          :methods meths
-          :expose xpose)))
+         (prod-p  (member profile '(:prod :production :staging) :test #'eq))
+         (mode    (if prod-p :prod :dev))
+         ;; Lecture config
+         (origins (or (lumen.core.config:cfg-get-list :cors/origins) (if prod-p nil '("*"))))
+         (creds   (lumen.core.config:cfg-get-bool :cors/credentials :default nil))
+         (max-age (lumen.core.config:cfg-get-duration :cors/max-age :default "600s")))
+    
+    (make-instance 'cors-middleware
+                   :mode mode
+                   :origins origins
+                   :credentials creds
+                   :max-age max-age)))
 
-#|
-(defun guess-content-type (pathname)
-  (let* ((s (string-downcase (or (pathname-type pathname) ""))))
-    (cond
-      ((string= s "html") "text/html; charset=utf-8")
-      ((string= s "css")  "text/css; charset=utf-8")
-      ((string= s "js")   "application/javascript; charset=utf-8")
-      ((member s '("png" "jpg" "jpeg" "gif" "webp") :test #'string=) (format nil "image/~A" s))
-      ((string= s "svg")  "image/svg+xml")
-      ((string= s "json") "application/json; charset=utf-8")
-      (t "application/octet-stream"))))
-|#
 
-(defun read-file-bytes (pathname)
-  (with-open-file (in pathname :element-type '(unsigned-byte 8))
-    (let* ((size (file-length in))
-           (buf  (make-array size :element-type '(unsigned-byte 8))))
-      (read-sequence buf in)
-      buf)))
-#|
-(defun safe-join (root rel)
-  "Concatène ROOT et REL en empêchant tout échappement (.., backslashes, drive, etc.)."
-  (print "IN SAFE JOIN")
-  (let* ((rel* (or rel ""))
-         ;; remplace backslashes et retire .. :
-         (rel1 (substitute #\/ #\\ rel*))
-         (rel2 (with-output-to-string (s)
-                 (dolist (part (remove-if #'(lambda (p) (or (string= p "")
-                                                            (string= p ".")))
-                                          (uiop:split-string rel1 :separator "/")))
-                   (unless (string= part "..")
-                     (format s "~A/" part)))))
-         ;; retire le slash final ajouté si rel ne devait pas en avoir
-         (rel3 (if (and (> (length rel2) 0)
-                        (char= (char rel2 (1- (length rel2))) #\/)
-                        (not (and (> (length rel1) 0)
-                                  (char= (char rel1 (1- (length rel1))) #\/))))
-                  (subseq rel2 0 (1- (length rel2)))
-                  rel2))
-         (abs (merge-pathnames rel3 (uiop:ensure-directory-pathname (truename root)))))
-    ;; sécurité : l’abs doit rester sous root
-    (let* ((root* (namestring (uiop:ensure-directory-pathname (truename root))))
-           (abs*  (namestring (truename abs))))
-      (if (and (>= (length abs*) (length root*))
-               (string= root* abs* :end2 (length root*)))
-          abs
-          (uiop:merge-pathnames* #P"__forbidden__" (truename root))))))
-|#
-(defun safe-join (root rel)
-  "Concatène ROOT et REL en empêchant tout échappement (.., backslashes, drive, etc.).
-   Ne signale pas d'erreur si la cible n'existe pas ; renvoie un pathname sous ROOT."
-  (labels ((forbidden ()
-             ;; retourne une cible sûre sous root qui ne matche rien
-             (merge-pathnames #P"__forbidden__" (uiop:ensure-directory-pathname (truename root)))))
-    (handler-case
-        (let* ((rel* (or rel ""))
-               ;; normalise séparateurs et purifie les segments
-               (rel1 (substitute #\/ #\\ rel*))
-               ;; refuse une notation drive Windows "C:" en tête
-               (drive-pos (position #\: rel1))
-               (starts-with-drive (and drive-pos (= drive-pos 1))) ; ex: "C:/..."
-               ;; reconstruit sans "." ni ".."
-               (rel2 (with-output-to-string (s)
-                       (dolist (part
-                                (remove-if (lambda (p) (or (string= p "")
-                                                           (string= p ".")
-                                                           (string= p "..")))
-                                           (uiop:split-string rel1 :separator "/")))
-                         (when (> (length part) 0)
-                           (format s "~A/" part)))))
-               ;; retire éventuellement le slash final ajouté si l’original n’en avait pas
-               (rel3 (if (and (> (length rel2) 0)
-                              (char= (char rel2 (1- (length rel2))) #\/)
-                              (not (and (> (length rel1) 0)
-                                        (char= (char rel1 (1- (length rel1))) #\/))))
-                         (subseq rel2 0 (1- (length rel2)))
-                         rel2))
-               (root-dir (uiop:ensure-directory-pathname (truename root)))
-               ;; IMPORTANT : ne pas faire (truename abs) ici !
-               (abs (merge-pathnames rel3 root-dir)))
-          (if starts-with-drive
-              (forbidden)
-              ;; Vérification simple de confinement (au cas où)
-              (let* ((root-str (namestring root-dir))
-                     (abs-str  (namestring (uiop:ensure-pathname abs))))
-                (if (and (>= (length abs-str) (length root-str))
-                         (string= root-str abs-str :end2 (length root-str)))
-                    abs
-                    (forbidden)))))
-      (error () (forbidden)))))
+;;; ---------------------------------------------------------------------------
+;;; 6. STATIC MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-(defun directory-index-html (dir rel-url &key (hide-dotfiles t))
-  "Génère un index HTML simple pour DIR.
-REL-URL doit commencer par / et préciser le chemin demandé (avec / final pour les dossiers)."
-  (let* ((rel (or rel-url "/"))
-         (rel* (if (char= (char rel (1- (length rel))) #\/) rel (concatenate 'string rel "/")))
-         (files (uiop:directory-files dir))
-         (subs  (uiop:subdirectories dir)))
-    (labels ((visible-p (pn)
-               (let ((name (car (last (uiop:split-string (namestring pn) :separator "/")))))
-                 (or (not hide-dotfiles)
-                     (and name (not (and (> (length name) 0) (char= (char name 0) #\.))))))))
-      (with-output-to-string (s)
-        (format s "<!doctype html><meta charset='utf-8'><title>Index of ~A</title>" rel*)
-        (format s "<style>body{font:14px system-ui,Segoe UI,Roboto,sans-serif;margin:24px}ul{list-style:none;padding-left:0}li{margin:2px 0}</style>")
-        (format s "<h1>Index of ~A</h1><ul>" rel*)
-        (when (> (length rel*) 1)
-          ;; lien vers le parent
-          (let* ((trim (if (char= (char rel* (1- (length rel*))) #\/)
-                           (subseq rel* 0 (1- (length rel*)))
-                           rel*))
-                 (pidx (or (position #\/ trim :from-end t) 0))
-                 (up (if (= pidx 0) "/" (subseq trim 0 pidx))))
-            (format s "<li>↩︎ <a href='~A'>..</a></li>" up)))
-        (dolist (sd (sort (remove-if-not #'visible-p subs) #'string< :key #'namestring))
-          (let* ((nm (car (last (uiop:split-string (namestring sd) :separator "/")))))
-            (format s "<li>📁 <a href='~A/'>~A/</a></li>" nm nm)))
-        (dolist (f (sort (remove-if-not #'visible-p files) #'string< :key #'namestring))
-          (let* ((nm (car (last (uiop:split-string (namestring f) :separator "/")))))
-            (format s "<li>📄 <a href='~A'>~A</a></li>" nm nm)))
-        (format s "</ul>")))))
-
-(defun method-get-or-head-p (req)
-  (let ((m (slot-value req 'lumen.core.http::method)))
-    (or (string= m "GET") (string= m "HEAD"))))
-
-(defun %file-rfc1123 (pn)
-  (let ((ut (ignore-errors (file-write-date pn))))
-    (and ut (lumen.utils:format-http-date ut))))
+(defun %file-rfc1123 (pn) (let ((ut (ignore-errors (file-write-date pn)))) (and ut (lumen.utils:format-http-date ut))))
 
 (defun %weak-etag-from-file (pn)
-  "Weak ETag sans lecture du contenu: taille+mtime."
   (handler-case
-      (let* ((size (with-open-file (in pn :direction :input :element-type '(unsigned-byte 8))
-                     (file-length in)))
-             (mt   (file-write-date pn)))
+      (let* ((size (with-open-file (in pn :direction :input :element-type '(unsigned-byte 8)) (file-length in)))
+             (mt (file-write-date pn)))
         (format nil "W/\"~X-~X\"" size mt))
     (error () nil)))
 
-;;; ---------- Static middleware ------------------------------------------------
-#|
-(defun static (&key prefix dir
-                 (auto-index t)
-                 (try-index "index.html")
-                 (redirect-dir t)
-                 (hide-dotfiles t)
-                 (file-cache-secs 3600)
-                 (dir-cache-secs 300)
-		 (spa-fallback nil))
-  "Servez des fichiers ET des dossiers sous PREFIX à partir du dossier DIR.
+(defun safe-join (root rel)
+  "Concatène ROOT et REL en empêchant tout échappement."
+  (labels ((forbidden () (merge-pathnames #P"__forbidden__" (uiop:ensure-directory-pathname (truename root)))))
+    (handler-case
+        (let* ((rel* (or rel ""))
+               (rel1 (substitute #\/ #\\ rel*))
+               (drive-pos (position #\: rel1))
+               (starts-with-drive (and drive-pos (= drive-pos 1)))
+               (rel2 (with-output-to-string (s)
+                       (dolist (part (remove-if (lambda (p) (or (string= p "") (string= p ".") (string= p ".."))) (uiop:split-string rel1 :separator "/")))
+                         (when (> (length part) 0) (format s "~A/" part)))))
+               (rel3 (if (and (> (length rel2) 0) (char= (char rel2 (1- (length rel2))) #\/) (not (and (> (length rel1) 0) (char= (char rel1 (1- (length rel1))) #\/)))) (subseq rel2 0 (1- (length rel2))) rel2))
+               (root-dir (uiop:ensure-directory-pathname (truename root)))
+               (abs (merge-pathnames rel3 root-dir)))
+          (if starts-with-drive (forbidden)
+              (let ((root-str (namestring root-dir)) (abs-str (namestring (uiop:ensure-pathname abs))))
+                (if (and (>= (length abs-str) (length root-str)) (string= root-str abs-str :end2 (length root-str))) abs (forbidden)))))
+      (error () (forbidden)))))
 
-Options:
-- AUTO-INDEX      : T → génère un listing HTML si pas d'index.
-- TRY-INDEX       : nom d'index à servir (string) ou NIL pour désactiver.
-- REDIRECT-DIR    : T → redirige /chemin → /chemin/ (301) pour les dossiers.
-- HIDE-DOTFILES   : T → masque fichiers/dirs commençant par '.' dans le listing.
-- FILE-CACHE-SECS : « Cache-Control » pour fichiers (par défaut 3600).
-- DIR-CACHE-SECS  : « Cache-Control » pour index/dir (par défaut 300).
-- SPA-FALLBACK : string (ex. \"index.html\") servi quand *aucun fichier*
-  ne correspond sous PREFIX, pour GET/HEAD uniquement (idéal pour SPA).
+(defun directory-index-html (dir rel-url &key (hide-dotfiles t))
+  (let* ((rel (or rel-url "/"))
+         (rel* (if (char= (char rel (1- (length rel))) #\/) rel (concatenate 'string rel "/")))
+         (files (uiop:directory-files dir))
+         (subs (uiop:subdirectories dir)))
+    (labels ((visible-p (pn)
+               (let ((name (car (last (uiop:split-string (namestring pn) :separator "/")))))
+                 (or (not hide-dotfiles) (and name (not (and (> (length name) 0) (char= (char name 0) #\.))))))))
+      (with-output-to-string (s)
+        (format s "<!doctype html><meta charset='utf-8'><title>Index of ~A</title>" rel*)
+        (format s "<style>body{font:14px system-ui,sans-serif;margin:24px}ul{list-style:none;padding:0}li{margin:4px 0}a{text-decoration:none;color:#0366d6}a:hover{text-decoration:underline}</style>")
+        (format s "<h1>Index of ~A</h1><ul>" rel*)
+        (when (> (length rel*) 1)
+          (let* ((trim (if (char= (char rel* (1- (length rel*))) #\/) (subseq rel* 0 (1- (length rel*))) rel*))
+                 (pidx (or (position #\/ trim :from-end t) 0)) (up (if (= pidx 0) "/" (subseq trim 0 pidx))))
+            (format s "<li>↩︎ <a href='~A'>..</a></li>" up)))
+        (dolist (sd (sort (remove-if-not #'visible-p subs) #'string< :key #'namestring))
+          (let ((nm (car (last (uiop:split-string (namestring sd) :separator "/"))))) (format s "<li>📁 <a href='~A/'>~A/</a></li>" nm nm)))
+        (dolist (f (sort (remove-if-not #'visible-p files) #'string< :key #'namestring))
+          (let ((nm (car (last (uiop:split-string (namestring f) :separator "/"))))) (format s "<li>📄 <a href='~A'>~A</a></li>" nm nm)))
+        (format s "</ul>")))))
 
-NB: Le corps est envoyé en octets (vecteur (unsigned-byte 8))."
-  (let* ((prefix* (or prefix "/"))
-         (root*   (truename dir))
-         (plen    (length prefix*)))
-    (lambda (next)
-      (lambda (req)
-        (let ((path (lumen.core.http:req-path req)))
-          (if (lumen.utils:str-prefix-p prefix* path)	      
-              (let* ((rel    (subseq path plen)) ; peut être "" ou "foo/bar"
-                     (target (safe-join root* rel))
-                     (dir-truename (ignore-errors (lumen.utils:probe-directory
-						   target)))
-		     (ut (file-write-date pathname)))
-                (handler-case
-                    (cond
-                      ;; -------- Dossier ----------
-                      (dir-truename
-                       (let* ((has-slash (and (> (length path) 0)
-                                              (char= (char path (1- (length path))) #\/)))
-                              (dir* (uiop:ensure-directory-pathname dir-truename)))
-                         (cond
-                           ;; /dir → /dir/
-                           ((and redirect-dir (not has-slash))
-                            (make-instance 'lumen.core.http:response
-                                           :status 301
-                                           :headers (list (cons "location" (concatenate 'string path "/"))
-                                                          (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))
-                                           :body ""))
-                           ;; index.html si présent
-                           ((and try-index (probe-file (merge-pathnames try-index dir*)))
-                            (let* ((pn (merge-pathnames try-index dir*))
-                                   (bytes (read-file-bytes pn)))
-                              (make-instance 'lumen.core.http:response
-                                             :status 200
-                                             :headers (list (cons "content-type" (guess-content-type pn))
-                                                            (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))
-                                             :body bytes)))
-                           ;; listing auto
-                           (auto-index
-                            (let* ((html (directory-index-html dir* (if (plusp (length path)) path "/")
-                                                               :hide-dotfiles hide-dotfiles)))
-                              (make-instance 'lumen.core.http:response
-                                             :status 200
-                                             :headers (list (cons "content-type" "text/html; charset=utf-8")
-                                                            (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))
-                                             :body html)))
-                           (t
-			    ;; pas d'index ni listing → fallback SPA si demandé, sinon 404
-                            (if (and spa-fallback (method-get-or-head-p req)
-                                     (probe-file (merge-pathnames spa-fallback root*)))
-                                (let* ((pn (merge-pathnames spa-fallback root*))
-                                       (bytes (read-file-bytes pn)))
-                                  (make-instance 'lumen.core.http:response
-                                                 :status 200
-                                                 :headers (list (cons "content-type" "text/html; charset=utf-8")
-                                                                (cons "cache-control" "no-store"))
-                                                 :body bytes))
-                                (lumen.core.http:respond-404 "Directory index disabled"))))))
-                      ;; -------- Fichier ----------
-                      ((probe-file target)
-		       (let* ((bytes (read-file-bytes target)))
-                         (make-instance 'lumen.core.http:response
-                                        :status 200
-                                        :headers (list (cons "content-type" (guess-content-type target))
-						       (cons "cache-control" (format nil "public, max-age=~D" file-cache-secs)))
-                                        :body bytes)))
-                      ;; -------- Rien pour ce prefix → passe au suivant ----------
-                      (t
-		       (if (and spa-fallback (method-get-or-head-p req)
-                                (probe-file (merge-pathnames spa-fallback root*)))
-                           (let* ((pn (merge-pathnames spa-fallback root*))
-                                  (bytes (read-file-bytes pn)))
-                             (make-instance 'lumen.core.http:response
-                                            :status 200
-                                            :headers (list (cons "content-type" "text/html; charset=utf-8")
-                                                           (cons "cache-control" "no-store"))
-                                            :body bytes))
-                           (funcall next req))))
-                  (error ()
-		    (lumen.core.http:respond-404 "File error"))))
-              ;; prefix ne matche pas → passe au suivant
-(funcall next req)))))))
-|#
-#|
-(defun static (&key prefix dir
-                 (auto-index t)
-                 (try-index "index.html")
-                 (redirect-dir t)
-                 (hide-dotfiles t)
-                 (file-cache-secs 3600)
-                 (dir-cache-secs 300)
-                 (spa-fallback nil))
-  "Servez des fichiers ET des dossiers sous PREFIX à partir du dossier DIR (optimisé streaming/Range).
-
-Options:
-- AUTO-INDEX      : T → génère un listing HTML si pas d'index.
-- TRY-INDEX       : nom d'index à servir (string) ou NIL pour désactiver.
-- REDIRECT-DIR    : T → redirige /chemin → /chemin/ (301) pour les dossiers.
-- HIDE-DOTFILES   : T → masque fichiers/dirs commençant par '.' dans le listing.
-- FILE-CACHE-SECS : « Cache-Control » pour fichiers (par défaut 3600).
-- DIR-CACHE-SECS  : « Cache-Control » pour index/dir (par défaut 300).
-- SPA-FALLBACK    : string (ex. \"index.html\") servi quand *aucun fichier*
-  ne correspond sous PREFIX, pour GET/HEAD uniquement (idéal pour SPA)."
-  (let* ((prefix* (or prefix "/"))
-         (root*   (truename dir))
-         (plen    (length prefix*)))
-    (lambda (next)
-      (lambda (req)
-        (let ((path (lumen.core.http:req-path req)))
-          (if (and (>= (length path) plen)
-                   (string= prefix* path :end2 plen)) ; évite dépendre d’un util ici
-              (let* ((rel    (subseq path plen))         ; "" ou "foo/bar"
-                     (target (safe-join root* rel))
-                     (dir-truename (ignore-errors (lumen.utils:probe-directory target))))
-                (handler-case
-                    (cond
-                      ;; -------- Dossier ----------
-                      (dir-truename
-                       (let* ((has-slash (and (> (length path) 0)
-                                              (char= (char path (1- (length path))) #\/)))
-                              (dir* (uiop:ensure-directory-pathname dir-truename)))
-                         (cond
-                           ;; /dir → /dir/ (301)
-                           ((and redirect-dir (not has-slash))
-                            (make-instance 'lumen.core.http:response
-                                           :status 301
-                                           :headers (list (cons "location" (concatenate 'string path "/"))
-                                                          (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))
-                                           :body ""))
-                           ;; index.html si présent → respond-file (streaming + Range)
-                           ((and try-index (probe-file (merge-pathnames try-index dir*)))
-                            (let* ((pn   (merge-pathnames try-index dir*))
-                                   (ct   (guess-content-type pn))
-                                   (lm   (%file-rfc1123 pn))
-                                   (etag (%weak-etag-from-file pn))
-                                   (resp (lumen.core.http-range:respond-file
-                                          req pn
-                                          :content-type ct
-                                          :last-modified-rfc1123 lm
-                                          :etag etag)))
-                              (setf (lumen.core.http:resp-headers resp)
-                                    (lumen.utils:ensure-header
-				     (lumen.core.http:resp-headers resp)
-                                     "cache-control"
-                                     (format nil "public, max-age=~D" dir-cache-secs)))
-                              resp))
-                           ;; listing auto (génère HTML en mémoire)
-                           (auto-index
-                            (let* ((html (directory-index-html
-					  dir* (if (plusp (length path)) path "/")
-                                          :hide-dotfiles hide-dotfiles))
-                                   (lm   (%file-rfc1123 dir*))
-                                   (hdrs (list (cons "content-type" "text/html; charset=utf-8")
-                                               (cons "cache-control"
-						     (format nil "public, max-age=~D"
-							     dir-cache-secs)))))
-                              (when lm
-                                (setf hdrs (lumen.utils:ensure-header
-                                            hdrs "last-modified" lm)))
-                              (make-instance 'lumen.core.http:response
-                                             :status 200 :headers hdrs :body html)))
-                           ;; pas d'index ni listing → SPA fallback si demandé, sinon 404
-			   (t
-                            (if (and spa-fallback (method-get-or-head-p req)
-                                     (probe-file (merge-pathnames spa-fallback root*)))
-                                (let* ((pn   (merge-pathnames spa-fallback root*))
-                                       (lm   (%file-rfc1123 pn))
-                                       (resp (lumen.core.http-range:respond-file
-                                              req pn
-                                              :content-type "text/html; charset=utf-8"
-                                              :last-modified-rfc1123 lm)))
-                                  ;; SPA: pas de cache persistant
-                                  (setf (lumen.core.http:resp-headers resp)
-                                        (lumen.utils:ensure-header
-                                         (lumen.core.http:resp-headers resp)
-                                         "cache-control" "no-store"))
-                                  resp)
-                                (lumen.core.http:respond-404 "Directory index disabled"))))))
-		      
-                      ;; -------- Fichier ----------
-                      ((probe-file target)
-                       (let* ((ct   (guess-content-type target))
-                              (lm   (%file-rfc1123 target))
-                              (etag (%weak-etag-from-file target))
-                              (resp (lumen.core.http-range:respond-file
-                                     req target
-                                     :content-type ct
-                                     :last-modified-rfc1123 lm
-                                     :etag etag)))
-                         (setf (lumen.core.http:resp-headers resp)
-                               (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                                          "cache-control"
-                                                          (format nil "public, max-age=~D" file-cache-secs)))
-			 (setf (lumen.core.http:resp-headers resp)
-                               (lumen.utils:ensure-header
-				(lumen.core.http:resp-headers resp)
-                                "Vary" "Accept-Encoding"))
-                         resp))
-		      
-                      ;; -------- Rien pour ce prefix ----------
-                      (t
-                       (if (and spa-fallback (method-get-or-head-p req)
-                                (probe-file (merge-pathnames spa-fallback root*)))
-                           (let* ((pn   (merge-pathnames spa-fallback root*))
-                                  (lm   (%file-rfc1123 pn))
-                                  (resp (lumen.core.http-range:respond-file
-                                         req pn
-                                         :content-type "text/html; charset=utf-8"
-                                         :last-modified-rfc1123 lm)))
-                             (setf (lumen.core.http:resp-headers resp)
-                                   (lumen.utils:ensure-header
-                                    (lumen.core.http:resp-headers resp)
-                                    "cache-control" "no-store"))
-                             resp)
-                           (funcall next req))))
-                  (error ()
-                    (lumen.core.http:respond-404 "File error"))))
-              ;; prefix ne matche pas → passer au suivant
-              (funcall next req)))))))
-|#
-(defun static (&key prefix dir
-                 (auto-index t)
-                 (try-index "index.html")
-                 (redirect-dir t)
-                 (hide-dotfiles t)
-                 (file-cache-secs 3600)
-                 (dir-cache-secs 300)
-                 (spa-fallback nil))
-  "Servez des fichiers ET des dossiers sous PREFIX à partir du dossier DIR (200 plein + Range/206)."
-  (let* ((prefix* (or prefix "/"))
-         (root*   (truename dir))
-         (plen    (length prefix*)))
-    (labels
-        ;; ---------- Helpers ----------
-        ((read-file-bytes (pn)
-           (with-open-file (in pn :direction :input :element-type '(unsigned-byte 8))
-             (let* ((len (file-length in))
-                    (buf (make-array len :element-type '(unsigned-byte 8))))
-               (read-sequence buf in)
-               buf)))
-
-         (file-size (pn)
-           (with-open-file (in pn :direction :input :element-type '(unsigned-byte 8))
-             (file-length in)))
-
-         (header (req name)
-           (cdr (assoc name (lumen.core.http:req-headers req) :test #'string-equal)))
-
-         (ensure-h (hdrs k v)
-           (lumen.utils:ensure-header hdrs k v))
-
-         (vary-accept-encoding (resp)
-           (setf (lumen.core.http:resp-headers resp)
-                 (ensure-h (lumen.core.http:resp-headers resp) "Vary" "Accept-Encoding"))
-           resp)
-
-         ;; Parse simple “Range: bytes=start-end” (une seule plage). Retourne (values start end ok?)
-         (parse-range (s total)
-           (handler-case
-               (progn
-                 (cl-ppcre:register-groups-bind (a b)
-                     ("^bytes=([0-9]*)-([0-9]*)$" (string-trim '(#\Space) s))
-                   (let* ((sa (and a (> (length a) 0) (parse-integer a :junk-allowed t)))
-                          (sb (and b (> (length b) 0) (parse-integer b :junk-allowed t))))
+(defmiddleware static-middleware
+    ((prefix :initarg :prefix :initform "/" :accessor static-prefix)
+     (dir    :initarg :dir :initform #P"./public/" :accessor static-dir)
+     (auto-index :initarg :auto-index :initform t)
+     (try-index :initarg :try-index :initform "index.html")
+     (redirect-dir :initarg :redirect-dir :initform t)
+     (hide-dotfiles :initarg :hide-dotfiles :initform t)
+     (file-cache-secs :initarg :file-cache-secs :initform 3600)
+     (dir-cache-secs :initarg :dir-cache-secs :initform 300)
+     (spa-fallback :initarg :spa-fallback :initform nil))
+    (req next)
+  
+  (let* ((path (lumen.core.http:req-path req))
+         (prefix* (slot-value mw 'prefix))
+         (root* (truename (slot-value mw 'dir))) ;; Peut errorer si le dossier n'existe pas à l'init
+         (plen (length prefix*)))
+    
+    (if (and (>= (length path) plen)
+             (string= prefix* path :end2 plen))
+        ;; Match Prefix
+        (let* ((rel (subseq path plen))
+               (target (safe-join root* rel))
+               (dir-truename (ignore-errors (lumen.utils:probe-directory target)))
+               )
+          
+          (handler-case
+              (cond
+                ;; -------- DOSSIER --------
+                (dir-truename
+                 (with-slots (redirect-dir try-index auto-index hide-dotfiles dir-cache-secs) mw
+                   (let ((has-slash (and (> (length path) 0) (char= (char path (1- (length path))) #\/))))
                      (cond
-                       ;; bytes=START- (jusqu'à fin)
-                       ((and sa (null sb) (>= sa 0) (< sa total))
-                        (values sa (1- total) t))
-                       ;; bytes=-SUFFIX  (les sb derniers octets)
-                       ((and (null sa) sb (> sb 0))
-                        (let* ((len (min sb total))
-                               (st  (- total len)))
-                          (values st (1- total) t)))
-                       ;; bytes=START-END
-                       ((and sa sb (>= sa 0) (>= sb sa) (< sa total))
-                        (values sa (min sb (1- total)) t))
-                       (t (values 0 0 nil))))))
-             (error () (values 0 0 nil))))
+                       ;; Redirect /foo -> /foo/
+                       ((and redirect-dir (not has-slash))
+                        (make-instance 'lumen.core.http:response :status 301 
+                                       :headers `(("location" . ,(concatenate 'string path "/")) 
+                                                  ("cache-control" . ,(format nil "public, max-age=~D" dir-cache-secs)))
+                                       :body ""))
+                       ;; Try Index
+                       ((and try-index (probe-file (merge-pathnames try-index (uiop:ensure-directory-pathname dir-truename))))
+                        ;; Re-dispatch vers fichier index
+                        (let ((idx-path (merge-pathnames try-index (uiop:ensure-directory-pathname dir-truename))))
+                          (%serve-file req idx-path mw)))
+                       ;; Auto Index
+                       (auto-index
+                        (let ((html (directory-index-html (uiop:ensure-directory-pathname dir-truename) 
+                                                          (if (plusp (length path)) path "/")
+                                                          :hide-dotfiles hide-dotfiles))
+                              (lm (%file-rfc1123 dir-truename)))
+                          (make-instance 'lumen.core.http:response :status 200 
+                                         :headers `(("content-type" . "text/html; charset=utf-8")
+                                                    ("cache-control" . ,(format nil "public, max-age=~D" dir-cache-secs))
+                                                    ,@(when lm `(("last-modified" . ,lm))))
+                                         :body html)))
+                       ;; Pas d'index -> SPA Fallback ?
+                       (t (maybe-spa-fallback req mw next))))))
 
-         ;; 200 plein (octets) – HEAD renvoie juste les headers.
-         (serve-file-200 (req pn &key content-type cache-secs etag last-modified)
-           (let* ((ct   (or content-type (lumen.core.mime:guess-content-type pn)))
-                  (lm   last-modified)
-                  (etag etag)
-                  (hdrs (list (cons "content-type" ct)
-                              (cons "accept-ranges" "bytes")
-                              (cons "cache-control" (format nil "public, max-age=~D" (or cache-secs 0))))))
-             (when lm   (setf hdrs (ensure-h hdrs "last-modified" lm)))
-             (when etag (setf hdrs (ensure-h hdrs "etag"           etag)))
-             (if (string= (lumen.core.http:req-method req) "HEAD")
-                 (make-instance 'lumen.core.http:response
-                                :status 200 :headers hdrs :body "")
-               (make-instance 'lumen.core.http:response
-                              :status 200 :headers hdrs :body (read-file-bytes pn)))))
+                ;; -------- FICHIER --------
+                ((probe-file target)
+                 (%serve-file req target mw))
 
-         ;; 206 Range – writer **borné** (retourne) + Content-Length exact.
-         (serve-file-206 (req pn start end &key content-type cache-secs etag last-modified)
-           (let* ((total (file-size pn))
-                  (len   (max 0 (1+ (- end start))))
-                  (ct    (or content-type (lumen.core.mime:guess-content-type pn)))
-                  (hdrs  (list
-                          (cons "content-type" ct)
-                          (cons "accept-ranges" "bytes")
-                          (cons "content-range" (format nil "bytes ~D-~D/~D" start end total))
-                          (cons "content-length" (write-to-string len))
-                          (cons "cache-control" (format nil "public, max-age=~D" (or cache-secs 0))))))
-             (when last-modified (setf hdrs (ensure-h hdrs "last-modified" last-modified)))
-             (when etag          (setf hdrs (ensure-h hdrs "etag"          etag)))
-             (if (string= (lumen.core.http:req-method req) "HEAD")
-                 (make-instance 'lumen.core.http:response
-                                :status 206 :headers hdrs :body "")
-               (make-instance 'lumen.core.http:response
-                              :status 206
-                              :headers hdrs
-                              :body (lambda (send)
-                                      (with-open-file (in pn :direction :input :element-type '(unsigned-byte 8))
-                                        (file-position in start)
-                                        (let ((buf (make-array (min len 65536)
-                                                               :element-type '(unsigned-byte 8)))
-                                              (left len))
-                                          (loop while (> left 0) do
-                                            (let* ((n (min left (length buf)))
-                                                   (rd (read-sequence buf in :end n)))
-                                              (when (or (null rd) (= rd 0)) (return))
-                                              (funcall send (if (= rd (length buf))
-                                                                buf
-                                                                (subseq buf 0 rd)))
-                                              (decf left rd))))))))))
-         )
+                ;; -------- NOT FOUND --------
+                (t (maybe-spa-fallback req mw next)))
+            
+            (error (c) 
+              (format t "~&[Static Error] ~A~%" c)
+              (lumen.core.http:respond-404 "Static File Error"))))
+        
+        ;; Pas de Match Prefix -> Next
+        (funcall next req))))
 
-      (lambda (next)
-        (lambda (req)
-          (let ((path (lumen.core.http:req-path req)))
-            (if (and (>= (length path) plen)
-                     (string= prefix* path :end2 plen))
-                (let* ((rel    (subseq path plen)) ; "" ou "foo/bar"
-                       (target (safe-join root* rel))
-                       (dir-truename (ignore-errors (lumen.utils:probe-directory target)))
-                       (rng-h (header req "Range")))
-                  (handler-case
-                      (cond
-                        ;; -------- Dossier ----------
-                        (dir-truename
-                         (let* ((has-slash (and (> (length path) 0)
-                                                (char= (char path (1- (length path))) #\/)))
-                                (dir* (uiop:ensure-directory-pathname dir-truename)))
-                           (cond
-                             ;; /dir → /dir/ (301)
-                             ((and redirect-dir (not has-slash))
-                              (make-instance 'lumen.core.http:response
-                                             :status 301
-                                             :headers (list (cons "location" (concatenate 'string path "/"))
-                                                            (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))
-                                             :body ""))
+;;; Helpers internes au MW (méthodes auxiliaires ou flet)
+(defmethod %serve-file (req pn (mw static-middleware))
+  (let* ((file-cache-secs (slot-value mw 'file-cache-secs))
+         (ct (lumen.core.mime:guess-content-type pn))
+         (lm (lumen.core.middleware::%file-rfc1123 pn))
+         (etag (lumen.core.middleware::%weak-etag-from-file pn))
+         (size (with-open-file (in pn :element-type '(unsigned-byte 8)) (file-length in))))
+    
+    ;; OPTIMISATION : Si le fichier est < 5 MB, on le charge en RAM pour permettre la compression
+    (let ((body (if (< size (* 5 1024 1024))
+                    (alexandria:read-file-into-byte-vector pn)
+                    ;; Sinon Stream classique (gros fichiers, vidéos...)
+                    (lambda (out) 
+                      (with-open-file (in pn :element-type '(unsigned-byte 8))
+                        (let ((buf (make-array 4096 :element-type '(unsigned-byte 8))))
+                          (loop for n = (read-sequence buf in)
+                                while (plusp n)
+                                do (funcall out (subseq buf 0 n)))))))))
 
-                             ;; index.html présent
-                             ((and try-index (probe-file (merge-pathnames try-index dir*)))
-                              (let* ((pn   (merge-pathnames try-index dir*))
-                                     (ct   (lumen.core.mime:guess-content-type pn))
-                                     (lm   (%file-rfc1123 pn))
-                                     (etag (%weak-etag-from-file pn)))
-                                (multiple-value-bind (st en ok)
-                                    (and rng-h (parse-range rng-h (file-size pn)))
-                                  (let ((resp (if ok
-                                                  (serve-file-206 req pn st en
-                                                                  :content-type ct
-                                                                  :cache-secs dir-cache-secs
-                                                                  :etag etag
-                                                                  :last-modified lm)
-                                                  (serve-file-200 req pn
-                                                                  :content-type ct
-                                                                  :cache-secs dir-cache-secs
-                                                                  :etag etag
-                                                                  :last-modified lm))))
-                                    (vary-accept-encoding resp)))))
+      (make-instance 'lumen.core.http:response 
+                     :status 200 
+                     :headers `(("content-type" . ,ct)
+                                ("accept-ranges" . "bytes")
+                                ("content-length" . ,(write-to-string size))
+                                ("cache-control" . ,(format nil "public, max-age=~D" file-cache-secs))
+                                ,@(when lm `(("last-modified" . ,lm)))
+                                ,@(when etag `(("etag" . ,etag))))
+                     :body body))))
 
-                             ;; listing auto
-                             (auto-index
-                              (let* ((html (directory-index-html
-                                            dir* (if (plusp (length path)) path "/")
-                                            :hide-dotfiles hide-dotfiles))
-                                     (lm   (%file-rfc1123 dir*))
-                                     (hdrs (list (cons "content-type" "text/html; charset=utf-8")
-                                                 (cons "cache-control" (format nil "public, max-age=~D" dir-cache-secs)))))
-                                (when lm
-                                  (setf hdrs (ensure-h hdrs "last-modified" lm)))
-                                (make-instance 'lumen.core.http:response
-                                               :status 200 :headers hdrs :body html)))
+(defmethod maybe-spa-fallback (req (mw static-middleware) next)
+  (let ((spa (slot-value mw 'spa-fallback))
+        (root (truename (slot-value mw 'dir))))
+    (if (and spa 
+             (or (string= (lumen.core.http:req-method req) "GET") 
+                 (string= (lumen.core.http:req-method req) "HEAD"))
+             (probe-file (merge-pathnames spa root)))
+        ;; Serve SPA index
+        (let ((resp (%serve-file req (merge-pathnames spa root) mw)))
+          (setf (lumen.core.http:resp-headers resp)
+                (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "cache-control" "no-store"))
+          resp)
+        ;; Sinon pass
+        (funcall next req))))
 
-                             ;; pas d'index → SPA fallback ?
-                             (t
-                              (if (and spa-fallback (method-get-or-head-p req)
-                                       (probe-file (merge-pathnames spa-fallback root*)))
-                                  (let* ((pn   (merge-pathnames spa-fallback root*))
-                                         (lm   (%file-rfc1123 pn))
-                                         (resp (serve-file-200 req pn
-                                                               :content-type "text/html; charset=utf-8"
-                                                               :cache-secs 0
-                                                               :last-modified lm)))
-                                    ;; SPA : no-store
-                                    (setf (lumen.core.http:resp-headers resp)
-                                          (ensure-h (lumen.core.http:resp-headers resp)
-                                                    "cache-control" "no-store"))
-                                    resp)
-                                  (lumen.core.http:respond-404 "Directory index disabled"))))))
+;;; ---------------------------------------------------------------------------
+;;; 7. COOKIE MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-                        ;; -------- Fichier ----------
-                        ((probe-file target)
-                         (let* ((ct   (lumen.core.mime:guess-content-type target))
-                                (lm   (%file-rfc1123 target))
-                                (etag (%weak-etag-from-file target)))
-                           (multiple-value-bind (st en ok)
-                               (and rng-h (parse-range rng-h (file-size target)))
-                             (let ((resp (if ok
-                                             (serve-file-206 req target st en
-                                                             :content-type ct
-                                                             :cache-secs file-cache-secs
-                                                             :etag etag
-                                                             :last-modified lm)
-                                             (serve-file-200 req target
-                                                             :content-type ct
-                                                             :cache-secs file-cache-secs
-                                                             :etag etag
-                                                             :last-modified lm))))
-                               (vary-accept-encoding resp)))))
-
-                        ;; -------- Rien pour ce prefix ----------
-                        (t
-                         (if (and spa-fallback (method-get-or-head-p req)
-                                  (probe-file (merge-pathnames spa-fallback root*)))
-                             (let* ((pn   (merge-pathnames spa-fallback root*))
-                                    (lm   (%file-rfc1123 pn))
-                                    (resp (serve-file-200 req pn
-                                                          :content-type "text/html; charset=utf-8"
-                                                          :cache-secs 0
-                                                          :last-modified lm)))
-                               (setf (lumen.core.http:resp-headers resp)
-                                     (ensure-h (lumen.core.http:resp-headers resp)
-                                               "cache-control" "no-store"))
-                               resp)
-                             (funcall next req))))
-                    (error ()
-                      (lumen.core.http:respond-404 "File error"))))
-              ;; prefix ne matche pas → passer au suivant
-              (funcall next req))))))))
- 
-(defun static-many (&rest mounts)
-  "Monte plusieurs middlewares static en cascade.
-MOUNTS: soit des PLISTs pour (static ...), soit des factories (next->handler)."
-  (let* ((factories
-           (mapcar (lambda (m)
-                     (etypecase m
-                       (function m)                 ; déjà une factory
-                       (list     (apply #'static m)))) ; spec → factory
-                   mounts)))
-    (lambda (next)
-      (let ((acc next))
-        (dolist (f (reverse factories) acc)
-          (let ((wrapped (funcall f acc)))
-            (unless (functionp wrapped)
-              (error "static-many: chaque element doit etre une FACTORY (next->handler). ~
-                      Cet element a retourne ~S, pas une fonction. ~%~
-                      Indice: ne passe pas un HANDLER (req->resp), mais une FACTORY."
-                     wrapped))
-            (setf acc wrapped)))))))
-
-;;; ---------------- Cookies ----------------------------------------------------
-
-(define-middleware cookies-parser (req next)
-  "Parse Cookie: … → req-cookies (alist)."
+(defmiddleware cookie-middleware () (req next)
   (let* ((h (lumen.core.http:req-headers req))
          (raw (cdr (assoc "cookie" h :test #'string-equal))))
     (when raw
       (setf (lumen.core.http:req-cookies req)
-            (lumen.core.http:parse-cookie-header raw))))
-  (funcall next req))
+            (lumen.core.http:parse-cookie-header raw)))
+    (funcall next req)))
 
+;; Helpers fonctionnels pour le user-land (restent utilisables)
 (defun cookie (req name)
-  "Lit un cookie par nom (string), ou NIL."
   (cdr (assoc name (lumen.core.http:req-cookies req) :test #'string=)))
 
 (defun set-cookie! (resp name value &rest opts)
-  "Ajoute un header Set-Cookie formaté à la réponse."
   (lumen.core.http:add-set-cookie
    resp
    (apply #'lumen.core.http:format-set-cookie name value opts)))
 
-;;; ---------------- Error wrapper ---------------------------------------------
-
-(defparameter *error-handler*
-  (lambda (e req)
-    (declare (ignore req))
-    ;; Rendu JSON par défaut ; en dev on imprime une backtrace
-    (let* ((msg (princ-to-string e))
-           (bt  (when *debug*
-                  (with-output-to-string (s)
-                    (ignore-errors (uiop:print-backtrace :stream s)))))
-           (payload `((:error . ((:type . "internal")
-                                  (:message . ,msg)
-                                  ,@(when bt (list (cons :backtrace bt))))))))
-      (lumen.core.http:respond-json payload :status 500))))
-
-(define-middleware error-wrapper (req next)
-  "Capture toute condition et rend une 500 propre via *error-handler*."
-  (handler-case
-      (funcall next req)
-    (error (e)
-      (funcall *error-handler* e req))))
-
-;;; ---------------- Request-ID -------------------------------------------------
+;;; ---------------------------------------------------------------------------
+;;; 8. REQUEST ID MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
 (defun %rand-hex (nbytes)
   (let ((hex "0123456789abcdef"))
     (with-output-to-string (s)
-      (dotimes (i (* 2 nbytes))
-        (write-char (char hex (random 16)) s)))))
+      (dotimes (i (* 2 nbytes)) (write-char (char hex (random 16)) s)))))
 
 (defun make-request-id ()
-  "UUIDv4-ish (hex) simple, suffisant pour corrélation de logs."
   (let ((h (%rand-hex 16)))
-    ;; 8-4-4-4-12 avec bits de version 4 (optionnel simplifié)
-    (format nil "~A-~A-4~A-~A~A-~A"
-            (subseq h 0 8) (subseq h 8 12) (subseq h 13 16)
-            (subseq h 16 17) (subseq h 17 20) (subseq h 20 32))))
+    (format nil "~A-~A-4~A-~A~A-~A" (subseq h 0 8) (subseq h 8 12) (subseq h 13 16) (subseq h 16 17) (subseq h 17 20) (subseq h 20 32))))
 
-(define-middleware request-id (req next)
-  "Injecte un X-Request-ID dans la réponse, disponible aussi via req-ctx."
-  (let* ((rid (or (lumen.core.http:ctx-get req :request-id)
-                  (make-request-id)))
-         (resp (progn
+(defmiddleware request-id-middleware
+    ((header-name :initarg :header-name :initform "X-Request-ID"))
+    (req next)
+  
+  (let* ((rid (or (lumen.core.http:ctx-get req :request-id) (make-request-id)))
+         (resp (progn 
                  (lumen.core.http:ctx-set! req :request-id rid)
                  (funcall next req))))
+    
     (setf (lumen.core.http:resp-headers resp)
           (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                         "x-request-id" rid))
+                                     (slot-value mw 'header-name) 
+                                     rid))
     resp))
 
-;; Form parser
-(define-middleware form-parser (req next)
-  "Parse application/x-www-form-urlencoded → ctx[:form] (alist)."
+;;; ---------------------------------------------------------------------------
+;;; 9. ERROR WRAPPER MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
+(defparameter *debug-p* nil) ;; Flag global de dev
+
+(defun %default-error-renderer (e req)
+  (declare (ignore req))
+  (let* ((msg (princ-to-string e))
+         (bt  (when *debug-p* (with-output-to-string (s) (ignore-errors (uiop:print-backtrace :stream s)))))
+         (payload `((:error . ((:type . "internal") (:message . ,msg) ,@(when bt (list (cons :backtrace bt))))))))
+    (lumen.core.http:respond-json payload :status 500)))
+
+(defmiddleware error-middleware
+    ((handler :initarg :handler :initform #'%default-error-renderer))
+    (req next)
+  
+  (handler-case
+      (funcall next req)
+    (error (e)
+      (funcall (slot-value mw 'handler) e req))))
+
+;;; ---------------------------------------------------------------------------
+;;; 10. FORM & MULTIPART MIDDLEWARES
+;;; ---------------------------------------------------------------------------
+
+(defmiddleware form-parser-middleware () (req next)
   (unless (lumen.core.http:ctx-get req :body-consumed)
     (let* ((headers (lumen.core.http:req-headers req))
            (ct  (cdr (assoc "content-type" headers :test #'string-equal)))
            (len (cdr (assoc "content-length" headers :test #'string-equal)))
            (len* (when len (parse-integer len :junk-allowed t))))
-      (when (and ct len* (> len* 0)
-                 (search "application/x-www-form-urlencoded" (string-downcase ct)))
-        (lumen.core.http:ctx-set! req :form
-          (lumen.core.body:parse-urlencoded (lumen.core.http:req-body-stream req) len*))
+      (when (and ct len* (> len* 0) (search "application/x-www-form-urlencoded" (string-downcase ct)))
+        (lumen.core.http:ctx-set! req :form (lumen.core.body:parse-urlencoded (lumen.core.http:req-body-stream req) len*))
         (lumen.core.http:ctx-set! req :body-consumed t))))
   (funcall next req))
 
-(define-middleware multipart-parser (req next)
-  "Parse multipart/form-data → ctx[:files], ctx[:fields]."
+(defmiddleware multipart-parser-middleware 
+    ((max-size :initarg :max-size 
+               :initform (* 10 1024 1024) ;; 10MB par défaut
+               :accessor mw-max-size
+               :documentation "Taille maximale en octets (Body complet)")) 
+    (req next)
+  
   (unless (lumen.core.http:ctx-get req :body-consumed)
     (let* ((h (lumen.core.http:req-headers req))
            (ct (cdr (assoc "content-type" h :test #'string-equal)))
-           (len (cdr (assoc "content-length" h :test #'string-equal)))
-           (len* (when len (parse-integer len :junk-allowed t))))
-      (when (and ct len* (> len* 0)
-                 (search "multipart/form-data" (string-downcase ct)))
-        (let ((res (lumen.core.body:parse-multipart
-		    (lumen.core.http:req-body-stream req) len* ct)))
-	  ;;(print "FILES")
-	  ;;(print res)
+           (len-str (cdr (assoc "content-length" h :test #'string-equal)))
+           (len (and len-str (parse-integer len-str :junk-allowed t)))
+           (limit (slot-value mw 'max-size)))
+
+      ;; On ne s'active que pour du multipart
+      (when (and ct (search "multipart/form-data" (string-downcase ct)))
+        
+        ;; 1. SECURITY CHECK : Content-Length vs Max-Size
+        ;; Si le client annonce une taille trop grande, on rejette AVANT de lire le stream.
+        (when (and len (> len limit))
+          (return-from handle
+            (lumen.core.http:respond-json 
+             `((:error . "Payload Too Large")
+               (:message . ,(format nil "The request body exceeds the limit of ~D bytes." limit)))
+             :status 413)))
+
+        ;; 2. SECURITY CHECK : Content-Length manquant ?
+        ;; Pour du multipart, c'est louche. On peut décider de rejeter ou de laisser parser.
+        ;; Ici, par prudence, on pourrait rejeter si on veut être strict.
+        ;; (unless len (return-from handle (lumen.core.http:respond-json ... :status 411)))
+
+        ;; 3. PARSING
+        ;; On passe 'limit' au parseur pour qu'il s'arrête si le flux réel dépasse la limite 
+        ;; (cas où le header mentirait).
+        ;; Note: Supposons que parse-multipart accepte un argument :limit
+        (let ((res (lumen.core.body:parse-multipart 
+                    (lumen.core.http:req-body-stream req) 
+                    (or len limit) ;; On donne une estimation ou la limite max
+                    ct
+		    :limit (slot-value mw 'max-size))))
+          
           (when res
             (lumen.core.http:ctx-set! req :fields (cdr (assoc :fields res)))
             (lumen.core.http:ctx-set! req :files  (cdr (assoc :files  res)))
             (lumen.core.http:ctx-set! req :body-consumed t))))))
+  
+  ;; Passage au suivant
   (funcall next req))
 
-;;; ---------------- ETag ----------------
-;; FNV-1a 64-bit (simple, sans dépendance)
+;;; ---------------------------------------------------------------------------
+;;; 11. BODY PARSER MIDDLEWARE (JSON)
+;;; ---------------------------------------------------------------------------
+
+(defmiddleware body-parser-middleware
+    ((max-size :initarg :max-size 
+               :initform (* 1 1024 1024) ;; 1 MB par défaut pour du JSON
+               :accessor mw-max-size))
+    (req next)
+  
+  (unless (lumen.core.http:ctx-get req :body-consumed)
+    (let* ((h (lumen.core.http:req-headers req))
+           (ct (cdr (assoc "content-type" h :test #'string-equal)))
+           (len-str (cdr (assoc "content-length" h :test #'string-equal)))
+           (len (and len-str (parse-integer len-str :junk-allowed t)))
+           (limit (slot-value mw 'max-size)))
+
+      (when (and ct (search "application/json" (string-downcase ct)))
+        
+        ;; 1. Security Check (Header)
+        (when (and len (> len limit))
+          (return-from handle
+            (lumen.core.http:respond-json 
+             `((:error . "Payload Too Large")
+               (:message . ,(format nil "JSON body exceeds limit of ~D bytes" limit)))
+             :status 413)))
+
+        ;; 2. Parsing
+        (when (and len (> len 0))
+          (let ((val (lumen.core.body:parse-json 
+                      (lumen.core.http:req-body-stream req) 
+                      len 
+                      :limit limit)))
+            (when val
+              (lumen.core.http:ctx-set! req :json val)
+              (lumen.core.http:ctx-set! req :body-consumed t)))))))
+  
+  (funcall next req))
+
+;;; ---------------------------------------------------------------------------
+;;; 12. ETAG MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
 (defun %fnv1a-64 (bytes)
-  (let* ((hash #xCBF29CE484222325)
-         (prime #x100000001B3))
+  (let ((hash #xCBF29CE484222325) (prime #x100000001B3))
     (dotimes (i (length bytes))
       (setf hash (logxor hash (aref bytes i)))
       (setf hash (mod (* hash prime) (expt 2 64))))
     hash))
 
-(defun %hex64 (u64)
-  (format nil "~16,'0X" u64))
-
-(defun %body->bytes (body)
-  (etypecase body
-    (string (trivial-utf-8:string-to-utf-8-bytes body))
-    ((vector (unsigned-byte 8)) body)
-    (null (trivial-utf-8:string-to-utf-8-bytes ""))))
-
 (defun compute-etag (body &key (weak t))
-  "Retourne une chaîne ETag, ex: W/\"AB12...-1234\""
-  (let* ((bytes (%body->bytes body))
-         (h (%hex64 (%fnv1a-64 bytes)))
+  (let* ((bytes (etypecase body
+                  (string (trivial-utf-8:string-to-utf-8-bytes body))
+                  ((vector (unsigned-byte 8)) body)
+                  (null (trivial-utf-8:string-to-utf-8-bytes ""))))
+         (h (format nil "~16,'0X" (lumen.core.middleware::%fnv1a-64 bytes)))
          (sig (format nil "~A-~D" h (length bytes))))
+    
+    ;; CORRECTION ICI : ~A au lieu de ~S
     (if weak
-        (format nil "W/~S" sig)   ; "W/" + quoted-string
-        (format nil "~S" sig)))   ; strong: juste quoted-string
+        (format nil "W/\"~A\"" sig) 
+        (format nil "\"~A\"" sig))))
 
-  )
+(defmiddleware etag-middleware
+    ((weak :initarg :weak :initform t)
+     (only-status :initarg :only-status :initform '(200))
+     (add-cache-control :initarg :add-cache-control :initform nil))
+    (req next)
+  
+  (let* ((resp (funcall next req))
+         (status (lumen.core.http:resp-status resp)))
+    
+    (with-slots (weak only-status add-cache-control) mw
+      (labels ((ensure-etag! (resp)
+                 (let* ((hdrs (lumen.core.http:resp-headers resp))
+                        (existing (cdr (assoc "etag" hdrs :test #'string=))))
+                   (cond
+                     (existing 
+                      (when add-cache-control 
+                        (setf (lumen.core.http:resp-headers resp) 
+                              (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "cache-control" add-cache-control)))
+                      existing)
+                     ((functionp (lumen.core.http:resp-body resp)) nil) ;; Cannot compute for stream
+                     (t (let ((val (compute-etag (lumen.core.http:resp-body resp) :weak weak)))
+                          (setf (lumen.core.http:resp-headers resp) 
+                                (lumen.utils:ensure-header hdrs "etag" val))
+                          (when add-cache-control
+                            (setf (lumen.core.http:resp-headers resp)
+                                  (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "cache-control" add-cache-control)))
+                          val))))))
+        
+        (if (and (member status only-status) (or (string= (lumen.core.http:req-method req) "GET") (string= (lumen.core.http:req-method req) "HEAD")))
+            (let ((etag-val (ensure-etag! resp))
+                  (inm (cdr (assoc "if-none-match" (lumen.core.http:req-headers req) :test #'string-equal))))
+              (if (and etag-val inm (string= (string-trim " W/" inm) (string-trim " W/" etag-val))) ;; Simplified weak match
+                  (make-instance 'lumen.core.http:response :status 304 :headers (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "etag" etag-val) :body "")
+                  resp))
+            resp)))))
 
-(defun %parse-if-none-match (h)
-  "Retourne une liste de tags (strings) tels que reçus, ex: (\"W/\\\"SIG\\\"\" \"\\\"SIG2\\\"\")."
-  (when (and h (plusp (length h)))
-    (mapcar (lambda (s) (string-trim '(#\Space #\Tab) s))
-            (uiop:split-string h :separator ","))))
-
-(defun %strip-weak (tag)
-  "Retire le préfixe W/ si présent."
-  (let ((s (string-trim '(#\Space #\Tab) tag)))
-    (if (and (>= (length s) 2)
-             (char-equal (char s 0) #\W)
-             (char=      (char s 1) #\/))
-        (subseq s 2)
-        s)))
-
-(defun %weak-match-p (client-tag server-tag)
-  "Règle de weak comparison (RFC 7232 §2.3.2).
-   client-tag et server-tag incluent les guillemets."
-  (string= (%strip-weak client-tag) (%strip-weak server-tag)))
-
-;;; Middleware ETag rendu 'safe' :
-;;; - Ne tente PAS de calculer un ETag si le corps est un writer (fonction).
-;;; - Si un ETag est DÉJÀ présent (ex: respond-file), utilise-le pour 304.
-(defun etag (&key (weak t) (only-status '(200)) (add-cache-control nil))
-  "Ajoute/valide ETag et gère 304 si If-None-Match matche.
-   - WEAK : si T (défaut), génère un ETag faible (W/\"...\").
-   - ONLY-STATUS : liste de statuts concernés (par défaut (200)).
-   - ADD-CACHE-CONTROL : string optionnelle, ex: \"public, max-age=300\"."
-  (lambda (next)
-    (lambda (req)
-      (let* ((resp   (funcall next req))
-             (status (lumen.core.http:resp-status resp)))
-        (labels
-            ((ensure-etag! (resp)
-               (let* ((hdrs (lumen.core.http:resp-headers resp))
-                      (existing (cdr (assoc "etag" hdrs :test #'string=))))
-                 (cond
-                   ;; ETag déjà posé (ex: respond-file) → on le laisse.
-                   (existing
-                    (when add-cache-control
-                      (setf (lumen.core.http:resp-headers resp)
-                            (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                                       "cache-control" add-cache-control)))
-                    existing)
-                   ;; Corps fonction (writer) → on ne peut pas calculer → on n'ajoute pas
-                   ((functionp (lumen.core.http:resp-body resp))
-                    (when add-cache-control
-                      (setf (lumen.core.http:resp-headers resp)
-                            (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                                       "cache-control" add-cache-control)))
-                    nil)
-                   ;; Corps string / octets → on calcule
-                   (t
-                    (let* ((val (compute-etag (lumen.core.http:resp-body resp) :weak weak)))
-                      (setf (lumen.core.http:resp-headers resp)
-                            (lumen.utils:ensure-header hdrs "etag" val))
-                      (when add-cache-control
-                        (setf (lumen.core.http:resp-headers resp)
-                              (lumen.utils:ensure-header (lumen.core.http:resp-headers resp)
-                                                         "cache-control" add-cache-control)))
-                      val))))))
-          (if (and (member status only-status)
-                   (method-get-or-head-p req))
-              (let* ((etag-val (ensure-etag! resp))
-                     (inm (cdr (assoc "if-none-match"
-                                      (lumen.core.http:req-headers req)
-                                      :test #'string-equal))))
-                (if (and etag-val inm
-                         (or (some (lambda (x) (string= x "*"))
-                                   (%parse-if-none-match inm))
-                             (some (lambda (x) (%weak-match-p x etag-val))
-                                   (%parse-if-none-match inm))))
-                    ;; 304 Not Modified : pas de corps
-                    (make-instance 'lumen.core.http:response
-                                   :status 304
-                                   :headers (lumen.utils:ensure-header
-                                             (copy-list (lumen.core.http:resp-headers resp))
-                                             "etag" etag-val)
-                                   :body "")
-                    resp))
-              ;; Pas concerné → renvoyer tel quel
-              resp))))))
-
-;;; ---------------- Helpers Accept-Encoding ----------------
-(defun %parse-accept-encoding (h)
-  "Retourne une alist '( (\"gzip\" . q) (\"deflate\" . q) ... ) triée par q desc."
-  (labels ((parse-q (s)
-             (handler-case
-                 (let* ((v (read-from-string s nil nil)))
-                   (if (numberp v) (coerce v 'float) 1.0))
-               (error () 1.0))))
-    (when (and h (plusp (length h)))
-      (let* ((tokens (uiop:split-string h :separator ","))
-             (pairs
-               (mapcar (lambda (tok)
-                         (let* ((t1 (string-trim '(#\Space #\Tab) tok))
-                                (pos (position #\; t1))
-                                (enc (string-downcase
-                                      (string-trim '(#\Space #\Tab)
-                                                   (subseq t1 0 (or pos (length t1))))))
-                                (q   (if pos
-                                         (let* ((p2 (position #\= t1 :start (1+ pos))))
-                                           (if p2
-                                               (parse-q (string-trim '(#\Space #\Tab)
-                                                                     (subseq t1 (1+ p2))))
-                                               1.0))
-                                         1.0)))
-                           (cons enc q)))
-                       tokens)))
-	;; filtre q=0, trie desc
-        (sort (remove-if (lambda (c) (<= (cdr c) 0.0)) pairs)
-              #'> :key #'cdr)))))
-
-(defun %client-wants-gzip-p (headers)
-  (let ((ae (cdr (assoc "accept-encoding" headers :test #'string-equal))))
-    (member "gzip" (mapcar #'car (%parse-accept-encoding ae))
-            :test #'string=)))
-
-(defun %choose-encoding (headers &key (supported '("gzip" "deflate")))
-  "Renvoie \"gzip\" ou \"deflate\" selon Accept-Encoding et q-values, ou NIL si rien."
-  (let* ((ae (cdr (assoc "accept-encoding" headers :test #'string-equal)))
-         (prefs (%parse-accept-encoding ae)))
-    (some (lambda (p)
-            (let ((enc (car p)))
-              (when (member enc supported :test #'string=)
-                enc)))
-          prefs)))
-
-(defun %content-type (headers)
-  (cdr (assoc "content-type" headers :test #'string=)))
-
-(defun %type-prefixed-p (ct prefixes)
-  "Vrai si le Content-Type CT commence par un des PREFIXES (strings)."
-  (and ct prefixes
-       (let ((ct* (string-downcase ct)))
-         (some (lambda (pfx) (lumen.utils:str-prefix-p (string-downcase pfx) ct*))
-               prefixes))))
-
-;;; ---------------- Compressors ----------------
-(defun %bytes (body)
-  (etypecase body
-    (string (trivial-utf-8:string-to-utf-8-bytes body))
-    ((vector (unsigned-byte 8)) body)
-    (null (trivial-utf-8:string-to-utf-8-bytes ""))))
-
-(defun gzip-bytes (u8vec)
-  "Retourne un nouveau vecteur d'octets gzip du contenu U8VEC."
-  (let ((out (flexi-streams:make-in-memory-output-stream
-              :element-type '(unsigned-byte 8))))
-    (salza2:with-compressor (c 'salza2:gzip-compressor :stream out)
-      (dotimes (i (length u8vec))
-        (salza2:compress-octet c (aref u8vec i))))
+;;; ---------------------------------------------------------------------------
+;;; 13. COMPRESSION MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+(defun %gzip-bytes (u8vec)
+  (let ((out (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
+    (salza2:with-compressor (c 'salza2:gzip-compressor 
+                               :callback (lambda (chunk end)
+                                           (write-sequence chunk out :end end)))
+      (salza2:compress-octet-vector u8vec c))
     (flexi-streams:get-output-stream-sequence out)))
 
-(defun deflate-bytes (u8vec)
-  "Retourne un nouveau vecteur d'octets *deflate* (zlib wrapper, RFC1950) du contenu U8VEC."
-  (let ((out (flexi-streams:make-in-memory-output-stream
-              :element-type '(unsigned-byte 8))))
-    ;; NB: 'deflate' côté HTTP signifie généralement zlib-wrapped (pas raw)
-    (salza2:with-compressor (c 'salza2:zlib-compressor :stream out)
-      (dotimes (i (length u8vec))
-        (salza2:compress-octet c (aref u8vec i))))
+(defun %deflate-bytes (u8vec)
+  (let ((out (flexi-streams:make-in-memory-output-stream :element-type '(unsigned-byte 8))))
+    (salza2:with-compressor (c 'salza2:zlib-compressor 
+                               :callback (lambda (chunk end)
+                                           (write-sequence chunk out :end end)))
+      (salza2:compress-octet-vector u8vec c))
     (flexi-streams:get-output-stream-sequence out)))
 
-;;; ---------------- Middleware ----------------
-;; ---------- Détection contenus déjà compressés / peu compressibles ----------
-(defun %starts-with (vec &rest bytes)
-  (when (and (vectorp vec)
-             (subtypep (array-element-type vec) '(unsigned-byte 8))
-             (<= (length bytes) (length vec)))
-    (loop for i from 0 below (length bytes)
-          always (= (aref vec i) (nth i bytes)))))
-
-(defun %looks-gzip-p   (bytes) (%starts-with bytes #x1F #x8B))                ; GZIP
-(defun %looks-zlib-p   (bytes) (or (%starts-with bytes #x78 #x01)             ; ZLIB/deflate
-                                   (%starts-with bytes #x78 #x9C)
-                                   (%starts-with bytes #x78 #xDA)))
-(defun %looks-png-p    (bytes) (%starts-with bytes #x89 #x50 #x4E #x47 #x0D #x0A #x1A #x0A))
-(defun %looks-jpeg-p   (bytes) (%starts-with bytes #xFF #xD8 #xFF))
-(defun %looks-gif-p    (bytes)
-  (and (>= (length bytes) 6)
-       (let ((s (map 'string #'code-char (subseq bytes 0 6))))
-         (or (string= s "GIF87a") (string= s "GIF89a")))))
-(defun %looks-webp-p   (bytes)
-  (and (>= (length bytes) 12)
-       (string= (map 'string #'code-char (subseq bytes 0 4))  "RIFF")
-       (string= (map 'string #'code-char (subseq bytes 8 12)) "WEBP")))
-(defun %looks-zip-p    (bytes) (%starts-with bytes #x50 #x4B #x03 #x04))
-(defun %looks-pdf-p    (bytes)
-  (and (>= (length bytes) 4)
-       (string= (map 'string #'code-char (subseq bytes 0 4)) "%PDF")))
-
-(defun %incompressible-magic-p (bytes)
-  "Renvoie T si BYTES semble déjà compressé (gzip/zlib) ou de type peu compressible (images, zip, pdf)."
-  (or (%looks-gzip-p bytes)
-      (%looks-zlib-p bytes)
-      (%looks-png-p  bytes)
-      (%looks-jpeg-p bytes)
-      (%looks-gif-p  bytes)
-      (%looks-webp-p bytes)
-      (%looks-zip-p  bytes)
-      (%looks-pdf-p  bytes)))
-
-(defun compression
-    (&key (threshold 1024)
-       (add-vary t)
-       (skip-types '("image/" "video/" "audio/"
-                     "application/zip" "application/pdf"
-                     "application/x-gzip" "application/x-7z-compressed"
-                     "application/x-rar-compressed" "application/x-tar"))
-       (only-types nil)
-       (min-ratio 0.95)
-       (skip-if nil))		     ; (lambda (req resp) ...) -> bool
-  "Compresse la réponse (gzip/deflate) si pertinent.
-Options:
-  - THRESHOLD  : octets minimum du corps original
-  - ADD-VARY   : ajoute Vary: Accept-Encoding
-  - SKIP-TYPES : liste de préfixes MIME à ignorer
-  - ONLY-TYPES : liste de préfixes MIME autorisés (si non-NIL, restreint la compression)
-  - MIN-RATIO  : ne garde pas la compression si (compressed/original) > MIN-RATIO
-  - SKIP-IF    : prédicat (req resp) → T pour désactiver la compression"
-  (labels
-      ((decorate-vary (hdrs)
-         (if add-vary
-             (let* ((existing (cdr (assoc "vary" hdrs :test #'string=)))
-                    (new (if existing
-                             (if (search "accept-encoding" (string-downcase existing))
-                                 existing
-                                 (format nil "~A, Accept-Encoding" existing))
-                             "Accept-Encoding")))
-               (lumen.utils:ensure-header hdrs "vary" new))
-             hdrs)))
-    (lambda (next)
-      (lambda (req)
-        (let* ((resp    (funcall next req))
-               (status  (lumen.core.http:resp-status resp))
-               (req-h   (lumen.core.http:req-headers req))
-               (resp-h  (lumen.core.http:resp-headers resp))
-               (ct      (%content-type resp-h)))
-
-          (cond
-            ;; Jamais compresser ces statuts / si déjà encodé
-            ((or (member status '(204 304))
-                 (assoc "content-encoding" resp-h :test #'string=))
-             (setf (lumen.core.http:resp-headers resp)
-                   (decorate-vary (lumen.core.http:resp-headers resp)))
-             resp)
-
-            ;; Respecter un éventuel prédicat d’exclusion
-            ((and skip-if (funcall skip-if req resp))
-             (setf (lumen.core.http:resp-headers resp)
-                   (decorate-vary (lumen.core.http:resp-headers resp)))
-             resp)
-
-            ;; Respecter ONLY-TYPES (si fourni)
-            ((and only-types (not (%type-prefixed-p ct only-types)))
-             (setf (lumen.core.http:resp-headers resp)
-                   (decorate-vary (lumen.core.http:resp-headers resp)))
-             resp)
-
-            ;; Ne pas compresser si CT est dans SKIP-TYPES
-            ((%type-prefixed-p ct skip-types)
-             (setf (lumen.core.http:resp-headers resp)
-                   (decorate-vary (lumen.core.http:resp-headers resp)))
-             resp)
-
-            ;; Négociation de contenu
-            (t
-             (let ((chosen (%choose-encoding req-h :supported '("gzip" "deflate"))))
-               (if (null chosen)
-                   (progn
-                     (setf (lumen.core.http:resp-headers resp)
-                           (decorate-vary (lumen.core.http:resp-headers resp)))
-                     resp)
-                   (let* ((orig (lumen.core.http:resp-body resp))
-                          (bytes (etypecase orig
-                                   (string (trivial-utf-8:string-to-utf-8-bytes orig))
-                                   ((vector (unsigned-byte 8)) orig)
-                                   (null (trivial-utf-8:string-to-utf-8-bytes ""))))
-                          (len (length bytes)))
-
-                     (cond
-                       ((< len threshold)
-                        (setf (lumen.core.http:resp-headers resp)
-                              (decorate-vary (lumen.core.http:resp-headers resp)))
-                        resp)
-
-                       ((%incompressible-magic-p bytes)
-                        (setf (lumen.core.http:resp-headers resp)
-                              (decorate-vary (lumen.core.http:resp-headers resp)))
-                        resp)
-
-                       (t
-                        (let* ((encoded (ecase (intern (string-upcase chosen) :keyword)
-                                          (:GZIP    (gzip-bytes bytes))
-                                          (:DEFLATE (deflate-bytes bytes))))
-                               (ratio (if (plusp len)
-                                          (/ (float (length encoded)) (float len))
-                                          1.0)))
-                          (if (> ratio min-ratio)
-                              ;; Gain insuffisant
-                              (progn
-                                (setf (lumen.core.http:resp-headers resp)
-                                      (decorate-vary (lumen.core.http:resp-headers resp)))
-                                resp)
-                              ;; Conserver compression
-                              (progn
-                                (setf (lumen.core.http:resp-headers resp)
-                                      (-> (lumen.core.http:resp-headers resp)
-                                          (lumen.utils:ensure-header "content-encoding" chosen)
-                                          (decorate-vary)))
-                                (setf (lumen.core.http:resp-body resp) encoded)
-                                resp)))))))))))))))
-
-;;; If-Modified-Since → 304 ----------------------------------------
-(defun last-modified-conditional (&key (only-status '(200)))
-  "Si la réponse porte Last-Modified, compare If-Modified-Since et renvoie 304 si applicable.
-   Respecte la règle de priorité : si If-None-Match est présent, on laisse l'autre middleware (ETag) décider."
-  (lambda (next)
-    (lambda (req)
-      (let* ((resp   (funcall next req))
-             (status (lumen.core.http:resp-status resp)))
-        (labels ((->304 (resp lm)
-                   (make-instance 'lumen.core.http:response
-                                  :status 304
-                                  :headers (lumen.utils:ensure-header
-                                            (copy-list (lumen.core.http:resp-headers resp))
-                                            "last-modified" lm)
-                                  :body "")))
-          (if (and (member status only-status)
-                   (method-get-or-head-p req))
-              (let* ((req-h  (lumen.core.http:req-headers req))
-                     (resp-h (lumen.core.http:resp-headers resp))
-                     (ims    (cdr (assoc "if-modified-since" req-h :test #'string-equal)))
-                     (inm    (cdr (assoc "if-none-match" req-h :test #'string-equal))) ; priorité ETag
-                     (lm     (cdr (assoc "last-modified" resp-h :test #'string=))))
-                (if (and lm ims (null inm))
-                    (let* ((ims-ut (lumen.utils:parse-http-date ims))
-                           (lm-ut  (lumen.utils:parse-http-date lm)))
-                      (if (and ims-ut lm-ut (>= ims-ut lm-ut))
-                          (->304 resp lm)
-                          resp))
-                    resp))
-              resp))))))
-
-;;; Session
-(defun session (&key secret (ttl lumen.core.session:*session-ttl*)
-                     (cookie-name lumen.core.session:*session-cookie*)
-                     (http-only t) (secure lumen.core.session:*secure-cookie*)
-                     (path "/"))
-  "Sessions mémoire via cookie signé. SECRET requis."
-  (assert (and secret (plusp (length secret))) () "session: :secret requis.")
-  (lambda (next)
-    (lambda (req)
-      ;; lecture cookie
-      (let* ((raw (or (cookie req cookie-name) ""))
-             (sid (and (> (length raw) 0)
-                       (lumen.core.session:verify-signed-sid raw secret)))
-             (data (and sid (lumen.core.session:store-get sid))))
-        ;; si pas de session → créer
-        (unless sid
-          (setf sid (lumen.core.session:make-session-id))
-          (setf data '()))
-        ;; mettre en ctx
-        (lumen.core.http:ctx-set! req :session-id sid)
-        (lumen.core.http:ctx-set! req :session    data)
-        ;; suite
-        (let* ((resp (funcall next req))
-               (sid* (lumen.core.session:session-id req))
-               (dat* (lumen.core.session:session-data req)))
-          ;; persister si non-vide (ou toujours, à toi de voir)
-          (lumen.core.session:store-put! sid* dat* ttl)
-          ;; cookie signé
-          (let* ((signed (lumen.core.session:sign-sid sid* secret)))
-            (set-cookie! resp cookie-name signed
-                         :path path :http-only http-only :secure secure
-                         :max-age ttl))
-          resp)))))
-
-;;; CSRF
 #|
-- On génère un token aléatoire, stocké en session (:csrf) et envoyé aussi au client (cookie csrf_token).
-- Pour les méthodes mutables (POST, PUT, PATCH, DELETE), on vérifie que la requête fournit le même token via header X-CSRF-Token ou champ de formulaire (ctx :form → key "csrf_token").
-- Si absent/incorrect → 403.
+(defmiddleware compression-middleware
+    ((threshold :initarg :threshold :initform 1024)
+     (min-ratio :initarg :min-ratio :initform 0.95)
+     (skip-types :initarg :skip-types 
+                 :initform '("image/" "video/" "audio/" "application/zip" "application/pdf"))
+     (only-types :initarg :only-types :initform nil))
+    (req next)
+  
+  (let* ((resp (funcall next req))
+         (status (lumen.core.http:resp-status resp))
+         (resp-h (lumen.core.http:resp-headers resp))
+         (ct (cdr (assoc "content-type" resp-h :test #'string=))))
+    
+    (with-slots (threshold min-ratio skip-types only-types) mw
+      (cond
+        ((or (member status '(204 304)) (assoc "content-encoding" resp-h :test #'string=)) resp)
+        ((and skip-types (some (lambda (p) (lumen.utils:str-prefix-p p (string-downcase (or ct "")))) skip-types)) resp)
+        
+        ;; Négociation
+        (t (let* ((ae (cdr (assoc "accept-encoding" (lumen.core.http:req-headers req) :test #'string-equal)))
+                  (wants-gzip (and ae (search "gzip" ae))))
+             (if (not wants-gzip) 
+                 resp
+                 (let* ((orig (lumen.core.http:resp-body resp))
+                        (bytes (etypecase orig
+                                 (string (trivial-utf-8:string-to-utf-8-bytes orig))
+                                 ((vector (unsigned-byte 8)) orig)
+                                 (null #())))
+                        (len (length bytes)))
+                   
+                   (if (< len threshold)
+                       resp
+                       (let* ((encoded (%gzip-bytes bytes))
+                              (ratio (/ (length encoded) (float len))))
+                         (if (> ratio min-ratio)
+                             resp
+                             (progn
+                               (setf (lumen.core.http:resp-headers resp)
+                                     (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "content-encoding" "gzip"))
+                               
+                               ;; 2. CORRECTION CRITIQUE : MISE A JOUR DU CONTENT-LENGTH
+                               (setf (lumen.core.http:resp-headers resp)
+                                     (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "content-length" (write-to-string (length encoded))))
+
+                               ;; 3. REMPLACEMENT DU CORPS
+                               (setf (lumen.core.http:resp-body resp) encoded)
+                               resp))))))))))))
 |#
+(lumen.core.middleware:defmiddleware compression-middleware
+    ((threshold :initarg :threshold :initform 1024)
+     (min-ratio :initarg :min-ratio :initform 0.95)
+     (skip-types :initarg :skip-types 
+                 :initform '("image/" "video/" "audio/" "application/zip" "application/pdf"))
+     (only-types :initarg :only-types :initform nil))
+    (req next)
+  
+  (let* ((resp (funcall next req))
+         (status (lumen.core.http:resp-status resp))
+         (resp-h (lumen.core.http:resp-headers resp))
+         (ct (cdr (assoc "content-type" resp-h :test #'string=))))
+    
+    (with-slots (threshold min-ratio skip-types only-types) mw
+      (cond
+        ((or (member status '(204 304)) (assoc "content-encoding" resp-h :test #'string=)) resp)
+        ((and skip-types (some (lambda (p) (lumen.utils:str-prefix-p p (string-downcase (or ct "")))) skip-types)) resp)
+        
+        (t (let* ((ae (cdr (assoc "accept-encoding" (lumen.core.http:req-headers req) :test #'string-equal)))
+                  (wants-gzip (and ae (search "gzip" ae))))
+             
+             (if (not wants-gzip) 
+                 resp
+                 (let* ((orig (lumen.core.http:resp-body resp))
+                        (bytes (etypecase orig
+                                 (string (trivial-utf-8:string-to-utf-8-bytes orig))
+                                 ((vector (unsigned-byte 8)) orig)
+				 (function #())
+                                 (null #())))
+                        (len (length bytes)))
+                   
+                   ;; DEBUG LOG
+                   (format t "~&[COMPRESS] Path: ~A | Orig Size: ~D | Type: ~A~%" 
+                           (lumen.core.http:req-path req) len (type-of orig))
+
+                   (if (< len threshold)
+                       resp
+                       (let* ((raw-encoded (lumen.core.middleware::%gzip-bytes bytes))
+                              ;; 1. COERCITION : On force un simple-array pour éviter les bugs de flux
+                              (encoded (coerce raw-encoded '(simple-array (unsigned-byte 8) (*))))
+                              (new-len (length encoded))
+                              (ratio (/ new-len (float len))))
+                         
+                         (format t "~&[COMPRESS] -> Gzip Size: ~D (Ratio: ~F)~%" new-len ratio)
+
+                         (if (> ratio min-ratio)
+                             resp
+                             (progn
+                               (setf (lumen.core.http:resp-headers resp)
+                                     (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "content-encoding" "gzip"))
+                               
+                               ;; 2. NETTOYAGE : On retire l'ancien content-length avant de mettre le nouveau
+                               ;; (Gère les cas où il existe déjà en lowercase ou MixedCase)
+                               (let ((clean-headers (remove "content-length" (lumen.core.http:resp-headers resp) 
+                                                            :test #'string-equal :key #'car)))
+                                 (setf (lumen.core.http:resp-headers resp)
+                                       (acons "content-length" (write-to-string new-len) clean-headers)))
+
+                               (setf (lumen.core.http:resp-body resp) encoded)
+                               resp))))))))))))
+;;; ---------------------------------------------------------------------------
+;;; 14. LAST MODIFIED CONDITIONAL MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
+(defmiddleware last-modified-middleware
+    ((only-status :initarg :only-status :initform '(200)))
+    (req next)
+  
+  (let* ((resp (funcall next req))
+         (status (lumen.core.http:resp-status resp)))
+    
+    (with-slots (only-status) mw
+      (if (and (member status only-status) (or (string= (lumen.core.http:req-method req) "GET") (string= (lumen.core.http:req-method req) "HEAD")))
+          (let* ((req-h (lumen.core.http:req-headers req))
+                 (resp-h (lumen.core.http:resp-headers resp))
+                 (ims (cdr (assoc "if-modified-since" req-h :test #'string-equal)))
+                 (inm (cdr (assoc "if-none-match" req-h :test #'string-equal)))
+                 (lm (cdr (assoc "last-modified" resp-h :test #'string=))))
+            
+            ;; Priorité à ETag (If-None-Match) : si présent, on laisse ETag gérer
+            (if (and lm ims (null inm))
+                (let ((ims-ut (lumen.utils:parse-http-date ims))
+                      (lm-ut (lumen.utils:parse-http-date lm)))
+                  (if (and ims-ut lm-ut (>= ims-ut lm-ut))
+                      (make-instance 'lumen.core.http:response :status 304 :headers (lumen.utils:ensure-header (copy-list resp-h) "last-modified" lm) :body "")
+                      resp))
+                resp))
+          resp))))
+
+;;; ---------------------------------------------------------------------------
+;;; 15. SESSION MIDDLEWARE (Cookie Signed)
+;;; ---------------------------------------------------------------------------
+
+(defmiddleware session-middleware
+    ((secret :initarg :secret :initform nil) ;; Requis
+     (ttl :initarg :ttl :initform (* 24 3600))
+     (cookie-name :initarg :cookie-name :initform "lumen_sid")
+     (http-only :initarg :http-only :initform t)
+     (secure :initarg :secure :initform nil)
+     (path :initarg :path :initform "/"))
+    (req next)
+  
+  (with-slots (secret ttl cookie-name http-only secure path) mw
+    (assert (and secret (plusp (length secret))) () "session-middleware: :secret is required.")
+    
+    ;; 1. Lecture
+    (let* ((raw (or (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=)) ""))
+           (sid (and (> (length raw) 0) (lumen.core.session:verify-signed-sid raw secret)))
+           (data (and sid (lumen.core.session:store-get sid))))
+      
+      (unless sid
+        (setf sid (lumen.core.session:make-session-id))
+        (setf data '()))
+      
+      ;; Injection Context
+      (lumen.core.http:ctx-set! req :session-id sid)
+      (lumen.core.http:ctx-set! req :session data)
+      
+      ;; 2. Exécution
+      (let ((resp (funcall next req)))
+        
+        ;; 3. Persistance
+        (let ((sid* (lumen.core.session:session-id req))
+              (dat* (lumen.core.session:session-data req)))
+          (lumen.core.session:store-put! sid* dat* ttl)
+          
+          ;; Cookie Refresh
+          (lumen.core.http:add-set-cookie 
+           resp 
+           (lumen.core.http:format-set-cookie 
+            cookie-name 
+            (lumen.core.session:sign-sid sid* secret)
+            :path path :http-only http-only :secure secure :max-age ttl)))
+        resp))))
+
+;;; ---------------------------------------------------------------------------
+;;; 16. CSRF MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
 (defun %random-token ()
-  (let* ((b (lumen.core.session:rand-bytes 32)))
-    (cl-base64:usb8-array-to-base64-string b :uri t))) ; base64url
+  (cl-base64:usb8-array-to-base64-string (lumen.core.session:rand-bytes 32) :uri t))
 
-(defun csrf (&key (cookie-name "csrf_token")
-                  (header-name "x-csrf-token")
-                  (methods '("POST" "PUT" "PATCH" "DELETE"))
-                  (path "/")
-                  (except-prefixes '())   ; ex: '("/login" "/api/webhook")
-                  (except-exact '())      ; ex: '("/login" "/signup")
-                  (skip-if nil))          ; (lambda (req) -> boolean)
-  (labels ((path-exempt-p (req)
-             (let ((p (lumen.core.http:req-path req)))
-               (or
-                ;; skip par prédicat custom
-                (and skip-if (funcall skip-if req))
-                ;; skip par match exact
-                (member p except-exact :test #'string=)
-                ;; skip par préfixe
-                (some (lambda (pre)
-                        (and (<= (length pre) (length p))
-                             (string= pre p :end2 (length pre))))
-                      except-prefixes)))))
-    (lambda (next)
-      (lambda (req)
-        ;; (1) session requise (middleware :session doit être avant)
-        (let* ((method (lumen.core.http:req-method req))
-               (mut?   (member method methods :test #'string=))
-               ;; token en session (créé si absent)
-               (tok (or (lumen.core.session:session-get req :csrf)
-                        (let ((tkn (%random-token)))
-                          (lumen.core.session:session-set! req :csrf tkn) tkn))))
-          (labels ((emit-cookie (resp)
-                     (set-cookie! resp cookie-name tok :path path :http-only nil)))
-            (cond
-              ;; Cas exempté → pas de vérif, mais on émet/rafraîchit le cookie
-              ((or (not mut?) (path-exempt-p req))
-               (let ((resp (funcall next req)))
-                 (emit-cookie resp)
-                 resp))
+(defmiddleware csrf-middleware
+    ((cookie-name :initarg :cookie-name :initform "csrf_token")
+     (header-name :initarg :header-name :initform "x-csrf-token")
+     (methods :initarg :methods :initform '("POST" "PUT" "PATCH" "DELETE"))
+     (path :initarg :path :initform "/")
+     (skip-if :initarg :skip-if :initform nil))
+    (req next)
+  
+  (with-slots (cookie-name header-name methods path skip-if) mw
+    (let* ((method (lumen.core.http:req-method req))
+           (mut? (member method methods :test #'string=))
+           ;; Récupération ou génération Token en Session
+           (tok (or (lumen.core.session:session-get req :csrf)
+                    (let ((tkn (%random-token)))
+                      (lumen.core.session:session-set! req :csrf tkn) 
+                      tkn))))
+      
+      (labels ((emit (r) 
+                 (lumen.core.http:add-set-cookie r (lumen.core.http:format-set-cookie cookie-name tok :path path :http-only nil))))
+        
+        (cond
+          ;; Skip Check
+          ((or (not mut?) (and skip-if (funcall skip-if req)))
+           (let ((resp (funcall next req)))
+             (emit resp)
+             resp))
+          
+          ;; Verify
+          (t
+           (let* ((hdr (lumen.core.http:req-headers req))
+                  (hdr-raw (cdr (assoc header-name hdr :test #'string-equal)))
+                  (hdr-tok (if (and hdr-raw (string= hdr-raw cookie-name))
+                               (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=))
+                               hdr-raw))
+                  (form (lumen.core.http:ctx-get req :form))
+                  (field-tok (cdr (assoc "csrf_token" form :test #'string=)))
+                  (ok (or (and hdr-tok (string= hdr-tok tok))
+                          (and field-tok (string= field-tok tok)))))
+             
+             (if ok
+                 (let ((resp (funcall next req)))
+                   (emit resp)
+                   resp)
+                 (let ((resp (lumen.core.http:respond-json '((:error . "CSRF invalid")) :status 403)))
+                   (emit resp)
+                   resp)))))))))
 
-              ;; Méthode mutable + pas exempté → vérification stricte
-              (t
-               (let* ((hdr (lumen.core.http:req-headers req))
-                      (hdr-raw (cdr (assoc header-name hdr :test #'string-equal)))
-                      ;; tolérance: si on reçoit littéralement "csrf_token", lire la valeur dans les cookies
-                      (hdr-tok (if (and hdr-raw (string= hdr-raw cookie-name))
-                                   (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=))
-                                   hdr-raw))
-                      (form (lumen.core.http:ctx-get req :form))
-                      (field-tok (cdr (assoc "csrf_token" form :test #'string=)))
-                      (ok (or (and hdr-tok (string= hdr-tok tok))
-                              (and field-tok (string= field-tok tok)))))
-                 (if ok
-                     (let ((resp (funcall next req)))
-                       (emit-cookie resp)
-                       resp)
-                     (let ((resp (lumen.core.http:respond-json
-                                  '((:error . ((:type . "csrf")
-                                               (:message . "invalid or missing CSRF token"))))
-                                  :status 403)))
-                       (emit-cookie resp) ; pour que le client récupère le bon token
-                       resp)))))))))))
+;;; ---------------------------------------------------------------------------
+;;; 17. AUTH JWT MIDDLEWARE (The Big One)
+;;; ---------------------------------------------------------------------------
 
-(defun %bearer-token-from (headers)
-  "Extrait proprement le Bearer token (case-insensitive, espaces tolérés)."
-  (let* ((raw (cdr (assoc "authorization" headers :test #'string-equal))))
+(defun %bearer-token (hdrs)
+  (let ((raw (cdr (assoc "authorization" hdrs :test #'string-equal))))
     (when raw
-      (let* ((s (string-trim " " raw)))
-        (labels ((starts-with-ci (needle hay)
-                   (and (>= (length hay) (length needle))
-                        (string-equal needle hay :end2 (length needle)))))
-          (cond
-            ((starts-with-ci "Bearer " s) (subseq s 7))
-            ((starts-with-ci "bearer " s) (subseq s 7))
-            (t nil)))))))
+      (let ((s (string-trim " " raw)))
+        (if (and (>= (length s) 7) (string-equal "Bearer " s :end2 7))
+            (subseq s 7) nil)))))
 
-(defun %alist-get-ci (alist key)
-  "getf/assoc tolérant clé string/keyword (case-insensitive)."
-  (or (cdr (assoc key alist :test #'equal))
-      (and (stringp key)
-           (or (cdr (assoc (intern (string-upcase key) :keyword) alist :test #'eq))
-               (cdr (assoc (string-downcase key) alist :test #'string=))
-               (cdr (assoc (string-upcase key) alist :test #'string=))))
-      (and (keywordp key)
-           (or (cdr (assoc (string-downcase (symbol-name key)) alist :test #'string=))
-               (cdr (assoc (string-upcase   (symbol-name key)) alist :test #'string=))))))
-
-(defun %cookie (req name)
-  (cdr (assoc name (lumen.core.http:req-cookies req) :test #'string=)))
-
-(defun %query-token-from (req &key (keys '("access" "token")))
+(defun %query-token (req keys)
   (let ((qp (lumen.core.http:req-query req)))
-    (loop for k in keys
-          for v = (or (%alist-get-ci qp k)
-                      (%alist-get-ci qp (intern (string-upcase k) :keyword)))
-          when (and v (stringp v) (> (length v) 0))
-          do (return v))))
+    (loop for k in keys thereis (cdr (assoc k qp :test #'string-equal)))))
 
-(defun auth-jwt (&key (secret nil secret-supplied-p)
-                   (required-p nil)
-                   (roles-allow nil)
-                   (scopes-allow nil)
-                   (scopes-mode :any)
-                   (leeway-sec 60)
-                   (allow-query-token-p t)
-                   (qs-keys '("access" "token"))
-                   ;; ---- Nouveaux switches ----
-                   (admin-roles '("admin"))
-                   (admin-bypass-roles-p t)
-                   (admin-bypass-scopes-p t))
-  (print "******* IN AUTH JWT")
-  (let ((secret (if secret-supplied-p secret lumen.core.jwt:*jwt-secret*)))
-    (lambda (next)
-      (lambda (req)
-        (labels
-            ((fail (status msg)
-               (lumen.core.http:respond-json
-                `((:error . ((:type . "auth") (:message . ,msg))))
-                :status status))
-             (normalize-scopes (v)
-               (handler-case
-                   (let* ((lst (cond
-                                 ((null v) '())
-                                 ((stringp v)
-                                  (let* ((s (string-trim " " v)))
-                                    (cond
-                                      ((and (> (length s) 1)
-                                            (char= (char s 0) #\[)
-                                            (char= (char s (1- (length s))) #\]))
-                                       (let* ((inner (subseq s 1 (1- (length s))))
-                                              (parts (cl-ppcre:split "\\s*,\\s*" inner)))
-                                         (mapcar (lambda (x) (string-trim " \"" x)) parts)))
-                                      ((search "," s)
-                                       (cl-ppcre:split "\\s*,\\s*" s))
-                                      (t (list s)))))
-                                 ((listp v) v)
-                                 ((vectorp v)
-                                  (if (every #'characterp v)
-                                      (list (coerce v 'string))
-                                      (loop for x across v append (if (stringp x) (list x) (list (princ-to-string x))))))
-                                 (t (list (princ-to-string v))))))
-                     (remove-duplicates
-                      (remove-if (lambda (s) (or (null s) (string= s "")))
-                                 (mapcar (lambda (s) (substitute #\: #\. (string s))) lst))
-                      :test #'string=))
-                 (error () '())))
-             (has-scopes? (needed have)
-               (cond
-                 ((null needed) t)
-                 ((eq scopes-mode :all)
-                  (every (lambda (x) (member x have :test #'string=)) needed))
-                 (t
-                  (some  (lambda (x) (member x have :test #'string=)) needed)))))
-          (let* ((hdrs (lumen.core.http:req-headers req))
-                 (tok  (or (%bearer-token-from hdrs)
-                           (and allow-query-token-p (%query-token-from req :keys qs-keys))
-                           (%cookie req "access_token"))))
-            ;; Décodage du JWT
-            (when tok
-              (multiple-value-bind (payload ok)
-                  (ignore-errors
-                   (lumen.core.jwt:jwt-decode tok :secret secret :verify t
-						  :leeway leeway-sec :debug t))
-		;;(format t "~&TOKEN: ~A~%" tok)
-		;;(format t "~&PAYLOAD: ~A~%" payload)
-		;;(format t "~&OK: ~A~%" ok)
-                (when ok
-                  (lumen.core.http:ctx-set! req :jwt payload)
-                  (let* ((tenant (or (%alist-get-ci payload :tenant)
-                                     (%alist-get-ci payload "tenant")))
-                         (tenant-id (or (%alist-get-ci payload :tenant-id)
-                                        (%alist-get-ci payload "tenant_id")
-                                        tenant)))
-                    (when tenant-id (lumen.core.http:ctx-set! req :tenant-id tenant-id))
-                    (when tenant    (lumen.core.http:ctx-set! req :tenant tenant))))))
-            ;; Vérifs d’accès
-            (let* ((jwt   (lumen.core.http:ctx-get req :jwt))
-                   (role  (and jwt (or (%alist-get-ci jwt :role)
-                                       (%alist-get-ci jwt "role"))))
-                   (sc    (normalize-scopes (and jwt (%alist-get-ci jwt :scopes))))
-                   (is-admin (and role (member role admin-roles :test #'string=)))
-                   (roles-ok
-                     (or (null roles-allow)
-                         (member role roles-allow :test #'string=)
-                         (and is-admin admin-bypass-roles-p)))
-                   (scopes-ok
-                     (or (null scopes-allow)
-                         (has-scopes? scopes-allow sc)
-                         (and is-admin admin-bypass-scopes-p))))
-	      ;;(format t "~&JWT: ~A~%" jwt)
-	      ;;(format t "~&IS ADMIN: ~A~%" is-admin)
-	      ;;(format t "~&IS REQUIRED ? ~A~%" required-p)
-              (cond
-                ((and required-p (null jwt))
-                 (fail 401 "missing or invalid token"))
-                ((not roles-ok)
-                 (fail 403 "forbidden"))
-                ((not scopes-ok)
-                 (fail 403 "insufficient_scope"))
-                (t
-                 ;; Audit : note qu’un bypass admin a été utilisé (si c’est le cas)
-                 (when (and is-admin (or (and roles-allow admin-bypass-roles-p)
-                                         (and scopes-allow admin-bypass-scopes-p)))
-                   (lumen.core.http:ctx-set! req :auth-bypass "admin"))
-                 (funcall next req))))))))))
+(defun %normalize-scopes (v)
+  (handler-case
+      (let ((lst (cond ((null v) nil)
+                       ((listp v) v)
+                       ((stringp v) (cl-ppcre:split "\\s+" v)) ;; Space separated scopes
+                       (t (list (princ-to-string v))))))
+        (remove-duplicates (mapcar #'string lst) :test #'string=))
+    (error () nil)))
 
-(defun auth-required (&key (admin-bypass-roles-p t)
-                           (admin-bypass-scopes-p t)
-                           (allow-query-token-p t)
-                           (qs-keys '("access" "token")))
-  "JWT requis, sans contrainte de rôle/scope. Bypass admin actif par défaut."
-  (auth-jwt :required-p t
-            :admin-bypass-roles-p admin-bypass-roles-p
-            :admin-bypass-scopes-p admin-bypass-scopes-p
-            :allow-query-token-p   allow-query-token-p
-            :qs-keys               qs-keys))
+(defmiddleware auth-middleware
+    ((secret :initarg :secret :initform nil)
+     (required-p :initarg :required-p :initform nil)
+     (roles-allow :initarg :roles-allow :initform nil)
+     (scopes-allow :initarg :scopes-allow :initform nil)
+     (scopes-mode :initarg :scopes-mode :initform :any) ;; :any | :all
+     (leeway :initarg :leeway :initform 60)
+     (allow-query :initarg :allow-query :initform t)
+     (admin-roles :initarg :admin-roles :initform '("admin"))
+     (bypass-admin :initarg :bypass-admin :initform t))
+    (req next)
+  
+  (with-slots (secret required-p roles-allow scopes-allow scopes-mode leeway allow-query admin-roles bypass-admin) mw
+    (let* ((hdrs (lumen.core.http:req-headers req))
+           (tok (or (%bearer-token hdrs)
+                    (and allow-query (%query-token req '("access_token" "token")))
+                    (cdr (assoc "access_token" (lumen.core.http:req-cookies req) :test #'string=)))))
+      
+      ;; 1. Decode & Hydrate Context
+      (when (and tok secret)
+        (multiple-value-bind (payload ok) 
+            (ignore-errors (lumen.core.jwt:jwt-decode tok :secret secret :verify t :leeway leeway))
+          (when ok
+            (lumen.core.http:ctx-set! req :jwt payload)
+            (lumen.core.http:ctx-set! req :user-id (cdr (assoc :sub payload))) ;; Standard claim
+            ;; Tenant hydration
+            (let ((tid (or (cdr (assoc :tenant-id payload)) (cdr (assoc :tenant payload)))))
+              (when tid (lumen.core.http:ctx-set! req :tenant-id tid))))))
+      
+      ;; 2. Authorization Logic
+      (let* ((jwt (lumen.core.http:ctx-get req :jwt))
+             (role (and jwt (cdr (assoc :role jwt))))
+             (scopes (%normalize-scopes (and jwt (cdr (assoc :scopes jwt)))))
+             (is-admin (and role (member role admin-roles :test #'string=)))
+             
+             (roles-ok (or (null roles-allow)
+                           (member role roles-allow :test #'string=)
+                           (and is-admin bypass-admin)))
+             
+             (scopes-ok (or (null scopes-allow)
+                            (if (eq scopes-mode :all)
+                                (every (lambda (s) (member s scopes :test #'string=)) scopes-allow)
+                                (some (lambda (s) (member s scopes :test #'string=)) scopes-allow))
+                            (and is-admin bypass-admin))))
+        
+        (cond
+          ;; Missing Token but Required
+          ((and required-p (null jwt))
+           (lumen.core.http:respond-json '((:error . "Unauthorized")) :status 401))
+          
+          ;; Forbidden (Role)
+          ((not roles-ok)
+           (lumen.core.http:respond-json '((:error . "Forbidden (Role)")) :status 403))
+          
+          ;; Forbidden (Scope)
+          ((not scopes-ok)
+           (lumen.core.http:respond-json '((:error . "Forbidden (Scope)")) :status 403))
+          
+          ;; Authorized
+          (t 
+           (when (and is-admin (or roles-allow scopes-allow))
+             (lumen.core.http:ctx-set! req :auth-bypass "admin"))
+           (funcall next req)))))))
 
-(defun roles-allowed (roles &key (admin-bypass-roles-p t)
-                                 (admin-bypass-scopes-p t)
-                                 (allow-query-token-p t)
-                                 (qs-keys '("access" "token")))
-  "JWT requis + appartenance à l’un des ROLES (admin bypass par défaut)."
-  (auth-jwt :required-p t
-            :roles-allow roles
-            :admin-bypass-roles-p admin-bypass-roles-p
-            :admin-bypass-scopes-p admin-bypass-scopes-p
-            :allow-query-token-p   allow-query-token-p
-            :qs-keys               qs-keys))
+;;; ---------------------------------------------------------------------------
+;;; 18. AUTH FACTORIES (Aliases for compatibility)
+;;; ---------------------------------------------------------------------------
 
-;;; HTTPS
-(defun %bool (x) (and x t))
+(defun auth-required (&key (roles nil) (scopes nil))
+  "Factory pour créer un middleware Auth strict."
+  (make-instance 'auth-middleware 
+                 :required-p t 
+                 :roles-allow roles
+                 :scopes-allow scopes
+                 :secret lumen.core.jwt:*jwt-secret*))
+
+(defun roles-allowed (roles)
+  "Factory raccourci pour restreindre par rôle."
+  (auth-required :roles roles))
+
+;;; ---------------------------------------------------------------------------
+;;; 19. HTTPS REDIRECT MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
 (defun %request-secure-p (req)
-  "Vrai si la requête est déjà HTTPS (socket TLS ou proxy qui l’indique)."
   (or (lumen.core.http:ctx-get req :secure)
       (let* ((h (lumen.core.http:req-headers req))
              (xfp (cdr (assoc "x-forwarded-proto" h :test #'string-equal)))
@@ -1817,329 +1045,414 @@ Options:
         (or (and xfp (string-equal xfp "https"))
             (and xfs (string-equal xfs "on"))))))
 
-(defun %path-has-prefix-p (path prefix)
-  (and (<= (length prefix) (length path))
-       (string= prefix path :end2 (length prefix))))
-
-(defun %build-query (req)
-  "Reconstruit la query string si possible."
-  (let ((q (lumen.core.http:req-query req)))
-    (cond
-      ((null q) "")
-      ((stringp q) (if (plusp (length q)) (concatenate 'string "?" q) ""))
-      ((listp q)
-       (let ((parts
-               (mapcar (lambda (cell)
-                         (let ((k (car cell)) (v (cdr cell)))
-                           ;; k/v peuvent être keywords ou strings
-                           (format nil "~A=~A"
-                                   (etypecase k
-                                     (string k)
-                                     (symbol (string-downcase (symbol-name k))))
-                                   (etypecase v
-                                     (string v)
-                                     (symbol (string-downcase (symbol-name v)))
-                                     (t (princ-to-string v))))))
-                       q)))
-         (if parts
-             (concatenate 'string "?" (map 'string #'identity
-                                           (with-output-to-string (s)
-                                             (format s "~{~A~^&~}" parts))))
-             "")))
-      (t ""))))
-
-(defun host-without-port (host)
-  (let ((pos (position #\: host)))
-    (if pos (subseq host 0 pos) host)))
-
-(defun %https-location (req &key ssl-port)
-  "Construit l’URL de redirection https (conserve host, path, query).
-   Ajoute :ssl-port si non standard (≠443)."
-  (let* ((h    (lumen.core.http:req-headers req))
+(defun %https-location (req ssl-port)
+  (let* ((h (lumen.core.http:req-headers req))
          (host (or (cdr (assoc "x-forwarded-host" h :test #'string-equal))
-                   (cdr (assoc "host"             h :test #'string-equal))
-                   "localhost"))
-	 (host0 (host-without-port host))
+                   (cdr (assoc "host" h :test #'string-equal)) "localhost"))
+         (host0 (subseq host 0 (position #\: host)))
          (path (lumen.core.http:req-path req))
-         (qs   (%build-query req))
-         (port-suffix (if (and ssl-port (not (= ssl-port 443)))
-                          (format nil ":~D" ssl-port) ""))
-         (scheme "https://"))
-    (format nil "~A~A~A~A~A" scheme host0 port-suffix path qs)))
+         (q (lumen.core.http:req-query req))
+         (qs (cond ((stringp q) (if (plusp (length q)) (format nil "?~A" q) ""))
+                   ((listp q) (if q (format nil "?~{~A=~A~^&~}" (loop for (k . v) in q collect k collect v)) ""))
+                   (t "")))
+         (port-suffix (if (and ssl-port (not (= ssl-port 443))) (format nil ":~D" ssl-port) "")))
+    (format nil "https://~A~A~A~A" host0 port-suffix path qs)))
 
-(defun https-redirect (&key
-                         (prefixes '("/"))            ; préfixes à forcer en HTTPS
-                         (except-prefixes nil)         ; préfixes EXCLUS (pas de redirect/HSTS)
-                         (ssl-port 443)                ; port public HTTPS
-                         (hsts nil)                    ; t ⇒ ajoute Strict-Transport-Security (sur HTTPS)
-                         (hsts-max-age 15552000)       ; 180 jours
-                         (hsts-include-subdomains t)
-                         (hsts-preload nil))
-  "Redirige HTTP → HTTPS (301) pour les chemins dont le préfixe matche.
-Options:
-- PREFIXES         : liste de préfixes (strings) à forcer en https (\"/\" pour tout).
-- EXCEPT-PREFIXES  : liste de préfixes à EXCLURE (pas de redirect, pas de HSTS).
-- SSL-PORT         : port https externe (443 par défaut).
-- HSTS             : si T, ajoute Strict-Transport-Security *sur les réponses HTTPS*
-                     (sauf si le chemin est exclu par EXCEPT-PREFIXES)."
-  (labels ((matches-any-p (path lst)
-             (and lst (some (lambda (pfx) (%path-has-prefix-p path pfx)) lst))))
-    (lambda (next)
-      (lambda (req)
-        (let* ((path     (lumen.core.http:req-path req))
-               (in-scope (matches-any-p path prefixes))
-               (excluded (matches-any-p path except-prefixes))
-               (secure?  (%request-secure-p req)))
-          (cond
-            ;; Déjà en HTTPS : on passe au suivant, et on pose HSTS si demandé (et non exclu)
-            (secure?
-             (let ((resp (funcall next req)))
-               (when (and hsts (not excluded))
-                 (let* ((hdrs (lumen.core.http:resp-headers resp))
-                        (val  (with-output-to-string (s)
-                                (format s "max-age=~D" hsts-max-age)
-                                (when hsts-include-subdomains (format s "; includeSubDomains"))
-                                (when hsts-preload           (format s "; preload")))))
-                   (setf (lumen.core.http:resp-headers resp)
-                         (lumen.utils:ensure-header hdrs "strict-transport-security" val))))
-               resp))
+(defun %path-has-prefix-p (path prefix)
+  (and (<= (length prefix) (length path)) (string= prefix path :end2 (length prefix))))
 
-            ;; HTTP + ciblé + non exclu → 301 vers HTTPS
-            ((and in-scope (not excluded) (not secure?))
-             (let* ((loc (%https-location req :ssl-port ssl-port))
-                    (headers (list (cons "location" loc)
-                                   (cons "cache-control" "no-store"))))
-               (make-instance 'lumen.core.http:response
-                              :status 301 :headers headers :body "")))
+(defmiddleware https-redirect-middleware
+    ((prefixes :initarg :prefixes :initform '("/"))
+     (except-prefixes :initarg :except-prefixes :initform nil)
+     (ssl-port :initarg :ssl-port :initform 443)
+     (hsts :initarg :hsts :initform nil)
+     (hsts-max-age :initarg :hsts-max-age :initform 15552000)
+     (hsts-subdomains :initarg :hsts-subdomains :initform t)
+     (hsts-preload :initarg :hsts-preload :initform nil))
+    (req next)
+  
+  (with-slots (prefixes except-prefixes ssl-port hsts hsts-max-age hsts-subdomains hsts-preload) mw
+    (let* ((path (lumen.core.http:req-path req))
+           (in-scope (some (lambda (p) (%path-has-prefix-p path p)) prefixes))
+           (excluded (some (lambda (p) (%path-has-prefix-p path p)) except-prefixes))
+           (secure? (%request-secure-p req)))
+      
+      (cond
+        ;; Déjà HTTPS
+        (secure? 
+         (let ((resp (funcall next req)))
+           (when (and hsts (not excluded))
+             (let ((val (with-output-to-string (s)
+                          (format s "max-age=~D" hsts-max-age)
+                          (when hsts-subdomains (format s "; includeSubDomains"))
+                          (when hsts-preload (format s "; preload")))))
+               (setf (lumen.core.http:resp-headers resp)
+                     (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) "strict-transport-security" val))))
+           resp))
+        
+        ;; HTTP -> Redirect
+        ((and in-scope (not excluded))
+         (make-instance 'lumen.core.http:response 
+                        :status 301 
+                        :headers `(("location" . ,(%https-location req ssl-port)) ("cache-control" . "no-store"))
+                        :body ""))
+        
+        ;; HTTP Hors scope -> Next
+        (t (funcall next req))))))
 
-            ;; HTTP hors-scope ou exclu → passer au suivant
-            (t
-             (funcall next req))))))))
+;;; ---------------------------------------------------------------------------
+;;; 20. RATE LIMIT MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-;;Le rate limiting contrôle combien de fois un client peut appeler une route
-;; dans une période donnée. C’est une protection anti-abus / DDoS / brute-force.
-(defun rate-limit (&key (capacity 10) (refill-per-sec 1) (route-key "default"))
-  (lambda (next)
-    (lambda (req)
-      (if (lumen.core.ratelimit:allow? req :capacity capacity
-					   :refill-per-sec refill-per-sec
-					   :route-key route-key)
-          (funcall next req)
-          (lumen.core.http:respond-json
-           '((:error . ((:type . "rate_limit") (:message . "Too Many Requests"))))
-           :status 429)))))
+(defmiddleware rate-limit-middleware
+    ((capacity :initarg :capacity :initform 10)
+     (refill :initarg :refill :initform 1)
+     (route-key :initarg :route-key :initform "default"))
+    (req next)
+  
+  (with-slots (capacity refill route-key) mw
+    (if (lumen.core.ratelimit:allow? req :capacity capacity :refill-per-sec refill :route-key route-key)
+        (funcall next req)
+        (lumen.core.http:respond-json '((:error . ((:type . "rate_limit") (:message . "Too Many Requests")))) :status 429))))
 
-;;; Request Timeout (504 si le handler dépasse N ms)
-(defun request-timeout (&key (ms 5000))
-  (lambda (next)
-    (lambda (req)
-      (let* ((lock (bordeaux-threads:make-lock "rt-lock"))
-             (cv   (bordeaux-threads:make-condition-variable))
-             (resp nil))
-	(bordeaux-threads:make-thread
-	 (lambda ()
-	   (let ((r (funcall next req)))
-             (bordeaux-threads:with-lock-held (lock)
-               (setf resp r)
-               (bordeaux-threads:condition-notify cv)))))
-	(bordeaux-threads:with-lock-held (lock)
-	  (unless (bordeaux-threads:condition-wait cv lock :timeout (/ ms 1000.0))
-            ;; timeout → 504
-            (return-from request-timeout
-              (lumen.core.http:respond-json
-               '((:error . ((:type . "timeout") (:message . "gateway timeout"))))
-               :status 504))))
-	resp))))
+;;; ---------------------------------------------------------------------------
+;;; 21. REQUEST TIMEOUT MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-;;; max-body-size (413 si Content-Length trop grand)
-(defun max-body-size (&key (bytes (* 2 1024 1024))) ; 2 MiB
-  (lambda (next)
-    (lambda (req)
-      (let* ((clen (cdr (assoc "content-length" (lumen.core.http:req-headers req)
-                               :test #'string-equal)))
-             (n (and clen (parse-integer clen :junk-allowed t))))
-	(when (and n (> n bytes))
-	  (return-from max-body-size
-            (lumen.core.http:respond-json
-             `((:error . ((:type . "payload_too_large")
-			  (:message . ,(format nil "max ~D bytes" bytes)))))
-             :status 413))))
-      ;; pour les cas sans Content-Length, on laisse les parseurs respecter une limite via ctx si tu veux
-      (lumen.core.http:ctx-set! req :max-body-size bytes)
-      (funcall next req))))
+(defmiddleware timeout-middleware
+    ((ms :initarg :ms :initform 5000))
+    (req next)
+  
+  (let* ((lock (bt:make-lock "rt-lock"))
+         (cv   (bt:make-condition-variable))
+         (resp nil)
+         (done nil)
+         ;; 1. CAPTURE : On prend le contexte du thread principal (HTTP Request)
+         (parent-ctx (lumen.core.trace:current-context)))
+    
+    (bt:make-thread
+     (lambda ()
+       ;; 2. PROPAGATION : On l'injecte dans ce nouveau thread anonyme
+       (lumen.core.trace:with-propagated-context parent-ctx
+         
+         ;; Le reste est inchangé, mais maintenant 'next' verra le contexte parent !
+         (let ((r (funcall next req)))
+           (bt:with-lock-held (lock)
+             (setf resp r done t)
+             (bt:condition-notify cv))))))
+    
+    (bt:with-lock-held (lock)
+      (unless done
+        (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
+          (return-from handle 
+            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)))))
+    resp))
 
-;;; Access Log JSON
-(defun %open-log-file (path)
-  (open path :direction :output :if-exists :append :if-does-not-exist :create
-             :external-format :utf-8))
+;;; ---------------------------------------------------------------------------
+;;; 22. MAX BODY SIZE MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-(defun %rfc3339-now ()
-  (local-time:format-timestring
-   nil (local-time:now)
-   :format '(:year "-" (:month 2) "-" (:day 2) "T" (:hour 2) ":" (:min 2) ":" (:sec 2) "Z")))
+(defmiddleware max-body-size-middleware
+    ((bytes :initarg :bytes :initform (* 2 1024 1024))) ;; 2MB
+    (req next)
+  
+  (let* ((clen (cdr (assoc "content-length" (lumen.core.http:req-headers req) :test #'string-equal)))
+         (n (and clen (parse-integer clen :junk-allowed t)))
+         (limit (slot-value mw 'bytes)))
+    
+    (when (and n (> n limit))
+      (return-from handle
+        (lumen.core.http:respond-json 
+         `((:error . ((:type . "payload_too_large") (:message . ,(format nil "max ~D bytes" limit))))) 
+         :status 413)))
+    
+    ;; Injection de la limite globale pour les parseurs downstream qui n'auraient pas leur propre config
+    (lumen.core.http:ctx-set! req :max-body-size limit)
+    (funcall next req)))
 
-(defun %plist->alist (plist)
-  (loop for (k v) on plist by #'cddr collect (cons k v)))
-
-(defun %normalize-fields (fields req resp ms bytes)
-  "Retourne une alist à partir de FIELDS (NIL | alist | plist | fn)."
-  (cond
-    ((null fields) nil)
-    ((and (listp fields)
-          (every #'consp fields)) fields)                  ; déjà alist
-    ((and (listp fields) (evenp (length fields))) (%plist->alist fields)) ; plist
-    ((functionp fields) (let ((res (funcall fields req resp ms bytes)))
-                          (cond
-                            ((null res) nil)
-                            ((and (listp res) (every #'consp res)) res)
-                            ((and (listp res) (evenp (length res))) (%plist->alist res))
-                            (t nil))))
-    (t nil)))
-
-(defun %merge-alist (base extras &key (test #'equal))
-  "Merge en donnant priorité à EXTRAS (override)."
-  (let ((res (copy-list base)))
-    (dolist (kv extras)
-      (let* ((k (car kv))
-             (cell (assoc k res :test test)))
-        (if cell
-            (setf (cdr cell) (cdr kv))
-            (push kv res))))
-    (nreverse res)))
-
-(defun access-log-json (&key stream to-file fields)
-  "Middleware: écrit une ligne JSON par requête.
-:fields accepte NIL, alist, plist, ou (lambda (req resp ms bytes) -> alist/plist)."
-  (let* ((out (or (and to-file (%open-log-file to-file))
-                  (or stream *standard-output*)))
-         (lock (bordeaux-threads:make-lock "access-log-json")))
-    (lambda (next)
-      (lambda (req)
-        (labels ((h (name)
-                   (cdr (assoc name (lumen.core.http:req-headers req) :test #'string-equal))))
-          (let* ((t0  (get-internal-real-time))
-                 (rid (or (lumen.core.http:ctx-get req :request-id) ""))
-                 (ip  (or (let* ((xff (h "x-forwarded-for")))
-                            (and xff (car (uiop:split-string xff :separator ","))))
-                          (h "x-real-ip") ""))
-                 (mth (or (lumen.core.http:req-method req) "GET"))
-                 (host (or (h "host") ""))
-                 (pth (or (lumen.core.http:req-path req) "/"))
-                 (resp (funcall next req))
-                 (ms  (/ (- (get-internal-real-time) t0)
-                         (/ internal-time-units-per-second 1000.0)))
-                 (body (lumen.core.http:resp-body resp))
-                 (bytes (cond
-                          ((stringp body) (length (trivial-utf-8:string-to-utf-8-bytes body)))
-                          ((typep body '(simple-array (unsigned-byte 8) (*))) (length body))
-                          (t nil))) ; streaming inconnu → omis
-                 (base `((:ts . ,(%rfc3339-now))
-                         (:request_id . ,rid)
-                         (:ip . ,ip)
-                         (:method . ,mth)
-                         (:host . ,host)
-                         (:path . ,pth)
-                         (:status . ,(lumen.core.http:resp-status resp))
-                         (:ms . ,(round ms))
-                         ,@(when bytes `((:bytes . ,bytes)))))
-                 (extra (%normalize-fields fields req resp ms bytes))
-                 (obj   (%merge-alist base extra :test
-                                      (lambda (a b)
-                                        (string-equal (if (symbolp a) (symbol-name a) (format nil "~A" a))
-                                                      (if (symbolp b) (symbol-name b) (format nil "~A" b)))))))
-            (bordeaux-threads:with-lock-held (lock)
-              (handler-case
-                  (progn
-                    (write-string (cl-json:encode-json-to-string obj) out)
-                    (terpri out)
-                    (finish-output out))
-                (error (_)
-                  (declare (ignore _))
-                  (format out "~S~%" obj)
-                  (finish-output out))))
-            resp))))))
-
-;;;--------------------------------------------------------------------------
-;;; Le middleware request-context (léger, idempotent) qui remplit ctx avec :ip, :ua, :tenant-id (déjà posé par ton tenant-from-host) et garantit :request-id (+ renvoi dans le header X-Request-ID)
-;;;--------------------------------------------------------------------------
-;; ---- Helpers ---------------------------------------------------------------
-(defun %header (req name)
-  (cdr (assoc name (lumen.core.http:req-headers req) :test #'string-equal)))
+;;; ---------------------------------------------------------------------------
+;;; 23. REQUEST CONTEXT MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
 (defun %peer-ip (req)
-  "IP client en respectant les proxys (X-Forwarded-For / X-Real-IP),
-   ou ctx[:remote-addr] posée par le serveur, sinon \"-\"."
-  (or (let* ((xff (%header req "x-forwarded-for")))
-        (when xff
-          (string-trim " " (car (uiop:split-string xff :separator ",")))))
-      (%header req "x-real-ip")
+  (or (let* ((xff (cdr (assoc "x-forwarded-for" (lumen.core.http:req-headers req) :test #'string-equal))))
+        (when xff (string-trim " " (car (uiop:split-string xff :separator ",")))))
+      (cdr (assoc "x-real-ip" (lumen.core.http:req-headers req) :test #'string-equal))
       (lumen.core.http:ctx-get req :remote-addr)
       "-"))
 
 (defun %user-agent (req)
-  (or (%header req "user-agent") ""))
+  (or (cdr (assoc "user-agent" (lumen.core.http:req-headers req) :test #'string-equal)) ""))
 
-(defun %aget-ci (alist &rest keys)
-  (loop for k in keys
-        for v = (or (cdr (assoc k alist :test #'string=))
-                    (and (symbolp k) (cdr (assoc (intern (string-upcase (symbol-name k)) :keyword) alist))))
-        when v do (return v)))
+(defmiddleware context-middleware
+    ((audit-enabled-p :initarg :audit-enabled-p :initform t)
+     (generate-request-id-p :initarg :generate-request-id-p :initform nil)) ;; Souvent géré par request-id-middleware
+    (req next)
+  
+  (with-slots (audit-enabled-p generate-request-id-p) mw
+    ;; 1. Request ID (Fallback)
+    (when (and generate-request-id-p (not (lumen.core.http:ctx-get req :request-id)))
+      (lumen.core.http:ctx-set! req :request-id (make-request-id)))
+    
+    ;; 2. IP / UA
+    (lumen.core.http:ctx-set! req :ip (%peer-ip req))
+    (lumen.core.http:ctx-set! req :ua (%user-agent req))
+    
+    ;; 3. JWT Hydration (Si auth-middleware est passé avant)
+    (let ((jwt (lumen.core.http:ctx-get req :jwt)))
+      (when jwt
+        (lumen.core.http:ctx-set! req :actor-id (or (cdr (assoc :sub jwt)) (cdr (assoc :user-id jwt))))
+        (lumen.core.http:ctx-set! req :role (cdr (assoc :role jwt)))
+        (lumen.core.http:ctx-set! req :scopes (%normalize-scopes (cdr (assoc :scopes jwt))))
+        
+        (let ((tid (or (cdr (assoc :tenant-id jwt)) (cdr (assoc :tenant jwt)))))
+          (when tid (lumen.core.http:ctx-set! req :tenant-id tid)))))
+    
+    ;; 4. Audit Flag
+    (lumen.core.http:ctx-set! req :audit? audit-enabled-p)
+    
+    (funcall next req)))
 
-(defun %normalize-scopes-loose (v)
-  "Accepte liste/vecteur/csv/[...] string → liste de scopes normalisés (courriers.read → courriers:read)."
-  (handler-case
-      (let* ((lst (cond
-                    ((null v) '())
-                    ((listp v) v)
-                    ((vectorp v) (loop for x across v collect x))
-                    ((stringp v)
-                     (let ((s (string-trim " " v)))
-                       (cond
-                         ((and (> (length s) 1)
-                               (char= (char s 0) #\[)
-                               (char= (char s (1- (length s))) #\]))
-                          (let* ((inner (subseq s 1 (1- (length s))))
-                                 (parts (cl-ppcre:split "\\s*,\\s*" inner)))
-                            (mapcar (lambda (x) (string-trim " \"" x)) parts)))
-                         ((search "," s)
-                          (cl-ppcre:split "\\s*,\\s*" s))
-                         (t (list s)))))
-                    (t (list (princ-to-string v))))))
-        (remove-duplicates
-         (remove-if (lambda (s) (or (null s) (string= s "")))
-                    (mapcar (lambda (s) (substitute #\: #\. (string s))) lst))
-         :test #'string=))
-    (error () '())))
+;;; ---------------------------------------------------------------------------
+;;; 24. ACCESS LOG JSON MIDDLEWARE
+;;; ---------------------------------------------------------------------------
 
-;; ---- Middleware request-context -------------------------------------------
-(defun request-context (&key (generate-request-id-p t) (audit-config-key :audit/enabled))
-  "Middleware: enrichit req.ctx avec actor-id, role, scopes, tenant-id/tenant-code (si présents),
-   request-id, ip, ua et audit?."
-  (lambda (next)
-    (lambda (req)
-      ;; request-id (si pas déjà posé par un autre mw)
-      (print "IN REQUEST-CONTEXT")
-      (when generate-request-id-p
-        (unless (lumen.core.http:ctx-get req :request-id)
-          (lumen.core.http:ctx-set! req :request-id (lumen.utils:gen-uuid-string))))
-      ;; ip / ua
-      (let* ((hdrs (lumen.core.http:req-headers req))
-             (ip  (%peer-ip req))
-         (ua  (%user-agent req)))
-        (when ua (lumen.core.http:ctx-set! req :ua ua))
-        (when ip (lumen.core.http:ctx-set! req :ip ip)))
-      ;; JWT déjà décodé par auth-jwt → current-user-id/role/scopes
-      (let* ((actor (lumen.core.http:current-user-id req))
-             (role  (lumen.core.http:current-role req))
-             (jwt   (lumen.core.http:ctx-get req :jwt))
-             (sc    (%normalize-scopes-loose (%aget-ci jwt :scopes "scopes")))
-             (tenant-id (or (lumen.core.http:ctx-get req :tenant-id)
-                            (%aget-ci jwt :tenant-id "tenant_id" :tenant "tenant"))))
-        (when actor (lumen.core.http:ctx-set! req :actor-id actor))
-        (when role  (lumen.core.http:ctx-set! req :role role))
-        (when sc    (lumen.core.http:ctx-set! req :scopes sc))
-        (when tenant-id (lumen.core.http:ctx-set! req :tenant-id tenant-id)))
-      ;; audit?
-      (let ((audit? (lumen.core.config:cfg-get audit-config-key :default t)))
-        (lumen.core.http:ctx-set! req :audit? audit?))
-      (funcall next req))))
+(defun %rfc3339-now ()
+  (local-time:format-timestring nil (local-time:now) 
+                                :format '(:year "-" (:month 2) "-" (:day 2) "T" (:hour 2) ":" (:min 2) ":" (:sec 2) "Z")))
+
+(defun %normalize-fields (fields req resp ms bytes)
+  (cond ((null fields) nil)
+        ((functionp fields) (funcall fields req resp ms bytes))
+        ((listp fields) fields)
+        (t nil)))
+
+(defun %open-log-file (path)
+  (open path :direction :output :if-exists :append :if-does-not-exist :create :external-format :utf-8))
+
+(defmiddleware access-log-middleware
+    ((stream :initarg :stream :initform *standard-output*)
+     (to-file :initarg :to-file :initform nil)
+     (fields :initarg :fields :initform nil)
+     (lock :initform (bt:make-lock "access-log")))
+    (req next)
+  
+  ;; Init output stream (Lazy file open ?)
+  ;; Pour simplifier, on suppose que le stream est passé ou géré en amont.
+  ;; Si to-file est set, on pourrait ouvrir/fermer, mais c'est lent.
+  ;; Mieux : ouvrir à l'init.
+  
+  (let* ((t0 (get-internal-real-time))
+         (resp (funcall next req))
+         (ms (round (/ (- (get-internal-real-time) t0) (/ internal-time-units-per-second 1000.0))))
+         (body (lumen.core.http:resp-body resp))
+         (bytes (cond ((stringp body) (length (trivial-utf-8:string-to-utf-8-bytes body)))
+                      ((typep body '(simple-array (unsigned-byte 8) (*))) (length body))
+                      (t nil)))
+         (base `((:ts . ,(%rfc3339-now))
+                 (:request_id . ,(or (lumen.core.http:ctx-get req :request-id) ""))
+                 (:ip . ,(lumen.core.http:ctx-get req :ip))
+                 (:method . ,(lumen.core.http:req-method req))
+                 (:path . ,(lumen.core.http:req-path req))
+                 (:status . ,(lumen.core.http:resp-status resp))
+                 (:ms . ,ms)
+                 ,@(when bytes `((:bytes . ,bytes)))))
+         (extra (%normalize-fields (slot-value mw 'fields) req resp ms bytes))
+         (log-entry (append base extra))
+         (out (slot-value mw 'stream)))
+    
+    ;; Gestion fichier (réouverture simple ou stream dédié)
+    (when (slot-value mw 'to-file)
+      (setf out (%open-log-file (slot-value mw 'to-file))))
+    
+    (ignore-errors
+      (bt:with-lock-held ((slot-value mw 'lock))
+        (write-string (cl-json:encode-json-to-string log-entry) out)
+        (terpri out)
+        (finish-output out)))
+    
+    (when (and (slot-value mw 'to-file) (streamp out))
+      (close out))
+    
+    resp))
+
+;;; ---------------------------------------------------------------------------
+;;; ROUTER-DISPATCH MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+(defmiddleware router-middleware
+    ;; Pas de config spéciale pour l'instant, le routeur utilise *routes* global
+    ;; Idée d'évolution : ajouter un slot 'routes' pour avoir des routeurs isolés !
+    ()
+    (req next)
+  
+  (let ((response (dispatch req)))
+    ;; LOGIQUE DE PASS-THROUGH
+    ;; Si le routeur renvoie 404 "Not Found" (le défaut de dispatch),
+    ;; cela signifie qu'aucune route n'a matché.
+    ;; Dans ce cas, on appelle 'next' pour laisser une chance à la suite 
+    ;; (ex: un gestionnaire de 404 custom ou un autre routeur).
+    
+    (if (and (= (lumen.core.http:resp-status response) 404)
+             (equal (lumen.core.http:resp-body response) "Not Found"))
+        (funcall next req)
+        
+        ;; Sinon (Match 200, ou 405 Method Not Allowed, ou 404 explicite d'une route)
+        ;; On retourne la réponse, on arrête la chaîne ici.
+        response)))
+
+(defun %maybe-real-host-from-proxy (req)
+  "Si un mw 'trust-proxy' alimente ctx [:real-host], l’utiliser en priorité."
+  (or (ctx-get req :real-host)
+      (cdr (assoc "x-forwarded-host" (req-headers req) :test #'string-equal))
+      (cdr (assoc "x-real-host"      (req-headers req) :test #'string-equal))))
+
+(defun %host-header (req)
+  (or (%maybe-real-host-from-proxy req)
+      (cdr (assoc "host" (req-headers req) :test #'string-equal))))
+
+
+;;; ---------------------------------------------------------------------------
+;;; 26. TRUST PROXY MIDDLEWARE
+;;; ---------------------------------------------------------------------------
+
+(defun %split (s ch) (uiop:split-string s :separator (string ch)))
+(defun %trim (s) (string-trim '(#\Space #\Tab #\Return #\Newline) s))
+(defun %down (s) (string-downcase s))
+
+(defun %parse-ipv4 (s)
+  (let* ((p (mapcar (lambda (x) (parse-integer x :junk-allowed t)) (%split s #\.))))
+    (when (and (= (length p) 4) (every (lambda (n) (and n (<= 0 n 255))) p))
+      (reduce (lambda (a n) (+ (ash a 8) n)) p :initial-value 0))))
+
+(defun %cidr-range (cidr)
+  (let* ((pos (position #\/ cidr))
+         (ip (subseq cidr 0 pos))
+         (mask (parse-integer (subseq cidr (1+ pos)) :junk-allowed t))
+         (n (%parse-ipv4 ip))
+         (host-bits (- 32 mask))
+         (lo (logand n (ldb (byte 32 host-bits) #xffffffff)))
+         (hi (+ lo (1- (ash 1 host-bits)))))
+    (cons lo hi)))
+
+(defun %ip-in-cidr-p (ip cidr)
+  (let* ((n (%parse-ipv4 ip)) (rg (%cidr-range cidr)))
+    (and n (<= (car rg) n) (<= n (cdr rg)))))
+
+(defun %trusted-p (src specs)
+  (etypecase specs
+    (symbol (cond ((eq specs :none) nil) ((eq specs :always) t) (t nil)))
+    (list (some (lambda (x) (if (find #\/ x) (%ip-in-cidr-p src x) (eql (%parse-ipv4 x) (%parse-ipv4 src)))) specs))))
+
+(defun %parse-forwarded (s)
+  (let* ((first (car (uiop:split-string s :separator ",")))
+         (pairs (mapcar #'%trim (uiop:split-string first :separator ";"))))
+    (loop with out = '()
+          for p in pairs
+          for pos = (position #\= p)
+          when pos do (let ((k (%down (%trim (subseq p 0 pos)))) (v (%trim (subseq p (1+ pos)))))
+                        (setf out (list* (intern (string-upcase k) :keyword) (string-trim '(#\") v) out)))
+          finally (return out))))
+
+(defmiddleware trust-proxy-middleware
+    ((trusted :initarg :trusted 
+              :initform nil ;; nil = lecture depuis config, sinon :always, :none, ou list
+              :accessor mw-trusted))
+    (req next)
+  
+  (with-slots (trusted) mw
+    (let* ((specs (or trusted 
+                      (lumen.core.config:cfg-get-list :http/trusted-proxies)
+                      :none))
+           (src (or (lumen.core.http:ctx-get req :remote-addr) "-")))
+      
+      (if (not (%trusted-p src specs))
+          (funcall next req)
+          (let* ((h (lumen.core.http:req-headers req))
+                 (fwd (%parse-forwarded (cdr (assoc "forwarded" h :test #'string-equal))))
+                 (xff (cdr (assoc "x-forwarded-for" h :test #'string-equal)))
+                 (xfh (cdr (assoc "x-forwarded-host" h :test #'string-equal)))
+                 (xfp (cdr (assoc "x-forwarded-proto" h :test #'string-equal)))
+                 
+                 (real-ip   (or (getf fwd :|FOR|) (and xff (%trim (car (uiop:split-string xff :separator ",")))) src))
+                 (real-prot (or (getf fwd :|PROTO|) xfp (if (lumen.core.http:ctx-get req :secure) "https" "http")))
+                 (real-host (or (getf fwd :|HOST|) xfh)))
+            
+            ;; Hydratation context
+            (when real-ip   (lumen.core.http:ctx-set! req :client-ip real-ip))
+            (when real-prot (lumen.core.http:ctx-set! req :scheme real-prot))
+            (when real-host (lumen.core.http:ctx-set! req :host real-host)) ;; Utilisé par tenant-middleware ensuite
+            
+            (funcall next req))))))
+
+;;; ---------------------------------------------------------------------------
+;;; 26. INTROSPECTION
+;;; ---------------------------------------------------------------------------
+(defmiddleware inspector-middleware
+    ;; On lui passe le pipeline qu'il doit inspecter
+    ((target-pipeline :initarg :pipeline 
+                      :initform nil 
+                      :accessor inspector-target)
+     (path :initarg :path :initform "/_pipeline")) 
+    (req next)
+  
+  (if (and (string= (lumen.core.http:req-path req) (slot-value mw 'path))
+           (string= (lumen.core.http:req-method req) "GET"))
+      
+      ;; 1. Interception : On renvoie le JSON du pipeline
+      (let* ((p (slot-value mw 'target-pipeline))
+             (data (if p 
+                       (lumen.core.pipeline:pipeline-to-list p)
+                       '((:error . "No pipeline attached to inspector")))))
+        (lumen.core.http:respond-json 
+         `((:meta . ((:version . "Lumen 2.0") (:env . ,(lumen.core.config:cfg-profile))))
+           (:pipeline . ,data))))
+      
+      ;; 2. Sinon : Passe-plat
+      (funcall next req)))
+
+(defmiddleware trace-middleware
+    ((threshold-ms :initarg :threshold-ms 
+                   :initform 500 
+                   :documentation "Log si plus lent que X ms")
+     (force-header :initarg :force-header 
+                   :initform "x-trace-debug"))
+    (req next)
+  
+  ;; 1. Nettoyage préventif (au cas où le thread est réutilisé)
+  (lumen.core.trace::%clear-thread-ctx)
+  
+  (lumen.core.trace:with-tracing ("HTTP Request" 
+                                  :path (lumen.core.http:req-path req)
+                                  :method (lumen.core.http:req-method req))
+    
+    (let ((resp (funcall next req)))
+      
+      ;; Récupération du contexte pour analyse
+      (let* ((ctx (lumen.core.trace::%get-thread-ctx))
+             (root (lumen.core.trace::ctx-root ctx))
+             (now (get-internal-real-time))
+             (start (if root (lumen.core.trace::trace-start root) now))
+             (dur (lumen.core.trace::%ms (- now start)))
+             (debug-requested-p 
+              (cdr (assoc (slot-value mw 'force-header) 
+                          (lumen.core.http:req-headers req) 
+                          :test #'string-equal))))
+        
+        ;; On force la fin de la racine pour l'affichage correct
+        (when root (setf (lumen.core.trace::trace-end root) now))
+
+        (when (or (>= (lumen.core.http:resp-status resp) 500)
+                  (> dur (slot-value mw 'threshold-ms))
+                  debug-requested-p)
+          
+          (format t "~&[TRACE] Triggered by: ~A (Duration: ~,2Fms)~%" 
+                  (cond ((>= (lumen.core.http:resp-status resp) 500) "Error 500")
+                        (debug-requested-p "Header Request")
+                        (t "Slow Request"))
+                  dur)
+          (lumen.core.trace:print-trace-waterfall))
+        
+        ;; Nettoyage final pour ne pas fuir de mémoire
+        (lumen.core.trace::%clear-thread-ctx))
+      
+      resp)))
