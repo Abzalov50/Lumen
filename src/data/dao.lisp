@@ -18,6 +18,7 @@
    ;; Conditions
    :entity-validation-error :concurrent-update-error
    :entity-slot-symbol
+   :register-entity-meta-only!
    ))
 
 (in-package :lumen.data.dao)
@@ -55,6 +56,32 @@
 
 (defun entity-primary-key (class-symbol)
   (getf (entity-metadata class-symbol) :primary-key))
+
+(defun register-entity-meta-only! (entity-sym args)
+  "Enregistre les métadonnées au format Plist (compatible avec votre defentity existant)."
+  (destructuring-bind (&key table primary-key fields timestamps lock-version &allow-other-keys) args
+    
+    (let* ((pk (or primary-key :id))
+           ;; Logique de nommage par défaut de la table (Snake_case du symbole)
+           (tbl (or table (string-downcase (symbol-name entity-sym))))
+           
+           ;; Normalisation minimale des champs pour que mount-crud! puisse lire :col
+           (norm-fields 
+            (loop for f in fields collect
+                  (if (getf f :col) 
+                      f ;; Déjà normalisé
+                      ;; Si format court (:colname :type ...)
+                      (append (list :col (first f)) (rest f))))))
+
+      ;; ON ÉCRIT DIRECTEMENT DANS LE REGISTRE
+      (setf (gethash entity-sym *entity-registry*)
+            (list :table tbl
+                  :primary-key (%kw pk)
+                  :fields norm-fields
+                  ;; On peut ignorer les defaults complexes pour la compilation des routes
+                  :defaults nil 
+                  :timestamps timestamps
+                  :lock-version (when lock-version (%kw lock-version)))))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Timeouts & slow query log
@@ -180,7 +207,7 @@
   (dolist (kv kvs)
     (destructuring-bind (slot . value) kv
       (setf (slot-value entity slot) value))) ; les setters marqueront dirty
-  (entity-update! entity :returning returning :patch t))
+  (entity-update! entity :returning returning))
 
 (defun load-clean! (entity row-alist)
   "Affecte les slots à partir d'une row *sans* marquer dirty (utile après SELECT)."

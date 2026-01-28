@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"a2b4ad842f5c0632943f1131ca860b546728eb33"
+"448d57a761a5f1e556dead038fcc5721215d7fa3"
 [nil nil nil nil (26803 14922 171603 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 15493 . 15494) (nil fontified nil 1 . 15494) (1 . 15494) (t . -1)) nil (26803 14922 171602 0) 0 nil])
 ([nil nil ((5498 . 5500)) nil (26803 14922 171601 0) 0 nil])
@@ -2582,5 +2582,29 @@ Les clés sont normalisées au style Postmodern (:CREATED-AT, :LOCK-VERSION, ...
 " 0 1 (fontified t)) . 5782)) nil (26997 987 364974 0) 0 nil])
 ([nil nil ((643 . 644)) nil (26997 987 364973 0) 0 nil])
 ([nil nil ((nil rear-nonsticky nil 778 . 779) (nil fontified nil 766 . 779) (nil fontified nil 746 . 766) (nil fontified nil 745 . 746) (nil fontified nil 733 . 745) (nil fontified nil 732 . 733) (nil fontified nil 721 . 732) (nil fontified nil 704 . 721) (nil fontified nil 703 . 704) (nil fontified nil 691 . 703) (nil fontified nil 690 . 691) (nil fontified nil 647 . 690) (nil fontified nil 644 . 647) (644 . 779)) nil (26997 987 364972 0) 0 nil])
-([nil current ((779 . 780)) nil (26997 987 364968 0) 0 nil])
+([nil nil ((779 . 780)) nil (26997 987 364968 0) 0 nil])
+([nil nil ((2047 . 2049) (t 26997 987 0 0)) nil (27000 50581 668077 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2715 . 2716) (nil fontified nil 2049 . 2716) (2049 . 2716)) nil (27000 50581 668077 0) 0 nil])
+([nil nil ((606 . 610)) nil (27000 50581 668076 0) 0 nil])
+([nil nil ((610 . 611)) nil (27000 50581 668075 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 636 . 637) (nil fontified nil 611 . 637) (611 . 637)) nil (27000 50581 668074 0) 0 nil])
+([nil nil ((#("(defun register-entity-meta-only! (entity-sym args)
+  \"Enregistre les métadonnées d'une entité immédiatement (utilisé par les macros).\"
+  ;; On réutilise votre logique de parsing existante (supposée ici dans parse-entity-def)
+  ;; Si vous n'avez pas de fonction séparée, on extrait la logique de defentity ici.
+  (destructuring-bind (&key table primary-key timestamps fields &allow-other-keys) args
+    (let ((meta (make-entity-meta 
+                 :symbol entity-sym
+                 :table table
+                 :pk primary-key
+                 :timestamps timestamps
+                 :fields fields)))
+      (setf (gethash entity-sym *entity-registry*) meta))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 33 (face font-lock-function-name-face fontified t) 33 54 (fontified t) 54 58 (face font-lock-doc-face fontified t) 58 135 (face font-lock-doc-face fontified t) 135 136 (fontified t) 136 138 (fontified t) 138 141 (face font-lock-comment-delimiter-face fontified t) 141 226 (face font-lock-comment-face fontified t) 226 228 (fontified t) 228 231 (face font-lock-comment-delimiter-face fontified t) 231 311 (face font-lock-comment-face fontified t) 311 314 (fontified t) 314 332 (face font-lock-keyword-face fontified t) 332 334 (fontified t) 334 338 (face font-lock-type-face fontified t) 338 375 (fontified t) 375 392 (face font-lock-type-face fontified t) 392 404 (fontified t) 404 407 (face font-lock-keyword-face fontified t) 407 451 (fontified t) 451 458 (face font-lock-builtin-face fontified t) 458 487 (fontified t) 487 493 (face font-lock-builtin-face fontified t) 493 517 (fontified t) 517 520 (face font-lock-builtin-face fontified t) 520 550 (fontified t) 550 561 (face font-lock-builtin-face fontified t) 561 590 (fontified t) 590 597 (face font-lock-builtin-face fontified t) 597 666 (fontified t) 666 667 (fontified t rear-nonsticky t)) . -2080) (undo-tree-id0 . -667) 2747) nil (27000 50581 668072 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3336 . 3337) (nil fontified nil 2080 . 3337) (2080 . 3337)) nil (27000 50581 668050 0) 0 nil])
+([nil nil ((#("compat" 0 6 (face font-lock-function-name-face fontified t)) . -2108) (undo-tree-id7 . -6) 2114 (t 27000 50581 0 0)) nil (27000 50644 74789 0) 0 nil])
+([nil nil ((#("-" 0 1 (face font-lock-function-name-face fontified t)) . -2107) (undo-tree-id5 . -1) (undo-tree-id6 . -1) 2108) nil (27000 50644 74788 0) 0 nil])
+([nil nil ((#("!" 0 1 (face font-lock-function-name-face fontified t)) . 2107) (undo-tree-id4 . -1)) nil (27000 50644 74784 0) 0 nil])
+([nil nil ((2107 . 2110)) nil (27000 50644 74780 0) 0 nil])
+([nil nil ((2087 . 2113) (#("register-entity-meta-on" 0 23 (face font-lock-function-name-face fontified t)) . -2087) (undo-tree-id1 . -20) (undo-tree-id2 . -20) (undo-tree-id3 . -23) 2110) nil (27000 50644 74777 0) 0 nil])
+([nil current ((#(" :patch t" 0 1 (fontified t) 1 7 (face font-lock-builtin-face fontified t) 7 9 (fontified t)) . -8049) (t 27000 50644 0 0) (8058 . 8058) (t 27000 50644 0 0)) nil (27000 64407 428182 0) 0 nil])
 nil

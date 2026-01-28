@@ -1388,26 +1388,33 @@
 ;;; 26. INTROSPECTION
 ;;; ---------------------------------------------------------------------------
 (defmiddleware inspector-middleware
-    ;; On lui passe le pipeline qu'il doit inspecter
-    ((target-pipeline :initarg :pipeline 
-                      :initform nil 
-                      :accessor inspector-target)
-     (path :initarg :path :initform "/_pipeline")) 
+    ((path :initarg :path 
+           :initform "/_inspector" 
+           :accessor inspector-path))
     (req next)
   
-  (if (and (string= (lumen.core.http:req-path req) (slot-value mw 'path))
-           (string= (lumen.core.http:req-method req) "GET"))
+  (if (string= (lumen.core.http:req-path req) (slot-value mw 'path))
       
-      ;; 1. Interception : On renvoie le JSON du pipeline
-      (let* ((p (slot-value mw 'target-pipeline))
-             (data (if p 
-                       (lumen.core.pipeline:pipeline-to-list p)
-                       '((:error . "No pipeline attached to inspector")))))
+      ;; --- MODE INSPECTION ---
+      ;; Au lieu d'utiliser un slot :pipeline, on regarde *current-app*
+      (let* ((app lumen.core.app:*current-app*)
+             (mws (lumen.core.app:app-middleware app))
+             (routes (lumen.core.app:app-routes app)))
+        
         (lumen.core.http:respond-json 
-         `((:meta . ((:version . "Lumen 2.0") (:env . ,(lumen.core.config:cfg-profile))))
-           (:pipeline . ,data))))
+         `((:app . ,(lumen.core.app:app-name app))
+           (:port . ,(lumen.core.app:app-port app))
+           ;; On introspecte la liste des middlewares de l'app courante
+           (:pipeline . ,(mapcar
+			  (lambda (m) 
+                            `((:name . ,(lumen.core.pipeline:mw-name m))
+                              (:type . ,(string (type-of m)))
+                              (:enabled . ,(lumen.core.pipeline:mw-enabled-p m))))
+                          mws))
+           ;; On peut même ajouter des infos sur les modules chargés !
+           (:modules . ,(lumen.core.app:app-modules app)))))
       
-      ;; 2. Sinon : Passe-plat
+      ;; --- MODE PASSE-PLAT ---
       (funcall next req)))
 
 (defmiddleware trace-middleware

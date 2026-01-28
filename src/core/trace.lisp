@@ -44,7 +44,8 @@
   (let* ((ctx (%get-thread-ctx))
          (parent (ctx-current ctx))
          (now (get-internal-real-time))
-         (tid (%get-thread-id)))
+         ;;(tid (%get-thread-id))
+	 )
     
     ;; LOG DE DÉBOGAGE POUR VOUS
     ;;(format t "~&[TRACE-DEBUG] Thread[~A] Entrée: '~A'. Parent actuel? ~A~%" 

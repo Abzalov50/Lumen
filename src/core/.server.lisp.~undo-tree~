@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"ddb6571103d82ef1d5aa2b7367b4e30523625ad4"
+"194548b4b016f9a57059c0e8d8b7ec44a206c91d"
 [nil nil nil nil (26790 8105 844431 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 2277 . 2278) (nil fontified nil 1 . 2278) (1 . 2278) (t . -1)) nil (26790 8105 844430 0) 0 nil])
 ([nil nil ((17 . 19)) nil (26790 8105 844429 0) 0 nil])
@@ -2813,5 +2813,285 @@ nil
        (finish-output flexi)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 19 (face font-lock-function-name-face fontified t) 19 36 (fontified t) 36 45 (face font-lock-keyword-face fontified t) 45 69 (fontified t) 69 73 (face font-lock-keyword-face fontified t) 73 179 (fontified t) 179 183 (face font-lock-string-face fontified t) 183 204 (fontified t) 204 231 (face font-lock-comment-face fontified t) 231 310 (fontified t) 310 325 (face font-lock-comment-face fontified t) 325 404 (fontified t) 404 407 (face font-lock-keyword-face fontified t) 407 449 (fontified t) 449 453 (face font-lock-string-face fontified t) 453 520 (fontified t) 520 548 (face font-lock-comment-face fontified t) 548 554 (face font-lock-comment-face fontified t) 554 610 (fontified t)) . -4008) (undo-tree-id0 . -610) (undo-tree-id1 . -17) (undo-tree-id2 . -17) (undo-tree-id3 . -17) (undo-tree-id4 . -17) (undo-tree-id5 . -18) (undo-tree-id6 . -18) (undo-tree-id7 . -18) (undo-tree-id8 . -18) (undo-tree-id9 . -18) (undo-tree-id10 . -18) (undo-tree-id11 . -18) (undo-tree-id12 . -18) (undo-tree-id13 . -610) (undo-tree-id14 . -610) (undo-tree-id15 . -578) (undo-tree-id16 . -610) (undo-tree-id17 . -610) 4618) nil (26996 42120 377165 0) 0 nil])
 ([nil nil ((nil rear-nonsticky nil 4601 . 4602) (nil fontified nil 4008 . 4602) (4008 . 4602)) nil (26996 42120 377139 0) 0 nil])
 ([nil nil ((4602 . 4604) (t 26996 42120 0 0)) nil (26996 42137 688491 0) 0 nil])
-([nil current ((#("x" 0 1 (face (font-lock-warning-face) help-echo "Easy to misread; consider moving the element to the next line" fontified t)) . -4602) (undo-tree-id22 . -1) (#("b" 0 1 (face (font-lock-warning-face) help-echo "Easy to misread; consider moving the element to the next line" fontified t)) . -4603) (undo-tree-id23 . -1) 4604) nil (26996 42137 688488 0) 0 nil])
+([nil nil ((#("x" 0 1 (face (font-lock-warning-face) help-echo "Easy to misread; consider moving the element to the next line" fontified t)) . -4602) (undo-tree-id22 . -1) (#("b" 0 1 (face (font-lock-warning-face) help-echo "Easy to misread; consider moving the element to the next line" fontified t)) . -4603) (undo-tree-id23 . -1) 4604) nil (26996 42137 688488 0) 0 nil])
+([nil nil ((#("
+#|
+(defun start (&key (port 8080) handler
+                (ssl nil) (ssl-port 8443)
+                cert-file key-file key-password)
+  (when *server-socket* (stop))		; nettoie si déjà lancé
+
+  (setf *port* port
+        *handler* (or handler
+                      (lambda (req)
+                        (declare (ignore req))
+                        (make-instance 'lumen.core.http:response :status 500 :headers nil :body \"\"))))
+
+  ;; HTTP
+  (setf *server-socket*
+        (usocket:socket-listen \"0.0.0.0\" port :reuse-address t :element-type '(unsigned-byte 8)))
+  (setf *accept-thread*
+        (bt:make-thread (lambda () (accept-loop *server-socket* :ssl nil))
+                        :name (format nil \"lumen-accept-~A\" port)))
+  (format t \"~&Lumen HTTP listening on ~A~%\" port)
+
+  ;; HTTPS (optionnel)
+  (setf *ssl-enabled* ssl)
+  (when ssl
+    (setf *ssl-port*          ssl-port
+          *ssl-cert-file*     cert-file
+          *ssl-key-file*      key-file
+	  *ssl-key-password*  key-password)
+    (init-ssl-context)
+    (setf *server-socket-tls*
+          (usocket:socket-listen \"0.0.0.0\" ssl-port :reuse-address t :element-type '(unsigned-byte 8)))
+    (setf *accept-thread-tls*
+          (bt:make-thread (lambda () (accept-loop *server-socket-tls* :ssl t))
+                          :name (format nil \"lumen-accept-tls-~A\" ssl-port)))
+    (format t \"~&Lumen HTTPS listening on ~A~%\" ssl-port))
+  t)
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 130 (face font-lock-comment-face fontified t) 130 134 (face font-lock-comment-face fontified t) 134 1405 (face font-lock-comment-face fontified t) 1405 1407 (face font-lock-comment-delimiter-face fontified t)) . -26101) (undo-tree-id22 . -1407) (undo-tree-id23 . -242) 27508 (t 26996 42137 0 0)) nil (26998 37730 259023 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -26100) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) 26101) nil (26998 37730 259021 0) 0 nil])
+([nil nil ((#("
+#|
+(defun accept-loop (socket &key ssl)
+  (loop
+    (let ((client (usocket:socket-accept socket :element-type '(unsigned-byte 8))))
+      (bt:make-thread (lambda () (handle-connection socket client :ssl ssl))
+                      :name (if ssl \"lumen-client-tls\" \"lumen-client\")))))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 285 (face font-lock-comment-face fontified t) 285 287 (face font-lock-comment-delimiter-face fontified t)) . 24164) (undo-tree-id18 . -287)) nil (26998 37730 259017 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 24164)) nil (26998 37730 259016 0) 0 nil])
+([nil nil ((#("
+#|
+(defun handle-connection (socket client &key ssl)
+  (declare (ignore socket))
+  (let* ((flexi (make-http-stream client :ssl ssl)) ; Flexi au-dessus d’un FD binaire
+	 (req-count 0)
+         (alive t))
+    (lumen.core.shutdown:register-connection client)
+    (unwind-protect
+	 (loop while alive do
+           ;; attente d’activité avec timeout (évite de bloquer des threads inactifs)
+           (unless (usocket:wait-for-input client :timeout *keep-alive-timeout*)
+             (setf alive nil) (return))
+           (progn
+             (multiple-value-bind (method uri http-ver) (read-request-line flexi)
+	       (unless method (setf alive nil) (return))
+	       (format t \"~&*** URI: ~A~%\" uri)
+	       (let* ((qpos (and uri (position #\\? uri)))
+		      (path-only (if qpos (subseq uri 0 qpos) (or uri \"/\")))
+		      (query-str (and qpos (subseq uri (1+ qpos))))
+		      (headers (read-headers flexi))
+		      (req (make-instance 'lumen.core.http:request
+					  :method (string-upcase method)
+					  :path   path-only
+					  :headers headers
+					  :query  query-str ;; ← string brute, sera parsée par middleware
+					  :cookies nil :params nil
+					  :body-stream flexi :context (list)))
+		      (peer
+			(ignore-errors
+			 (let* ((sym1 (find-symbol \"GET-PEER-ADDRESS\" :usocket))
+				(sym2 (find-symbol \"SOCKET-PEER-ADDRESS\" :usocket)))
+			   (cond
+			     ((and sym1 (fboundp sym1))
+			      (funcall (symbol-function sym1) client))
+			     ((and sym2 (fboundp sym2))
+			      (funcall (symbol-function sym2) client))
+			     (t nil)))))
+		      (peer (if peer
+				(format nil \"~A.~A.~A.~A\"
+					(aref peer 0) (aref peer 1)
+					(aref peer 2) (aref peer 3))
+				\"-\"))
+		      (_ (lumen.core.http:ctx-set! req :remote-addr peer))
+		      ;; Marque secure si on est sur le socket TLS
+		      (_ (lumen.core.http:ctx-set! req :secure (and ssl t)))
+		      (resp (funcall *handler* req))
+		      ;; Keep-Alive désiré par le client + autorisé par le serveur ?
+                      (want-ka (and *keep-alive* (want-keep-alive-p http-ver headers)))
+                      ;; Keep-Alive permis uniquement si le corps a été entièrement lu
+                      (len-h (header headers \"content-length\"))
+                      (len* (and len-h (parse-integer len-h :junk-allowed t)))
+                      (consumed (or (null len*) (= len* 0)
+                                    (lumen.core.http:ctx-get req :body-consumed)))
+                      (ka-ok (and want-ka consumed
+				  (not (lumen.core.shutdown:draining-p))
+				  (< (incf req-count) *keep-alive-max*)))
+		      )
+		 (write-response flexi resp method ka-ok)
+		 (unless ka-ok (setf alive nil))
+		 ;;(format t \"~&[router] path=~S~%\" (lumen.core.http:req-path req))
+		 ;;(format t \"~&[lumen] response sent (status=~A)~%\" (lumen.core.http:resp-status resp))
+		 ))))
+      (lumen.core.shutdown:unregister-connection client)
+      ;; --- FERMETURE PROPRE (Windows-friendly) ---
+      ;; 1) s'assurer qu’aucun caractère n’est en attente côté Flexi
+      (ignore-errors (finish-output flexi))
+      ;; 2) envoi de FIN côté écriture
+      (ignore-errors (usocket:socket-shutdown client :output))
+      ;; 3) petite respiration (laisse le FIN partir)
+      (sleep 0.02)
+      ;; 4) fermer la socket (FD) – une seule fois
+      (ignore-errors (usocket:socket-close client))
+      ;; 5) fermer le Flexi (qui n’a plus de FD sous-jacent)
+      (ignore-errors (close flexi)))))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 930 (face font-lock-comment-face fontified t) 930 958 (face font-lock-comment-face fontified t) 958 2458 (face font-lock-comment-face fontified t) 2458 2471 (face font-lock-comment-face fontified t) 2471 3421 (face font-lock-comment-face fontified t) 3421 3423 (face font-lock-comment-delimiter-face fontified t)) . 16064) (undo-tree-id17 . -3423)) nil (26998 37730 259015 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -16063) (undo-tree-id15 . -1) (undo-tree-id16 . -1) 16064) nil (26998 37730 259014 0) 0 nil])
+([nil nil ((#("
+#|
+(defun make-http-stream (client &key ssl)
+  \"Retourne un flux FLEXI (caractère) au-dessus du flux usocket ou SSL.\"
+  (let* ((raw (usocket:socket-stream client))
+         (base (if ssl
+                   ;; On pose TLS (binaire) puis on garde Flexi au-dessus (CRLF/UTF-8)
+                   (cl+ssl:with-global-context (*ssl-context*)
+                     (cl+ssl:make-ssl-server-stream
+                       raw
+                       ;; on laisse Flexi gérer l'encoding/CRLF,
+                       ;; donc pas d' :external-format ici
+                       :cipher-list cl+ssl:*default-cipher-list*))
+                   raw))
+         (xfmt (flexi-streams:make-external-format :utf-8 :eol-style :crlf)))
+    (flexi-streams:make-flexi-stream base :external-format xfmt)))
+|#
+" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 778 (face font-lock-comment-face fontified t) 778 780 (face font-lock-comment-delimiter-face fontified t) 780 781 (fontified t)) . 12677) (undo-tree-id14 . -781)) nil (26998 37730 259012 0) 0 nil])
+([nil nil ((#("
+#|
+(defun read-request-line (stream)
+  (let ((line (read-line stream nil nil)))
+    (when line
+      (let* ((parts (uiop:split-string line :separator \" \")))
+	(values (nth 0 parts) (nth 1 parts) (nth 2 parts))))))
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 214 (face font-lock-comment-face fontified t) 214 216 (face font-lock-comment-delimiter-face fontified t)) . 11534) (undo-tree-id13 . -216)) nil (26998 37730 259011 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 11534)) nil (26998 37730 259010 0) 0 nil])
+([nil nil ((480 . 482)) nil (26998 37730 259009 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 861 . 862) (nil fontified nil 482 . 862) (482 . 862)) nil (26998 37730 259008 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 15498 . 15499) (nil fontified nil 15489 . 15499) (15489 . 15499)) nil (26998 37730 259008 0) 0 nil])
+([nil nil ((15499 . 15500)) nil (26998 37730 259007 0) 0 nil])
+([nil nil ((#("*handler*" 0 9 (fontified t)) . -17418) (undo-tree-id12 . -9) 17427) nil (26998 37730 259006 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 17427 . 17428) (nil fontified nil 17418 . 17428) (17418 . 17428)) nil (26998 37730 259005 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 18880 . 18881) (nil fontified nil 18871 . 18881) (18871 . 18881)) nil (26998 37730 259004 0) 0 nil])
+([nil nil ((18881 . 18882)) nil (26998 37730 259003 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 19461 . 19462) (nil fontified nil 19452 . 19462) (19452 . 19462)) nil (26998 37730 259003 0) 0 nil])
+([nil nil ((19462 . 19463)) nil (26998 37730 259002 0) 0 nil])
+([nil nil ((19419 . 19425) (#(" " 0 1 (fontified nil)) . 19418) (undo-tree-id11 . -1) (19419 . 19420)) nil (26998 37730 259001 0) 0 nil])
+([nil nil ((#("(when *server-socket* (stop))
+
+  (setf *port* port
+        *handler* (or handler
+                      (lambda (req) (declare (ignore req))
+                        (make-instance 'lumen.core.http:response :status 500 :body \"No handler\"))))
+
+  ;; HTTP
+  (handler-case
+      (progn
+        (setf *server-socket*
+              (usocket:socket-listen \"0.0.0.0\" port :reuse-address t :element-type '(unsigned-byte 8)))
+        (setf *accept-thread*
+              (bt:make-thread (lambda () (accept-loop *server-socket* :ssl nil))
+                              :name (format nil \"lumen-accept-~A\" port)))
+        (format t \"~&Lumen HTTP listening on ~A~%\" port))
+    (error (e)
+      (format t \"~&[FATAL] Cannot bind HTTP port ~A: ~A~%\" port e)))" 0 1 (fontified t) 1 5 (face font-lock-keyword-face fontified t) 5 104 (fontified t) 104 106 (face font-lock-keyword-face fontified t) 106 110 (face font-lock-keyword-face fontified t) 110 118 (fontified t) 118 125 (face font-lock-keyword-face fontified t) 125 135 (fontified t) 135 140 (fontified t) 140 205 (fontified t) 205 212 (face font-lock-builtin-face fontified t) 212 216 (fontified t) 216 217 (fontified t) 217 222 (face font-lock-builtin-face fontified t) 222 223 (fontified t) 223 235 (face font-lock-string-face fontified t) 235 240 (fontified t) 240 243 (fontified t) 243 246 (face font-lock-comment-delimiter-face fontified t) 246 251 (face font-lock-comment-face fontified t) 251 254 (fontified t) 254 266 (face font-lock-keyword-face fontified t) 266 274 (fontified t) 274 279 (face font-lock-keyword-face fontified t) 279 347 (fontified t) 347 356 (face font-lock-string-face fontified t) 356 362 (fontified t) 362 376 (face font-lock-builtin-face fontified t) 376 379 (fontified t) 379 392 (face font-lock-builtin-face fontified t) 392 475 (fontified t) 475 481 (face font-lock-keyword-face fontified t) 481 514 (fontified t) 514 518 (face font-lock-builtin-face fontified t) 518 555 (fontified t) 555 560 (face font-lock-builtin-face fontified t) 560 573 (fontified t) 573 580 (face font-lock-string-face fontified t) 580 590 (face font-lock-string-face fontified t) 590 599 (fontified t) 599 617 (fontified t) 617 649 (face font-lock-string-face fontified t) 649 662 (fontified t) 662 667 (face font-lock-warning-face fontified t) 667 677 (fontified t) 677 688 (fontified t) 688 730 (face font-lock-string-face fontified t) 730 740 (fontified t)) . -20303) (undo-tree-id10 . -740) 21043) nil (26998 37730 259000 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 21221 . 21222) (nil fontified nil 20303 . 21222) (20303 . 21222)) nil (26998 37730 258998 0) 0 nil])
+([nil nil ((862 . 864)) nil (26998 37730 258998 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 964 . 965) (nil fontified nil 864 . 965) (864 . 965)) nil (26998 37730 258997 0) 0 nil])
+([nil nil ((965 . 967)) nil (26998 37730 258996 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2155 . 2156) (nil fontified nil 967 . 2156) (967 . 2156)) nil (26998 37730 258996 0) 0 nil])
+([nil nil ((480 . 482)) nil (26998 37730 258995 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 679 . 680) (nil fontified nil 482 . 680) (482 . 680)) nil (26998 37730 258994 0) 0 nil])
+([nil nil ((#("
+(defun start (&key (port 8080) handler
+                   (ssl nil) (ssl-port 8443)
+                   cert-file key-file key-password)
+  \"Démarre un serveur et retourne une liste d'objets LISTENER (HTTP et/ou HTTPS).\"
+  (let ((listeners '()))
+    
+    ;; 1. Serveur HTTP
+    (handler-case
+        (let* ((sock (usocket:socket-listen \"0.0.0.0\" port :reuse-address t :element-type '(unsigned-byte 8)))
+               (ls (make-instance 'listener 
+                                  :port port 
+                                  :socket sock
+                                  :handler handler ;; On stocke le handler dans l'objet
+                                  :ssl-p nil)))
+          
+          (setf (listener-thread ls)
+                (bt:make-thread (lambda () (accept-loop sock handler :ssl nil))
+                                :name (format nil \"lumen-accept-~A\" port)))
+          
+          (push ls listeners)
+          (format t \"~&[SERVER] Listening HTTP on ~A~%\" port))
+      (error (e) (format t \"~&[FATAL] Bind HTTP ~A failed: ~A~%\" port e)))
+
+  ;; HTTPS
+  (setf *ssl-enabled* ssl)
+  (when ssl
+    (setf *ssl-port* ssl-port
+          *ssl-cert-file* cert-file
+          *ssl-key-file* key-file
+          *ssl-key-password* key-password)
+    (init-ssl-context)
+    (handler-case
+        (progn
+          (setf *server-socket-tls*
+                (usocket:socket-listen \"0.0.0.0\" ssl-port :reuse-address t :element-type '(unsigned-byte 8)))
+          (setf *accept-thread-tls*
+                (bt:make-thread (lambda () (accept-loop *server-socket-tls* :ssl t))
+                                :name (format nil \"lumen-accept-tls-~A\" ssl-port)))
+	  
+          (format t \"~&Lumen HTTPS listening on ~A~%\" ssl-port))
+      (error (e)
+        (format t \"~&[FATAL] Cannot bind HTTPS port ~A: ~A~%\" ssl-port e))))
+  t)" 0 1 (fontified t) 1 2 (fontified t) 2 7 (face font-lock-keyword-face fontified t) 7 8 (fontified t) 8 13 (face font-lock-function-name-face fontified t) 13 15 (fontified t) 15 19 (face font-lock-type-face fontified t) 19 137 (fontified t) 137 139 (fontified t) 139 219 (face font-lock-doc-face fontified t) 219 223 (fontified t) 223 226 (face font-lock-keyword-face fontified t) 226 254 (fontified t) 254 257 (face font-lock-comment-delimiter-face fontified t) 257 273 (face font-lock-comment-face fontified t) 273 278 (fontified t) 278 290 (face font-lock-keyword-face fontified t) 290 300 (fontified t) 300 304 (face font-lock-keyword-face fontified t) 304 335 (fontified t) 335 344 (face font-lock-string-face fontified t) 344 350 (fontified t) 350 364 (face font-lock-builtin-face fontified t) 364 367 (fontified t) 367 380 (face font-lock-builtin-face fontified t) 380 481 (fontified t) 481 486 (face font-lock-builtin-face fontified t) 486 527 (fontified t) 527 534 (face font-lock-builtin-face fontified t) 534 545 (fontified t) 545 574 (fontified t) 574 582 (face font-lock-builtin-face fontified t) 582 591 (fontified t) 591 594 (face font-lock-comment-delimiter-face fontified t) 594 628 (face font-lock-comment-face fontified t) 628 662 (fontified t) 662 668 (face font-lock-builtin-face fontified t) 668 757 (fontified t) 757 763 (face font-lock-keyword-face fontified t) 763 793 (fontified t) 793 797 (face font-lock-builtin-face fontified t) 797 836 (fontified t) 836 841 (face font-lock-builtin-face fontified t) 841 854 (fontified t) 854 871 (face font-lock-string-face fontified t) 871 941 (fontified t) 941 976 (face font-lock-string-face fontified t) 976 991 (fontified t) 991 996 (face font-lock-warning-face fontified t) 996 1011 (fontified t) 1011 1048 (face font-lock-string-face fontified t) 1048 1057 (fontified t) 1057 1058 (fontified t rear-nonsticky t) 1058 1059 (fontified t) 1059 1062 (fontified t) 1062 1065 (face font-lock-comment-delimiter-face fontified t) 1065 1071 (face font-lock-comment-face fontified t) 1071 1101 (fontified t) 1101 1105 (face font-lock-keyword-face fontified t) 1105 1281 (fontified t) 1281 1293 (face font-lock-keyword-face fontified t) 1293 1303 (fontified t) 1303 1308 (face font-lock-keyword-face fontified t) 1308 1384 (fontified t) 1384 1393 (face font-lock-string-face fontified t) 1393 1403 (fontified t) 1403 1417 (face font-lock-builtin-face fontified t) 1417 1420 (fontified t) 1420 1433 (face font-lock-builtin-face fontified t) 1433 1524 (fontified t) 1524 1530 (face font-lock-keyword-face fontified t) 1530 1567 (fontified t) 1567 1571 (face font-lock-builtin-face fontified t) 1571 1608 (fontified t) 1608 1613 (face font-lock-builtin-face fontified t) 1613 1626 (fontified t) 1626 1647 (face font-lock-string-face fontified t) 1647 1684 (fontified t) 1684 1717 (face font-lock-string-face fontified t) 1717 1736 (fontified t) 1736 1741 (face font-lock-warning-face fontified t) 1741 1764 (fontified t) 1764 1807 (face font-lock-string-face fontified t) 1807 1823 (fontified t) 1823 1827 (fontified t)) . 21658) (undo-tree-id6 . -1827) (undo-tree-id7 . -139) (undo-tree-id8 . -1827) (undo-tree-id9 . -1827)) nil (26998 37730 258993 0) 0 nil])
+([nil nil ((21658 . 21659)) nil (26998 37730 258989 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 25087 . 25088) (nil fontified nil 21659 . 25088) (21659 . 25088)) nil (26998 37730 258988 0) 0 nil])
+([nil nil ((#("(defun stop ()
+  (labels ((stop-one (sock thr)
+             (when sock (ignore-errors (usocket:socket-close sock)))
+             (when thr  (ignore-errors (bt:destroy-thread thr)))))
+    (stop-one *server-socket* *accept-thread*)
+    (stop-one *server-socket-tls* *accept-thread-tls*)
+    (setf *server-socket* nil
+          *accept-thread* nil
+          *server-socket-tls* nil
+          *accept-thread-tls* nil
+          *ssl-context* nil))
+  t)" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 11 (face font-lock-function-name-face fontified t) 11 18 (fontified t) 18 24 (face font-lock-keyword-face fontified t) 24 61 (fontified t) 61 65 (face font-lock-keyword-face fontified t) 65 72 (fontified t) 72 85 (face font-lock-keyword-face fontified t) 85 130 (fontified t) 130 134 (face font-lock-keyword-face fontified t) 134 141 (fontified t) 141 154 (face font-lock-keyword-face fontified t) 154 225 (fontified t) 225 230 (fontified t) 230 299 (fontified t) 299 315 (fontified t) 315 447 (fontified t)) . -25090) (undo-tree-id0 . -447) (undo-tree-id1 . -447) (undo-tree-id2 . -447) (undo-tree-id3 . -443) (undo-tree-id4 . -447) (undo-tree-id5 . -447) 25537) nil (26998 37730 258986 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 25727 . 25728) (nil fontified nil 25090 . 25728) (25090 . 25728)) nil (26998 37730 258966 0) 0 nil])
+([nil nil ((#("
+          ;; Note: 'accept-loop' doit être définie (voir votre code précédent)" 0 1 (face font-lock-comment-face fontified t) 1 11 (fontified t) 11 14 (face font-lock-comment-delimiter-face fontified t) 14 79 (face font-lock-comment-face fontified t)) . 22820) (undo-tree-id24 . -79) (t 26998 37730 0 0)) nil (26999 45021 346404 0) 0 nil])
+([nil nil ((22820 . 22824)) nil (26999 45021 346388 0) 0 nil])
+([nil nil ((#("(defun init-ssl-context ()
+  (unless (and *ssl-cert-file* *ssl-key-file*)
+    (error \"SSL enabled but no certificate/key provided. Set *ssl-cert-file* and *ssl-key-file*.\"))
+  (let ((cert (namestring ( %ensure-existing-pathname *ssl-cert-file*)))
+        (pkey (namestring ( %ensure-existing-pathname *ssl-key-file*))))
+    (setf *ssl-context*
+          (cl+ssl:make-context
+            ;; désactive SSLv2/v3 ; garde TLS modernes
+            :disabled-protocols (list cl+ssl:+ssl-op-no-sslv2+ cl+ssl:+ssl-op-no-sslv3+)
+            ;; tu peux aussi ajouter :min-proto-version si dispo, p.ex.:
+            ;; :min-proto-version cl+ssl:+tls1-2-version+
+            :verify-mode cl+ssl:+ssl-verify-none+
+            :certificate-chain-file cert
+            :private-key-file       pkey
+            :private-key-password   *ssl-key-password*))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 23 (face font-lock-function-name-face fontified t) 23 30 (fontified t) 30 36 (face font-lock-keyword-face fontified t) 36 79 (fontified t) 79 84 (face font-lock-warning-face fontified t) 84 85 (fontified t) 85 171 (face font-lock-string-face fontified t) 171 177 (fontified t) 177 180 (face font-lock-keyword-face fontified t) 180 387 (fontified t) 387 390 (face font-lock-comment-delimiter-face fontified t) 390 430 (face font-lock-comment-face fontified t) 430 442 (fontified t) 442 461 (face font-lock-builtin-face fontified t) 461 531 (fontified t) 531 534 (face font-lock-comment-delimiter-face fontified t) 534 592 (face font-lock-comment-face fontified t) 592 604 (fontified t) 604 607 (face font-lock-comment-delimiter-face fontified t) 607 650 (face font-lock-comment-face fontified t) 650 662 (fontified t) 662 674 (face font-lock-builtin-face fontified t) 674 712 (fontified t) 712 735 (face font-lock-builtin-face fontified t) 735 753 (fontified t) 753 770 (face font-lock-builtin-face fontified t) 770 794 (fontified t) 794 815 (face font-lock-builtin-face fontified t) 815 840 (fontified t)) . -4282) (undo-tree-id64 . -840) (undo-tree-id65 . -23) (undo-tree-id66 . -23) (undo-tree-id67 . -23) (undo-tree-id68 . -23) (undo-tree-id69 . -23) (undo-tree-id70 . -23) (undo-tree-id71 . -23) (undo-tree-id72 . -23) (undo-tree-id73 . -23) (undo-tree-id74 . -23) (undo-tree-id75 . -23) (undo-tree-id76 . -23) (undo-tree-id77 . -840) (undo-tree-id78 . -840) (undo-tree-id79 . -782) (undo-tree-id80 . -840) (undo-tree-id81 . -840) 5122 (t 26999 45021 0 0)) nil (27000 58566 669105 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -4280) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) (undo-tree-id31 . -1) (#("
+" 0 1 (fontified t)) . -4281) (undo-tree-id32 . -1) (undo-tree-id33 . -1) (undo-tree-id34 . -1) (undo-tree-id35 . -1) (undo-tree-id36 . -1) (undo-tree-id37 . -1) (undo-tree-id38 . -1) (undo-tree-id39 . -1) (undo-tree-id40 . -1) (undo-tree-id41 . -1) (undo-tree-id42 . -1) (undo-tree-id43 . -1) (undo-tree-id44 . -1) (undo-tree-id45 . -1) (undo-tree-id46 . -1) (undo-tree-id47 . -1) (undo-tree-id48 . -1) (undo-tree-id49 . -1) (undo-tree-id50 . -1) (undo-tree-id51 . -1) (undo-tree-id52 . -1) (undo-tree-id53 . -1) (undo-tree-id54 . -1) (undo-tree-id55 . -1) (undo-tree-id56 . -1) (undo-tree-id57 . -1) (undo-tree-id58 . -1) (undo-tree-id59 . -1) (undo-tree-id60 . -1) (undo-tree-id61 . -1) (undo-tree-id62 . -1) (undo-tree-id63 . -1) 4282) nil (27000 58566 669091 0) 0 nil])
+([nil nil ((#("(defun %ensure-existing-pathname (x)
+  (etypecase x
+    (pathname (or (probe-file x) (error \"SSL: file not found: ~A\" x)))
+    (string   (or (probe-file x) (error \"SSL: file not found: ~A\" x)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 32 (face font-lock-function-name-face fontified t) 32 40 (fontified t) 40 49 (face font-lock-keyword-face fontified t) 49 86 (fontified t) 86 91 (face font-lock-warning-face fontified t) 91 92 (fontified t) 92 117 (face font-lock-string-face fontified t) 117 150 (fontified t) 150 157 (fontified t) 157 162 (face font-lock-warning-face fontified t) 162 163 (fontified t) 163 188 (face font-lock-string-face fontified t) 188 195 (fontified t)) . -1351) (undo-tree-id142 . -195) (undo-tree-id143 . -32) (undo-tree-id144 . -32) (undo-tree-id145 . -32) (undo-tree-id146 . -32) (undo-tree-id147 . -32) (undo-tree-id148 . -32) (undo-tree-id149 . -32) (undo-tree-id150 . -32) (undo-tree-id151 . -32) (undo-tree-id152 . -32) (undo-tree-id153 . -195) (undo-tree-id154 . -195) (undo-tree-id155 . -123) (undo-tree-id156 . -195) (undo-tree-id157 . -195) 1546 (t 27000 58566 0 0)) nil (27000 58608 151587 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . -1349) (undo-tree-id82 . -1) (undo-tree-id83 . -1) (undo-tree-id84 . -1) (undo-tree-id85 . -1) (undo-tree-id86 . -1) (undo-tree-id87 . -1) (undo-tree-id88 . -1) (undo-tree-id89 . -1) (undo-tree-id90 . -1) (undo-tree-id91 . -1) (undo-tree-id92 . -1) (undo-tree-id93 . -1) (undo-tree-id94 . -1) (undo-tree-id95 . -1) (undo-tree-id96 . -1) (undo-tree-id97 . -1) (undo-tree-id98 . -1) (undo-tree-id99 . -1) (undo-tree-id100 . -1) (undo-tree-id101 . -1) (undo-tree-id102 . -1) (undo-tree-id103 . -1) (undo-tree-id104 . -1) (undo-tree-id105 . -1) (undo-tree-id106 . -1) (undo-tree-id107 . -1) (undo-tree-id108 . -1) (undo-tree-id109 . -1) (undo-tree-id110 . -1) (undo-tree-id111 . -1) (#("
+" 0 1 (fontified t)) . -1350) (undo-tree-id112 . -1) (undo-tree-id113 . -1) (undo-tree-id114 . -1) (undo-tree-id115 . -1) (undo-tree-id116 . -1) (undo-tree-id117 . -1) (undo-tree-id118 . -1) (undo-tree-id119 . -1) (undo-tree-id120 . -1) (undo-tree-id121 . -1) (undo-tree-id122 . -1) (undo-tree-id123 . -1) (undo-tree-id124 . -1) (undo-tree-id125 . -1) (undo-tree-id126 . -1) (undo-tree-id127 . -1) (undo-tree-id128 . -1) (undo-tree-id129 . -1) (undo-tree-id130 . -1) (undo-tree-id131 . -1) (undo-tree-id132 . -1) (undo-tree-id133 . -1) (undo-tree-id134 . -1) (undo-tree-id135 . -1) (undo-tree-id136 . -1) (undo-tree-id137 . -1) (undo-tree-id138 . -1) (undo-tree-id139 . -1) (undo-tree-id140 . -1) (undo-tree-id141 . -1) 1351) nil (27000 58608 151576 0) 0 nil])
+([nil current ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . 1349)) nil (27000 58608 151526 0) 0 nil])
 nil

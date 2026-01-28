@@ -95,19 +95,6 @@
             do (push (pop code) opts) (push (pop code) opts))
       (values (nreverse opts) code)))
 
-  (defun %extract-declarations (body)
-    (let ((decls '()) (rest body))
-      (loop while (and (consp (first rest)) (eq (car (first rest)) 'declare))
-            do (push (pop rest) decls))
-      (values (nreverse decls) rest)))
-
-  ;; Détecte si une forme est une route statique : (:GET ...) ou (GET ...)
-  (defun %is-static-route-p (form)
-    (and (consp form)
-         (let ((head (car form)))
-           (or (keywordp head)
-               (member head '(GET POST PUT PATCH DELETE HEAD OPTIONS) :test #'string-equal)))))
-
   (defun %generate-crud-meta (resource-def module-prefix)
     (destructuring-bind (entity-sym
 			 &key (name (string-downcase (symbol-name entity-sym)))
@@ -124,16 +111,38 @@
         (when (member :delete actions) (push `(:method "DELETE" :path ,(format nil "~A/:id" base-path) :summary ,(format nil "Delete ~A" name)) routes))
         (nreverse routes))))
 
+  #|
   (defun %extract-custom-route-meta (route-def module-prefix)
-    (if (%is-static-route-p route-def)
-        (destructuring-bind (method subpath args &body body) route-def
+    (if (keywordp (first route-def)) ;; C'est une route standard (:GET ...)
+	(destructuring-bind (method subpath args &body body) route-def
           (declare (ignore args))
           (multiple-value-bind (opts code) (%split-body-opts body)
             (declare (ignore code))
             `(:method ,(string-upcase (symbol-name method))
-              :path ,(format nil "~A~A" (string-right-trim "/" module-prefix) subpath)
-              :summary ,(getf opts :summary "Custom Route"))))
-        nil))
+               :path ,(format nil "~A~A" (string-right-trim "/" module-prefix) subpath)
+               :summary ,(getf opts :summary "Custom Route"))))
+	;; C'est un générateur (mount-...), on ne peut pas deviner la doc statiquement
+  nil))
+  |#
+
+  (defun %extract-custom-route-meta (route-def module-prefix)
+  (if (and (consp route-def) (keywordp (first route-def)))
+      (destructuring-bind (method subpath args &body body) route-def
+        (declare (ignore args))
+        (multiple-value-bind (opts code) (%split-body-opts body)
+          (declare (ignore code))
+          `(:method ,(string-upcase (symbol-name method))
+            :path ,(format nil "~A~A" (string-right-trim "/" module-prefix) subpath)
+            :summary ,(getf opts :summary "Custom Route"))))
+      nil))
+
+  (defun %extract-declarations (body)
+    "Sépare les (declare ...) du reste du corps."
+    (let ((decls '()) (rest body))
+      (loop while (and (consp (first rest)) 
+                       (eq (car (first rest)) 'declare))
+            do (push (pop rest) decls))
+      (values (nreverse decls) rest)))
 
   ;; --- EXPANSION ROUTES CUSTOM ---
 (defun %expand-route (method subpath args body-and-opts prefix module-mws-sym)
@@ -178,16 +187,7 @@
             `(lumen.core.router:construct-route ,method-kw ,full-path ,args
                ,@final-body))))))
 
-;; --- EXPANSION HOOKS ---
-(defun %ensure-expanded (form env)
-    "Force l'expansion de macro si FORM commence par construct-route."
-    (if (and (consp form) 
-             (symbolp (car form))
-             (or (string-equal (symbol-name (car form)) "CONSTRUCT-ROUTE")
-                 (string-equal (symbol-name (car form)) "CONSTRUCT-GUARDED-ROUTE")))
-        (macroexpand form env)
-        form))
-  
+  ;; --- EXPANSION HOOKS ---
   (defun %expand-hook (entity-sym hook-def)
     (let* ((hook-key  (first hook-def))
            (rest-def  (cdr hook-def))
@@ -234,53 +234,75 @@
                ,@body)))))))
 
 ;;; --- LA MACRO DEFMODULE ---
-(defmacro defmodule (name &key doc path-prefix middlewares entities resources routes hooks &environment env)
+(defmacro defmodule (name &key doc path-prefix middlewares entities resources routes hooks)
   (let ((sanitized-prefix (string-right-trim "/" (or path-prefix "")))
         (mws-var (intern (format nil "*~A-MIDDLEWARES*" name)))) 
     
+    ;; ---------------------------------------------------------
+    ;; PHASE 1 : PRÉ-ENREGISTREMENT (META-DATA)
+    ;; ---------------------------------------------------------
+    ;; On peuple le registre DAO immédiatement pour que la suite de la macro
+    ;; (mount-crud!) puisse lire les infos (table, fields...).
     (dolist (ent-def entities)
       (destructuring-bind (sym &rest args) ent-def
         (lumen.data.dao:register-entity-meta-only! sym args)))
 
-    (let ((crud-code-forms 
-            (loop for res in resources appending
-                  (destructuring-bind (entity-sym &key (name (string-downcase (symbol-name entity-sym)))
-                                                       (guard nil) (required-p t) (host nil) (order-whitelist nil)
-                                                       (actions '(:index :show :create :patch :delete)) 
-                                                       &allow-other-keys) res
-                    (lumen.http.crud:mount-crud! 
-                       entity-sym :base sanitized-prefix :name name :host host
-                       :order-whitelist order-whitelist :actions actions
-                       :auth-guard (if guard guard `(lumen.http.crud:make-entity-crud-guard ',entity-sym :required-p ,required-p)))))))
+    ;; ---------------------------------------------------------
+    ;; PHASE 2 : ANALYSE DES ROUTES
+    ;; ---------------------------------------------------------
+    ;; Maintenant, mount-crud! va fonctionner car le registre est plein.
+    
+    (let ((all-routes-meta 
+            (append 
+             (loop for res in resources appending (%generate-crud-meta res sanitized-prefix))
+             (remove nil (loop for r in routes collect (%extract-custom-route-meta r sanitized-prefix))))))
+      
+      `(progn
+         ;; 0. Middlewares
+         (defparameter ,mws-var (list ,@middlewares))
 
-      (let ((all-routes-meta 
-              (append (loop for res in resources appending (%generate-crud-meta res sanitized-prefix))
-                      (remove nil (loop for r in routes collect (%extract-custom-route-meta r sanitized-prefix))))))
-        
-        `(progn
-           (defparameter ,mws-var (list ,@middlewares))
-           (register-module! ,name 
-             (make-module-meta :name ,name :doc ,doc :path-prefix ,sanitized-prefix
-                               :entities ',(mapcar #'car entities) :resources ',(mapcar #'car resources)
-                               :routes ',all-routes-meta))
-           ,@(loop for e in entities collect `(defentity ,@e))
-           
-           (lumen.core.router:register-module-routes ,name
-             (append
-              ;; A. CRUD
-              (list ,@(loop for form in crud-code-forms collect
-                            ;; On force l'expansion ici pour garantir que le compilateur voit du code Lisp de base
-                            (%ensure-expanded form env)))
-              
-              ;; B. ROUTES & GÉNÉRATEURS
-              ,@(loop for r in routes collect
-                      (if (%is-static-route-p r)
-                          `(list ,(%ensure-expanded 
-                                   (destructuring-bind (method subpath args &body body) r
-                                     (%expand-route method subpath args body sanitized-prefix mws-var))
-                                   env))
-                          r))))
-           
-           ,@(loop for (entity-sym . entity-hooks) in hooks appending
-                   (loop for hook-def in entity-hooks collect
-                         (%expand-hook entity-sym hook-def))))))))
+         ;; 1. Register Module Meta
+         (register-module! ,name 
+           (make-module-meta :name ,name :doc ,doc
+                             :path-prefix ,sanitized-prefix
+                             :entities ',(mapcar #'car entities)
+                             :resources ',(mapcar #'car resources)
+                             :routes ',all-routes-meta))
+         
+         ;; 2. Code Runtime pour les Entités (defentity officiel)
+         ;; On le garde car il contient peut-être plus de logique runtime (hooks, types précis...)
+         ,@(loop for e in entities collect `(defentity ,@e))
+         
+         ;; 3. Routes (CRUD + Custom)
+         (lumen.core.router:register-module-routes ,name
+           (list 
+            ;; A. CRUD
+            ,@(loop for res in resources appending
+                    (destructuring-bind (entity-sym
+                                         &key (name (string-downcase (symbol-name entity-sym)))
+                                              (guard nil) (required-p t) 
+                                              (host nil) (order-whitelist nil)
+                                              (actions '(:index :show :create :patch :delete)) 
+                                         &allow-other-keys) res
+                      
+                      ;; APPEL DIRECT À LA FONCTION GÉNÉRATRICE
+                      (lumen.http.crud:mount-crud! 
+                         entity-sym 
+                         :base sanitized-prefix 
+                         :name name
+                         :host host
+                         :order-whitelist order-whitelist ;; Attention au quote ici
+                         :actions actions ;; Attention au quote ici
+                         :auth-guard (if guard 
+                                         guard 
+                                         `(lumen.http.crud:make-entity-crud-guard ',entity-sym :required-p ,required-p)))))
+            
+            ;; B. Custom
+            ,@(loop for r in routes collect
+                    (destructuring-bind (method subpath args &body body) r
+                      (%expand-route method subpath args body sanitized-prefix mws-var)))))
+         
+         ;; 4. Hooks
+         ,@(loop for (entity-sym . entity-hooks) in hooks appending
+                 (loop for hook-def in entity-hooks collect
+                       (%expand-hook entity-sym hook-def)))))))

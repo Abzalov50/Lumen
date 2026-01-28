@@ -157,11 +157,11 @@ Retourne (values payload t) si OK, sinon (values nil nil).
          (base `((:sub    . ,user-id)
                  (:typ    . "access")
                  (:role   . ,role)
-                 (:scopes . ,(or scopes '()))
+                 (:scopes . scopes)
                  ,@(when tenant `((:tenant . ,tenant)))
                  (:iat    . ,now)
                  (:exp    . ,exp)))
-         (payload (append base (or claims '()))))
+         (payload (append base claims )))
     (jwt-encode payload :secret *jwt-secret*)))
 
 (defun issue-refresh (user-id &key role scopes tenant claims (ttl *refresh-ttl*))

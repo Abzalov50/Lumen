@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"15d598ad680181bc4b7b01911b8e5088cf50a4a6"
+"2ab50e77518ca88e0daa7e7ca2195c4a99d3236a"
 [nil nil nil nil (26790 8226 605743 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 1918 . 1919) (nil fontified nil 1 . 1919) (1 . 1919) (t 26790 8226 0 0)) nil (26805 52061 580002 0) 0 nil])
 ([nil nil ((35 . 38)) nil (26805 52061 580001 0) 0 nil])
@@ -528,7 +528,175 @@ nil
 ([nil nil ((6265 . 6267)) nil (26978 24169 900769 0) 0 nil])
 ([nil nil ((#(")" 0 1 (fontified t)) . -6398) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) 6399) nil (26978 24169 900765 0) 0 nil])
 ([nil nil ((#(")" 0 1 (fontified t)) . -7208) (undo-tree-id49 . -1) (undo-tree-id50 . -1) (undo-tree-id51 . -1) (undo-tree-id52 . -1) (undo-tree-id53 . -1) (undo-tree-id54 . -1) (undo-tree-id55 . -1) 7209 (t 26978 24169 0 0)) nil (26978 24189 88017 0) 0 nil])
-([nil current ((7208 . 7209)) nil (26978 24207 971760 0) 0 nil] [nil nil ((7137 . 7138)) ((#(")" 0 1 (fontified t)) . 7137)) (26978 24188 663536 0) 0 nil])
-nil
+([nil nil ((7208 . 7209)) nil (26978 24207 971760 0) 0 nil] [nil nil ((7137 . 7138)) ((#(")" 0 1 (fontified t)) . 7137)) (26978 24188 663536 0) 0 nil])
+([nil nil ((7137 . 7138) (t 26993 53276 0 0)) nil (27000 62717 198243 0) 0 nil])
 ([nil nil ((7209 . 7210)) ((#(")" 0 1 (fontified t)) . 7209)) (26978 24188 663458 0) 0 nil])
+([nil nil ((7226 . 7227)) nil (27000 62717 198242 0) 0 nil])
+nil
+([nil nil ((#(")" 0 1 (fontified t)) . -7225) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (#("=" 0 1 (face (font-lock-warning-face) help-echo "Easy to misread; consider moving the element to the next line" fontified t)) . -7226) (undo-tree-id23 . -1) 7227) nil (27000 62717 198241 0) 0 nil])
+([nil nil ((#(")" 0 1 (fontified t)) . -7209) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) 7210) nil (27000 62717 198236 0) 0 nil])
+([nil nil ((7224 . 7225)) nil (27000 62717 198203 0) 0 nil])
+([nil nil ((2667 . 2668) 2672 (t 27000 62717 0 0)) nil (27001 3644 434606 0) 0 nil])
+([nil nil ((#("(defun %push-migration! (m)
+  (bt:with-lock-held (*lock*)
+    (vector-push-extend m *registry*)
+    ;; garder l’ordre par version croissante dans le registre
+    (let* ((lst (loop for i below (length *registry*) collect (aref *registry* i)))
+           (sorted (sort lst (lambda (a b)
+                               (string< (migration-version a)
+                                        (migration-version b))))))
+      (setf *registry* (make-array 0 :adjustable t :fill-pointer 0))
+      (dolist (x sorted) (vector-push-extend x *registry*)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 23 (face font-lock-function-name-face fontified t) 23 31 (fontified t) 31 48 (face font-lock-keyword-face fontified t) 48 100 (fontified t) 100 103 (face font-lock-comment-delimiter-face fontified t) 103 158 (face font-lock-comment-face fontified t) 158 163 (fontified t) 163 167 (face font-lock-keyword-face fontified t) 167 175 (fontified t) 175 179 (face font-lock-keyword-face fontified t) 179 272 (fontified t) 272 278 (face font-lock-keyword-face fontified t) 278 451 (fontified t) 451 462 (face font-lock-builtin-face fontified t) 462 465 (fontified t) 465 478 (face font-lock-builtin-face fontified t) 478 490 (fontified t) 490 496 (face font-lock-keyword-face fontified t) 496 545 (fontified t)) . -701) (undo-tree-id24 . -545) 1246) nil (27001 3644 434605 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1490 . 1491) (nil fontified nil 701 . 1491) (701 . 1491)) nil (27001 3644 434601 0) 0 nil])
+([nil nil ((1491 . 1493)) nil (27001 3644 434600 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2032 . 2033) (nil fontified nil 1493 . 2033) (1493 . 2033)) nil (27001 3644 434599 0) 0 nil])
+([nil nil ((892 . 898) (#(" " 0 1 (fontified nil)) . 891) (undo-tree-id23 . -1) (892 . 893)) nil (27001 3644 434597 0) 0 nil])
+([nil nil ((929 . 937) (#(" " 0 1 (fontified nil)) . 928) (undo-tree-id22 . -1) (929 . 930)) nil (27001 3644 434595 0) 0 nil])
+([nil nil ((1246 . 1251) (#(" " 0 1 (fontified nil)) . 1245) (undo-tree-id21 . -1) (1246 . 1247)) nil (27001 3644 434592 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -1328) (undo-tree-id20 . -1) 1329) nil (27001 3644 434590 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -1377) (undo-tree-id19 . -1) 1378) nil (27001 3644 434589 0) 0 nil])
+([nil nil ((#("(defun %ensure-up-fn (mig)
+  (let ((f (migration-up-forms mig)))
+    (cond
+      ((functionp f) f)                ; déjà une fonction
+      ((consp f)     (eval f))         ; lambda-expression → fonction
+      (t (error \"Migration ~A has no UP.\" (migration-version mig))))))
+
+(defun %ensure-down-fn (mig)
+  (let ((f (migration-down-forms mig)))
+    (cond
+      ((null f)     (error \"Migration ~A has no DOWN.\" (migration-version mig)))
+      ((functionp f) f)
+      ((consp f)     (eval f))
+      (t (error \"Migration ~A has invalid DOWN.\" (migration-version mig))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 20 (face font-lock-function-name-face fontified t) 20 30 (fontified t) 30 33 (face font-lock-keyword-face fontified t) 33 36 (fontified t) 36 65 (fontified t) 65 70 (fontified t) 70 74 (face font-lock-keyword-face fontified t) 74 88 (fontified t) 88 114 (fontified t) 114 134 (face font-lock-comment-face fontified t) 134 138 (fontified t) 138 173 (fontified t) 173 204 (face font-lock-comment-face fontified t) 204 214 (fontified t) 214 219 (face font-lock-warning-face fontified t) 219 220 (fontified t) 220 245 (face font-lock-string-face fontified t) 245 277 (fontified t) 277 282 (face font-lock-keyword-face fontified t) 282 283 (fontified t) 283 298 (face font-lock-function-name-face fontified t) 298 308 (fontified t) 308 311 (face font-lock-keyword-face fontified t) 311 350 (fontified t) 350 354 (face font-lock-keyword-face fontified t) 354 376 (fontified t) 376 381 (face font-lock-warning-face fontified t) 381 382 (fontified t) 382 409 (face font-lock-string-face fontified t) 409 501 (fontified t) 501 506 (face font-lock-warning-face fontified t) 506 507 (fontified t) 507 539 (face font-lock-string-face fontified t) 539 568 (fontified t)) . -2740) (undo-tree-id18 . -568) 3308) nil (27001 3644 434587 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2853 . 2854) (nil fontified nil 2740 . 2854) (2740 . 2854)) nil (27001 3644 434585 0) 0 nil])
+([nil nil ((#("(defun migrate-all (&key (verbose t))
+  (%ensure-table!)
+  (let ((target (%max-registered-version)))
+    (if target
+        (migrate-up-to target :verbose verbose)
+        (progn
+          (when verbose (format t \"~&[migrations] nothing to migrate.~%\"))
+          (values 0 0)))))
+
+(defun migrate-up-to (target &key (verbose t))
+  (%ensure-table!)
+  (let* ((tgt (%to-version-string target))
+         (applied        (%applied-versions)) ; => liste de strings \"YYYY-..\"
+         (applied-set    (alexandria:alist-hash-table
+                          (mapcar (lambda (v) (cons (string-trim \" \" v) t)) applied)
+                          :test #'equal))
+         ;; dédupliquer le registre par version
+         (all       (loop for i below (length *registry*) collect (aref *registry* i)))
+         (all-uniq  (remove-duplicates all :key #'migration-version :test #'equal :from-end t))
+         ;; à monter = non appliquées ET ≤ target
+         (to-up     (remove-if (lambda (m)
+                                 (or (gethash (string-trim \" \" (migration-version m)) applied-set)
+                                     (string< tgt (migration-version m))))
+                               all-uniq))
+         ;; à descendre = appliquées ET > target
+         (to-down   (remove-if-not (lambda (m)
+                                     (and (gethash (string-trim \" \" (migration-version m)) applied-set)
+                                          (string< tgt (migration-version m))))
+                                   all-uniq))
+         (n-up 0)
+         (n-down 0))
+    ;; -------- UP en ordre croissant --------
+    (dolist (m (sort to-up (lambda (a b)
+                             (string< (migration-version a) (migration-version b)))))
+      (let ((ver (migration-version m)))
+        (when verbose (format t \"~&[migrations] ↑ applying ~A...~%\" ver))
+        (run-in-transaction
+	 (lambda ()
+           (let ((up-fn (%ensure-up-fn m)))
+             (funcall up-fn))
+           (exec \"INSERT INTO schema_migrations(version)
+                 VALUES ($1)
+                 ON CONFLICT (version) DO NOTHING\"
+                 ver)))
+         (setf (gethash ver applied-set) t)
+         (incf n-up)
+         (when verbose (format t \"[migrations] OK ~A~%\" ver))))
+
+    ;; -------- DOWN en ordre décroissant (si jamais on voulait descendre) --------
+    (dolist (m (sort to-down (lambda (a b)
+                               (string> (migration-version a) (migration-version b)))))
+      (let ((ver (migration-version m)))
+        (when verbose (format t \"~&[migrations] ↓ rolling back ~A...~%\" ver))
+        (run-in-transaction
+	 (lambda ()
+           (let ((down-fn (%ensure-down-fn m)))
+             (funcall down-fn))
+           (exec \"DELETE FROM schema_migrations WHERE version=$1\" ver)))
+         (remhash ver applied-set)
+         (incf n-down)
+         (when verbose (format t \"[migrations] ROLLBACK OK ~A~%\" ver))))
+    (values n-up n-down)))
+
+(defun rollback-one (&key (verbose t))
+  (%ensure-table!)
+  (let ((last (query-1a \"SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1\")))
+    (if (null last)
+        (progn
+          (when verbose (format t \"~&[migrations] nothing to rollback.~%\"))
+          0)
+        (let* ((v (cdr (assoc :version last)))
+               (m (%find-mig v)))
+          (unless m (error \"No migration registered for version ~A\" v))
+          (when verbose (format t \"~&[migrations] ↓ rolling back ~A...~%\" v))
+          (run-in-transaction
+	   (lambda ()
+             (let ((down-fn (%ensure-down-fn m)))
+               (funcall down-fn))
+             (exec \"DELETE FROM schema_migrations WHERE version=$1\" v)))
+           (when verbose (format t \"[migrations] ROLLBACK OK ~A~%\" v))
+          1))))
+
+(defun status ()
+  (%ensure-table!)
+  (let* ((applied (%applied-list))
+         (applied-index (alexandria:alist-hash-table
+                         (mapcar (lambda (r) (cons (cdr (assoc :version r)) r)) applied)
+                         :test #'equal)))
+    (loop for i from 0 below (length *registry*)
+          for m = (aref *registry* i)
+          for v = (migration-version m)
+          for row = (gethash v applied-index)
+          collect
+          (list (cons :version v)
+                (cons :applied-p (and row t))
+                (cons :applied-at (and row (cdr (assoc :applied_at row))))))))
+
+(defun reset! ()
+  (%ensure-table!)
+  (run-in-transaction
+   (lambda ()
+     (exec \"TRUNCATE TABLE schema_migrations\"))))
+" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 11 (face font-lock-function-name-face fontified t) 11 18 (face font-lock-function-name-face fontified t) 18 20 (fontified t) 20 24 (face font-lock-type-face fontified t) 24 38 (fontified t) 38 60 (fontified t) 60 63 (face font-lock-keyword-face fontified t) 63 80 (fontified t) 80 101 (fontified t) 101 106 (fontified t) 106 108 (face font-lock-keyword-face fontified t) 108 146 (fontified t) 146 150 (face font-lock-builtin-face fontified t) 150 154 (face font-lock-builtin-face fontified t) 154 164 (fontified t) 164 173 (fontified t) 173 178 (face font-lock-keyword-face fontified t) 178 190 (fontified t) 190 194 (face font-lock-keyword-face fontified t) 194 213 (fontified t) 213 251 (face font-lock-string-face fontified t) 251 282 (fontified t) 282 283 (fontified t) 283 288 (face font-lock-keyword-face fontified t) 288 289 (fontified t) 289 302 (face font-lock-function-name-face fontified t) 302 311 (fontified t) 311 315 (face font-lock-type-face fontified t) 315 351 (fontified t) 351 355 (face font-lock-keyword-face fontified t) 355 437 (fontified t) 437 469 (face font-lock-comment-face fontified t) 469 514 (fontified t) 514 515 (fontified t) 515 523 (fontified t) 523 558 (fontified t) 558 564 (face font-lock-keyword-face fontified t) 564 588 (fontified t) 588 591 (face font-lock-string-face fontified t) 591 634 (fontified t) 634 639 (face font-lock-builtin-face fontified t) 639 659 (fontified t) 659 662 (face font-lock-comment-delimiter-face fontified t) 662 684 (face font-lock-comment-face fontified t) 684 698 (face font-lock-comment-face fontified t) 698 719 (fontified t) 719 723 (face font-lock-keyword-face fontified t) 723 829 (fontified t) 829 833 (face font-lock-builtin-face fontified t) 833 854 (fontified t) 854 859 (face font-lock-builtin-face fontified t) 859 868 (fontified t) 868 877 (face font-lock-builtin-face fontified t) 877 891 (fontified t) 891 894 (face font-lock-comment-delimiter-face fontified t) 894 932 (face font-lock-comment-face fontified t) 932 964 (fontified t) 964 970 (face font-lock-keyword-face fontified t) 970 1034 (fontified t) 1034 1037 (face font-lock-string-face fontified t) 1037 1081 (fontified t) 1081 1149 (fontified t) 1149 1200 (fontified t) 1200 1203 (face font-lock-comment-delimiter-face fontified t) 1203 1240 (face font-lock-comment-face fontified t) 1240 1276 (fontified t) 1276 1282 (face font-lock-keyword-face fontified t) 1282 1351 (fontified t) 1351 1354 (face font-lock-string-face fontified t) 1354 1560 (fontified t) 1560 1563 (face font-lock-comment-delimiter-face fontified t) 1563 1603 (face font-lock-comment-face fontified t) 1603 1608 (fontified t) 1608 1614 (face font-lock-keyword-face fontified t) 1614 1631 (fontified t) 1631 1637 (face font-lock-keyword-face fontified t) 1637 1737 (fontified t) 1737 1740 (face font-lock-keyword-face fontified t) 1740 1780 (fontified t) 1780 1784 (face font-lock-keyword-face fontified t) 1784 1803 (fontified t) 1803 1838 (face font-lock-string-face fontified t) 1838 1876 (fontified t) 1876 1882 (face font-lock-keyword-face fontified t) 1882 1898 (fontified t) 1898 1901 (face font-lock-keyword-face fontified t) 1901 1977 (fontified t) 1977 2023 (face font-lock-string-face fontified t) 2023 2046 (face font-lock-string-face fontified t) 2046 2096 (face font-lock-string-face fontified t) 2096 2196 (fontified t) 2196 2198 (face font-lock-keyword-face fontified t) 2198 2200 (face font-lock-keyword-face fontified t) 2200 2219 (fontified t) 2219 2241 (face font-lock-string-face fontified t) 2241 2250 (fontified t) 2250 2255 (fontified t) 2255 2258 (face font-lock-comment-delimiter-face fontified t) 2258 2335 (face font-lock-comment-face fontified t) 2335 2340 (fontified t) 2340 2346 (face font-lock-keyword-face fontified t) 2346 2365 (fontified t) 2365 2371 (face font-lock-keyword-face fontified t) 2371 2473 (fontified t) 2473 2476 (face font-lock-keyword-face fontified t) 2476 2516 (fontified t) 2516 2520 (face font-lock-keyword-face fontified t) 2520 2539 (fontified t) 2539 2578 (face font-lock-string-face fontified t) 2578 2616 (fontified t) 2616 2622 (face font-lock-keyword-face fontified t) 2622 2638 (fontified t) 2638 2641 (face font-lock-keyword-face fontified t) 2641 2723 (fontified t) 2723 2771 (face font-lock-string-face fontified t) 2771 2847 (fontified t) 2847 2851 (face font-lock-keyword-face fontified t) 2851 2870 (fontified t) 2870 2901 (face font-lock-string-face fontified t) 2901 2938 (fontified t) 2938 2939 (fontified t) 2939 2944 (face font-lock-keyword-face fontified t) 2944 2945 (fontified t) 2945 2957 (face font-lock-function-name-face fontified t) 2957 2959 (fontified t) 2959 2963 (face font-lock-type-face fontified t) 2963 2999 (fontified t) 2999 3002 (face font-lock-keyword-face fontified t) 3002 3020 (fontified t) 3020 3089 (face font-lock-string-face fontified t) 3089 3098 (fontified t) 3098 3100 (face font-lock-keyword-face fontified t) 3100 3122 (fontified t) 3122 3127 (face font-lock-keyword-face fontified t) 3127 3139 (fontified t) 3139 3143 (face font-lock-keyword-face fontified t) 3143 3162 (fontified t) 3162 3201 (face font-lock-string-face fontified t) 3201 3226 (fontified t) 3226 3230 (face font-lock-keyword-face fontified t) 3230 3247 (fontified t) 3247 3255 (face font-lock-builtin-face fontified t) 3255 3309 (fontified t) 3309 3315 (face font-lock-keyword-face fontified t) 3315 3319 (fontified t) 3319 3324 (face font-lock-warning-face fontified t) 3324 3325 (fontified t) 3325 3365 (face font-lock-string-face fontified t) 3365 3381 (fontified t) 3381 3385 (face font-lock-keyword-face fontified t) 3385 3404 (fontified t) 3404 3443 (face font-lock-string-face fontified t) 3443 3483 (fontified t) 3483 3489 (face font-lock-keyword-face fontified t) 3489 3507 (fontified t) 3507 3510 (face font-lock-keyword-face fontified t) 3510 3546 (fontified t) 3546 3577 (fontified t) 3577 3596 (fontified t) 3596 3644 (face font-lock-string-face fontified t) 3644 3662 (fontified t) 3662 3666 (face font-lock-keyword-face fontified t) 3666 3685 (fontified t) 3685 3716 (face font-lock-string-face fontified t) 3716 3738 (fontified t) 3738 3739 (fontified t) 3739 3744 (face font-lock-keyword-face fontified t) 3744 3745 (fontified t) 3745 3750 (face font-lock-function-name-face fontified t) 3750 3751 (face font-lock-function-name-face fontified t) 3751 3755 (fontified t) 3755 3777 (fontified t) 3777 3781 (face font-lock-keyword-face fontified t) 3781 3896 (fontified t) 3896 3902 (face font-lock-keyword-face fontified t) 3902 3925 (fontified t) 3925 3933 (face font-lock-builtin-face fontified t) 3933 3976 (fontified t) 3976 3981 (face font-lock-builtin-face fontified t) 3981 3998 (fontified t) 3998 4002 (face font-lock-keyword-face fontified t) 4002 4206 (fontified t) 4206 4214 (face font-lock-builtin-face fontified t) 4214 4240 (fontified t) 4240 4250 (face font-lock-builtin-face fontified t) 4250 4286 (fontified t) 4286 4297 (face font-lock-builtin-face fontified t) 4297 4319 (fontified t) 4319 4330 (face font-lock-builtin-face fontified t) 4330 4345 (fontified t) 4345 4350 (face font-lock-keyword-face fontified t) 4350 4351 (fontified t) 4351 4357 (face font-lock-function-name-face fontified t) 4357 4406 (fontified t) 4406 4412 (face font-lock-keyword-face fontified t) 4412 4427 (fontified t) 4427 4461 (face font-lock-string-face fontified t) 4461 4466 (fontified t)) . -3840) (undo-tree-id0 . -4466) (undo-tree-id1 . -3543) (undo-tree-id2 . -4466) (undo-tree-id3 . -282) (undo-tree-id4 . -523) (undo-tree-id5 . -282) (undo-tree-id6 . -2046) (undo-tree-id7 . -1930) (undo-tree-id8 . -2938) (undo-tree-id9 . -3577) (undo-tree-id10 . -3128) (undo-tree-id11 . -4380) (undo-tree-id12 . -4466) (undo-tree-id13 . -4466) (undo-tree-id14 . -4466) (undo-tree-id15 . -4466) (undo-tree-id16 . -4466) (undo-tree-id17 . -4466) 8306) nil (27001 3644 434582 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 7783 . 7784) (nil fontified nil 3840 . 7784) (3840 . 7784)) nil (27001 3644 434542 0) 0 nil])
+([nil nil ((7784 . 7785) 5780) nil (27001 3644 434537 0) 0 nil])
+([nil nil ((#("(defmacro defmigration (version &key up down)
+  \"VERSION = string ou integer horodaté.
+UP/DOWN = forms qui seront encapsulées dans une fonction (lambda () ...).
+On enregistre préférentiellement des *fonctions objets* (#'), mais on tolère
+les lambda-expressions via %ensure-up-fn / %ensure-down-fn.\"
+  (let* ((ver-str (if (integerp version) (write-to-string version) version))
+         (up-fn   (when up   `#'(lambda () ,@up)))
+         (down-fn (when down `#'(lambda () ,@down))))
+    `(%push-migration!
+      (make-migration
+       :version    ,ver-str
+       :up-forms   ,(or up-fn   `(lambda () ,@up))   ; fallback pour compat
+       :down-forms ,(or down-fn `(lambda () ,@down))))))" 0 1 (fontified t) 1 9 (face font-lock-keyword-face fontified t) 9 10 (fontified t) 10 22 (face font-lock-function-name-face fontified t) 22 32 (fontified t) 32 36 (face font-lock-type-face fontified t) 36 48 (fontified t) 48 253 (face font-lock-doc-face fontified t) 253 298 (face font-lock-doc-face fontified t) 298 299 (fontified t) 299 302 (fontified t) 302 306 (face font-lock-keyword-face fontified t) 306 318 (fontified t) 318 320 (face font-lock-keyword-face fontified t) 320 395 (fontified t) 395 399 (face font-lock-keyword-face fontified t) 399 409 (fontified t) 409 413 (face font-lock-keyword-face fontified t) 413 415 (face font-lock-keyword-face fontified t) 415 427 (fontified t) 427 446 (fontified t) 446 450 (face font-lock-keyword-face fontified t) 450 460 (fontified t) 460 466 (face font-lock-keyword-face fontified t) 466 533 (fontified t) 533 541 (face font-lock-builtin-face fontified t) 541 561 (fontified t) 561 570 (face font-lock-builtin-face fontified t) 570 588 (fontified t) 588 594 (face font-lock-keyword-face fontified t) 594 607 (fontified t) 607 630 (face font-lock-comment-face fontified t) 630 637 (fontified t) 637 648 (face font-lock-builtin-face fontified t) 648 664 (fontified t) 664 670 (face font-lock-keyword-face fontified t) 670 686 (fontified t)) . -2052) (undo-tree-id25 . -686) (undo-tree-id26 . -318) (undo-tree-id27 . -686) (undo-tree-id28 . -686) (undo-tree-id29 . -686) (undo-tree-id30 . -630) (undo-tree-id31 . -686) (undo-tree-id32 . -686) 2738 (t 27001 3644 0 0)) nil (27001 3802 789325 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2721 . 2722) (nil fontified nil 2052 . 2722) (2052 . 2722)) nil (27001 3802 789297 0) 0 nil])
+([nil nil ((2050 . 2052) (t 27001 3802 0 0)) nil (27001 4167 383223 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3472 . 3473) (nil fontified nil 2052 . 3473) (2052 . 3473)) nil (27001 4167 383222 0) 0 nil])
+([nil nil ((4145 . 4147)) nil (27001 4167 383221 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 4635 . 4636) (nil fontified nil 4147 . 4636) (4147 . 4636)) nil (27001 4167 383221 0) 0 nil])
+([nil nil ((3474 . 3475)) nil (27001 4167 383219 0) 0 nil])
+([nil nil ((3475 . 3476)) nil (27001 4167 383219 0) 0 nil])
+([nil nil ((#("{" 0 1 (fontified t)) . -3475) (undo-tree-id33 . -1) 3476) nil (27001 4167 383217 0) 0 nil])
+([nil nil ((3475 . 3477)) nil (27001 4167 383204 0) 0 nil])
+([nil nil ((4149 . 4151)) nil (27001 4167 383202 0) 0 nil])
+([nil current ((4151 . 4152)) nil (27001 4167 383197 0) 0 nil])
 nil

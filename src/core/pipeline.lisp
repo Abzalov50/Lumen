@@ -2,18 +2,14 @@
 
 (defpackage :lumen.core.pipeline
   (:use :cl)
-  (:export :middleware
-   :handle
-           :pipeline
-   :defmiddleware
-           :make-pipeline
-   :pipeline-add
-           :pipeline-compile
-   :pipeline-middlewares
-           :execute-pipeline
-   :describe-pipeline
-	   :execute-middleware-chain
-   :pipeline-to-list))
+  (:export :middleware :handle
+           :pipeline :defmiddleware
+           :make-pipeline :pipeline-add
+           :pipeline-compile :pipeline-middlewares
+           :execute-pipeline :describe-pipeline
+	   :execute-middleware-chain :pipeline-to-list
+	   :handle-request
+	   :mw-name :mw-enabled-p))
 
 (in-package :lumen.core.pipeline)
 

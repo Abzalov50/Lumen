@@ -74,7 +74,7 @@
 ;;; Helpers
 ;;; ------------------------------------------------------------
 (defun %merge-headers (base extra)
-  (append base (or extra '())))
+  (append base extra))
 
 (defun respond-text (txt &key (status 200) (headers nil))
   (make-instance 'response :status status
@@ -417,7 +417,7 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
                         (lumen.core.http:current-user-id req)))
          (role      (or (lumen.core.http:ctx-get req :role)
                         (lumen.core.http:current-role req)))
-         (scopes    (or (lumen.core.http:ctx-get req :scopes) '()))
+         (scopes    (lumen.core.http:ctx-get req :scopes))
          (req-id    (lumen.core.http:ctx-get req :request-id))
          (ip        (lumen.core.http:ctx-get req :ip))
          (ua        (lumen.core.http:ctx-get req :ua))
@@ -444,7 +444,7 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
 ;; Cette condition transporte la réponse finale
 (define-condition http-halt (condition)
   ((response :initarg :response :reader halt-response))
-  (:report (lambda (c s) (format s "HTTP Halt triggered"))))
+  (:report (lambda (c s) (declare (ignore c)) (format s "HTTP Halt triggered"))))
 
 (defun halt (status &optional (body "") (headers nil))
   "Interrompt immédiatement le traitement de la requête.

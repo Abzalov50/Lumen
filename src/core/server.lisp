@@ -12,6 +12,41 @@
 
 (in-package :lumen.core.server)
 
+;;; ---------------------------------------------------------------------------
+;;; 1. STRUCTURE DE DONNÉES (Listener)
+;;; ---------------------------------------------------------------------------
+
+(defclass listener ()
+  ((port          :initarg :port          :accessor listener-port)
+   (socket        :initarg :socket        :accessor listener-socket)
+   (accept-thread :initarg :accept-thread :accessor listener-thread)
+   (handler       :initarg :handler       :accessor listener-handler)
+   (ssl-p         :initarg :ssl-p         :initform nil :accessor listener-ssl-p)))
+
+;; Variable globale interne pour le contexte SSL (partagé ou recréé)
+(defparameter *ssl-context* nil)
+
+;;; ---------------------------------------------------------------------------
+;;; 2. UTILITAIRES SSL
+;;; ---------------------------------------------------------------------------
+(defun init-ssl-context (cert-file key-file key-password)
+  "Initialise le contexte OpenSSL."
+  (unless (and cert-file key-file)
+    (error "SSL enabled but no certificate/key provided."))
+  
+  (let ((cert (namestring (%ensure-existing-pathname cert-file)))
+        (pkey (namestring (%ensure-existing-pathname key-file))))
+    
+    (setf *ssl-context*
+          (cl+ssl:make-context
+           ;; Sécurité : On désactive les vieux protocoles
+           :disabled-protocols (list cl+ssl:+ssl-op-no-sslv2+ cl+ssl:+ssl-op-no-sslv3+)
+           ;; :min-proto-version cl+ssl:+tls1-2-version+ ;; Si dispo dans votre version CL+SSL
+           :verify-mode cl+ssl:+ssl-verify-none+
+           :certificate-chain-file cert
+           :private-key-file        pkey
+           :private-key-password    key-password))))
+
 ;; --- CONFIGURATION & LIMITES ---
 (defparameter *port* 8080)
 (defparameter *use-chunked* t) ; passe à T si tu veux tester le chunked
@@ -62,22 +97,6 @@
   (etypecase x
     (pathname (or (probe-file x) (error "SSL: file not found: ~A" x)))
     (string   (or (probe-file x) (error "SSL: file not found: ~A" x)))))
-
-(defun init-ssl-context ()
-  (unless (and *ssl-cert-file* *ssl-key-file*)
-    (error "SSL enabled but no certificate/key provided. Set *ssl-cert-file* and *ssl-key-file*."))
-  (let ((cert (namestring ( %ensure-existing-pathname *ssl-cert-file*)))
-        (pkey (namestring ( %ensure-existing-pathname *ssl-key-file*))))
-    (setf *ssl-context*
-          (cl+ssl:make-context
-            ;; désactive SSLv2/v3 ; garde TLS modernes
-            :disabled-protocols (list cl+ssl:+ssl-op-no-sslv2+ cl+ssl:+ssl-op-no-sslv3+)
-            ;; tu peux aussi ajouter :min-proto-version si dispo, p.ex.:
-            ;; :min-proto-version cl+ssl:+tls1-2-version+
-            :verify-mode cl+ssl:+ssl-verify-none+
-            :certificate-chain-file cert
-            :private-key-file       pkey
-            :private-key-password   *ssl-key-password*))))
 
 (defun ->crlf (s) (concatenate 'string s "\r\n"))
 
@@ -263,14 +282,6 @@
          (%emit-headers headers) (crlf flexi)
          (finish-output flexi))))))
 
-#|
-(defun read-request-line (stream)
-  (let ((line (read-line stream nil nil)))
-    (when line
-      (let* ((parts (uiop:split-string line :separator " ")))
-	(values (nth 0 parts) (nth 1 parts) (nth 2 parts))))))
-|#
-
 (defun read-request-line (stream)
   ;; Sécurité : on met un timeout sur la lecture
   (handler-case 
@@ -294,23 +305,6 @@
       raw)
   #-sbcl
   raw)
-
-#|
-(defun make-http-stream (client &key ssl)
-  "Retourne un flux FLEXI (caractère) au-dessus du flux usocket ou SSL."
-  (let* ((raw (usocket:socket-stream client))
-         (base (if ssl
-                   ;; On pose TLS (binaire) puis on garde Flexi au-dessus (CRLF/UTF-8)
-                   (cl+ssl:with-global-context (*ssl-context*)
-                     (cl+ssl:make-ssl-server-stream
-                       raw
-                       ;; on laisse Flexi gérer l'encoding/CRLF,
-                       ;; donc pas d' :external-format ici
-                       :cipher-list cl+ssl:*default-cipher-list*))
-                   raw))
-         (xfmt (flexi-streams:make-external-format :utf-8 :eol-style :crlf)))
-    (flexi-streams:make-flexi-stream base :external-format xfmt)))
-|#
 
 (defun make-http-stream (client &key ssl)
   "Retourne un flux FLEXI (caractère) au-dessus du flux usocket ou SSL.
@@ -377,83 +371,7 @@
                (push cell headers)
                (setf last-cell (car headers)))))))))
 
-#|
-(defun handle-connection (socket client &key ssl)
-  (declare (ignore socket))
-  (let* ((flexi (make-http-stream client :ssl ssl)) ; Flexi au-dessus d’un FD binaire
-	 (req-count 0)
-         (alive t))
-    (lumen.core.shutdown:register-connection client)
-    (unwind-protect
-	 (loop while alive do
-           ;; attente d’activité avec timeout (évite de bloquer des threads inactifs)
-           (unless (usocket:wait-for-input client :timeout *keep-alive-timeout*)
-             (setf alive nil) (return))
-           (progn
-             (multiple-value-bind (method uri http-ver) (read-request-line flexi)
-	       (unless method (setf alive nil) (return))
-	       (format t "~&*** URI: ~A~%" uri)
-	       (let* ((qpos (and uri (position #\? uri)))
-		      (path-only (if qpos (subseq uri 0 qpos) (or uri "/")))
-		      (query-str (and qpos (subseq uri (1+ qpos))))
-		      (headers (read-headers flexi))
-		      (req (make-instance 'lumen.core.http:request
-					  :method (string-upcase method)
-					  :path   path-only
-					  :headers headers
-					  :query  query-str ;; ← string brute, sera parsée par middleware
-					  :cookies nil :params nil
-					  :body-stream flexi :context (list)))
-		      (peer
-			(ignore-errors
-			 (let* ((sym1 (find-symbol "GET-PEER-ADDRESS" :usocket))
-				(sym2 (find-symbol "SOCKET-PEER-ADDRESS" :usocket)))
-			   (cond
-			     ((and sym1 (fboundp sym1))
-			      (funcall (symbol-function sym1) client))
-			     ((and sym2 (fboundp sym2))
-			      (funcall (symbol-function sym2) client))
-			     (t nil)))))
-		      (peer (if peer
-				(format nil "~A.~A.~A.~A"
-					(aref peer 0) (aref peer 1)
-					(aref peer 2) (aref peer 3))
-				"-"))
-		      (_ (lumen.core.http:ctx-set! req :remote-addr peer))
-		      ;; Marque secure si on est sur le socket TLS
-		      (_ (lumen.core.http:ctx-set! req :secure (and ssl t)))
-		      (resp (funcall *handler* req))
-		      ;; Keep-Alive désiré par le client + autorisé par le serveur ?
-                      (want-ka (and *keep-alive* (want-keep-alive-p http-ver headers)))
-                      ;; Keep-Alive permis uniquement si le corps a été entièrement lu
-                      (len-h (header headers "content-length"))
-                      (len* (and len-h (parse-integer len-h :junk-allowed t)))
-                      (consumed (or (null len*) (= len* 0)
-                                    (lumen.core.http:ctx-get req :body-consumed)))
-                      (ka-ok (and want-ka consumed
-				  (not (lumen.core.shutdown:draining-p))
-				  (< (incf req-count) *keep-alive-max*)))
-		      )
-		 (write-response flexi resp method ka-ok)
-		 (unless ka-ok (setf alive nil))
-		 ;;(format t "~&[router] path=~S~%" (lumen.core.http:req-path req))
-		 ;;(format t "~&[lumen] response sent (status=~A)~%" (lumen.core.http:resp-status resp))
-		 ))))
-      (lumen.core.shutdown:unregister-connection client)
-      ;; --- FERMETURE PROPRE (Windows-friendly) ---
-      ;; 1) s'assurer qu’aucun caractère n’est en attente côté Flexi
-      (ignore-errors (finish-output flexi))
-      ;; 2) envoi de FIN côté écriture
-      (ignore-errors (usocket:socket-shutdown client :output))
-      ;; 3) petite respiration (laisse le FIN partir)
-      (sleep 0.02)
-      ;; 4) fermer la socket (FD) – une seule fois
-      (ignore-errors (usocket:socket-close client))
-      ;; 5) fermer le Flexi (qui n’a plus de FD sous-jacent)
-      (ignore-errors (close flexi)))))
-|#
-
-(defun handle-connection (socket client &key ssl)
+(defun handle-connection (socket client handler-fn &key ssl)
   (declare (ignore socket))
   
   ;; 1. Check de sécurité : Client valide ?
@@ -497,7 +415,7 @@
                                               :query  query-str
                                               :cookies nil :params nil
                                               :body-stream flexi :context (list)))
-                          (resp (funcall *handler* req))
+                          (resp (funcall handler-fn req))
                           
                           ;; Logique Keep-Alive
                           (want-ka (and *keep-alive* (want-keep-alive-p http-ver headers)))
@@ -528,7 +446,7 @@
       (ignore-errors (usocket:socket-close client))
       (when flexi (ignore-errors (close flexi))))))
 
-(defun accept-loop (socket &key ssl)
+(defun accept-loop (socket handler-fn &key ssl)
   (loop
     (handler-case
         (progn
@@ -541,7 +459,8 @@
           ;; Accept bloquant
           (let ((client (usocket:socket-accept socket :element-type '(unsigned-byte 8))))
             (if client
-                (bt:make-thread (lambda () (handle-connection socket client :ssl ssl))
+                (bt:make-thread (lambda ()
+				  (handle-connection socket client handler-fn :ssl ssl))
                                 :name (if ssl "lumen-client-tls" "lumen-client"))
                 ;; C'est ICI que se trouvait votre bug : client pouvait être NIL
                 (format t "~&[WARN] socket-accept returned NIL. Ignoring.~%"))))
@@ -555,103 +474,96 @@
         (format t "~&[CRITICAL] Error in accept-loop: ~A~%" e)
         (sleep 1))))) ;; Pause pour éviter de spammer les logs en boucle infinie si erreur persistante
 
-#|
-(defun accept-loop (socket &key ssl)
-  (loop
-    (let ((client (usocket:socket-accept socket :element-type '(unsigned-byte 8))))
-      (bt:make-thread (lambda () (handle-connection socket client :ssl ssl))
-                      :name (if ssl "lumen-client-tls" "lumen-client")))))
-|#
-
-(defun start (&key (port 8080) handler
-                   (ssl nil) (ssl-port 8443)
+(defun start (&key (port 8080) handler 
+                   (ssl nil) (ssl-port 8443) 
                    cert-file key-file key-password)
-  (when *server-socket* (stop))
-
-  (setf *port* port
-        *handler* (or handler
-                      (lambda (req) (declare (ignore req))
-                        (make-instance 'lumen.core.http:response :status 500 :body "No handler"))))
-
-  ;; HTTP
-  (handler-case
-      (progn
-        (setf *server-socket*
-              (usocket:socket-listen "0.0.0.0" port :reuse-address t :element-type '(unsigned-byte 8)))
-        (setf *accept-thread*
-              (bt:make-thread (lambda () (accept-loop *server-socket* :ssl nil))
-                              :name (format nil "lumen-accept-~A" port)))
-        (format t "~&Lumen HTTP listening on ~A~%" port))
-    (error (e)
-      (format t "~&[FATAL] Cannot bind HTTP port ~A: ~A~%" port e)))
-
-  ;; HTTPS
-  (setf *ssl-enabled* ssl)
-  (when ssl
-    (setf *ssl-port* ssl-port
-          *ssl-cert-file* cert-file
-          *ssl-key-file* key-file
-          *ssl-key-password* key-password)
-    (init-ssl-context)
+  "Démarre les serveurs HTTP et/ou HTTPS et retourne une liste d'objets LISTENER."
+  
+  (let ((listeners '())
+        ;; Fallback handler si aucun n'est fourni
+        (actual-handler (or handler 
+                            (lambda (req) 
+                              (declare (ignore req))
+                              (make-instance 'lumen.core.http:response 
+                                             :status 500 :body "No handler defined.")))))
+    
+    ;; --- A. Démarrage HTTP (Standard) ---
     (handler-case
-        (progn
-          (setf *server-socket-tls*
-                (usocket:socket-listen "0.0.0.0" ssl-port :reuse-address t :element-type '(unsigned-byte 8)))
-          (setf *accept-thread-tls*
-                (bt:make-thread (lambda () (accept-loop *server-socket-tls* :ssl t))
-                                :name (format nil "lumen-accept-tls-~A" ssl-port)))
+        (let* ((sock (usocket:socket-listen "0.0.0.0" port 
+                                            :reuse-address t 
+                                            :element-type '(unsigned-byte 8)))
+               (ls (make-instance 'listener 
+                                  :port port 
+                                  :socket sock
+                                  :handler actual-handler
+                                  :ssl-p nil)))
+          
+          ;; On lance le thread d'acceptation
 	  
-          (format t "~&Lumen HTTPS listening on ~A~%" ssl-port))
+          (setf (listener-thread ls)
+                (bt:make-thread 
+                 (lambda () 
+                   ;; On passe explicitement le handler à la boucle
+                   (accept-loop sock actual-handler :ssl nil))
+                 :name (format nil "lumen-accept-~A" port)))
+          
+          (push ls listeners)
+          (format t "~&[SERVER] Listening HTTP on port ~A~%" port))
+      
+      (usocket:address-in-use-error ()
+        (format t "~&[FATAL] HTTP Port ~A is already in use. Skipping.~%" port))
       (error (e)
-        (format t "~&[FATAL] Cannot bind HTTPS port ~A: ~A~%" ssl-port e))))
-  t)
+        (format t "~&[FATAL] Failed to bind HTTP port ~A: ~A~%" port e)))
 
-#|
-(defun start (&key (port 8080) handler
-                (ssl nil) (ssl-port 8443)
-                cert-file key-file key-password)
-  (when *server-socket* (stop))		; nettoie si déjà lancé
+    ;; --- B. Démarrage HTTPS (Optionnel) ---
+    (when ssl
+      (handler-case
+          (progn
+            ;; 1. Init du contexte SSL
+            (init-ssl-context cert-file key-file key-password)
+            
+            ;; 2. Création Socket & Listener
+            (let* ((sock (usocket:socket-listen "0.0.0.0" ssl-port 
+                                                :reuse-address t 
+                                                :element-type '(unsigned-byte 8)))
+                   (ls (make-instance 'listener 
+                                      :port ssl-port 
+                                      :socket sock
+                                      :handler actual-handler
+                                      :ssl-p t)))
+              
+              ;; 3. Thread TLS
+              (setf (listener-thread ls)
+                    (bt:make-thread 
+                     (lambda () 
+                       ;; On passe :ssl t et le handler
+                       (accept-loop sock actual-handler :ssl t))
+                     :name (format nil "lumen-accept-tls-~A" ssl-port)))
+              
+              (push ls listeners)
+              (format t "~&[SERVER] Listening HTTPS on port ~A~%" ssl-port)))
+        
+        (usocket:address-in-use-error ()
+          (format t "~&[FATAL] HTTPS Port ~A is already in use. Skipping.~%" ssl-port))
+        (error (e)
+          (format t "~&[FATAL] Failed to bind HTTPS port ~A: ~A~%" ssl-port e))))
+    
+    ;; Retourne la liste (ex: (#<LISTENER HTTPS> #<LISTENER HTTP>)) ou NIL si tout a échoué
+    listeners))
 
-  (setf *port* port
-        *handler* (or handler
-                      (lambda (req)
-                        (declare (ignore req))
-                        (make-instance 'lumen.core.http:response :status 500 :headers nil :body ""))))
-
-  ;; HTTP
-  (setf *server-socket*
-        (usocket:socket-listen "0.0.0.0" port :reuse-address t :element-type '(unsigned-byte 8)))
-  (setf *accept-thread*
-        (bt:make-thread (lambda () (accept-loop *server-socket* :ssl nil))
-                        :name (format nil "lumen-accept-~A" port)))
-  (format t "~&Lumen HTTP listening on ~A~%" port)
-
-  ;; HTTPS (optionnel)
-  (setf *ssl-enabled* ssl)
-  (when ssl
-    (setf *ssl-port*          ssl-port
-          *ssl-cert-file*     cert-file
-          *ssl-key-file*      key-file
-	  *ssl-key-password*  key-password)
-    (init-ssl-context)
-    (setf *server-socket-tls*
-          (usocket:socket-listen "0.0.0.0" ssl-port :reuse-address t :element-type '(unsigned-byte 8)))
-    (setf *accept-thread-tls*
-          (bt:make-thread (lambda () (accept-loop *server-socket-tls* :ssl t))
-                          :name (format nil "lumen-accept-tls-~A" ssl-port)))
-    (format t "~&Lumen HTTPS listening on ~A~%" ssl-port))
-  t)
-|#
-
-(defun stop ()
-  (labels ((stop-one (sock thr)
-             (when sock (ignore-errors (usocket:socket-close sock)))
-             (when thr  (ignore-errors (bt:destroy-thread thr)))))
-    (stop-one *server-socket* *accept-thread*)
-    (stop-one *server-socket-tls* *accept-thread-tls*)
-    (setf *server-socket* nil
-          *accept-thread* nil
-          *server-socket-tls* nil
-          *accept-thread-tls* nil
-          *ssl-context* nil))
+(defun stop (listeners)
+  "Arrête une liste de listeners retournée par START."
+  (dolist (l listeners)
+    (format t "~&[SERVER] Stopping listener on port ~A...~%" (listener-port l))
+    
+    ;; 1. Fermeture Socket (Coupe les nouvelles connexions)
+    (ignore-errors (usocket:socket-close (listener-socket l)))
+    
+    ;; 2. Arrêt du Thread (Brutal mais nécessaire pour les boucles bloquantes)
+    (let ((thr (listener-thread l)))
+      (when (and thr (bt:thread-alive-p thr))
+        (ignore-errors (bt:destroy-thread thr)))))
+  
+  ;; Nettoyage SSL global si plus aucun listener ne tourne (optionnel)
+  ;; (setf *ssl-context* nil) 
   t)

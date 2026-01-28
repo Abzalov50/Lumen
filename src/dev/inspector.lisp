@@ -16,25 +16,33 @@
 ;;; ---------------------------------------------------------------------------
 
 (defun get-unique-routes ()
-  "Récupère les routes uniques (Method + Path) depuis le routeur."
+  "Récupère les routes depuis le registre statique *MODULE-REGISTRY*."
   (let ((seen (make-hash-table :test 'equal))
-        (unique-list '())
-        (routes-vec (if (boundp 'lumen.core.router::*routes*)
-                        (symbol-value 'lumen.core.router::*routes*)
-                        #())))
-    (loop for i downfrom (1- (length routes-vec)) to 0
-          for r = (aref routes-vec i)
-          do (ignore-errors
-               (let* ((m (lumen.core.router::route-method r))
-                      (p (lumen.core.router::route-source-path r)))
-                 (when (and m p)
-                   (let ((k (format nil "~A ~A" m p)))
-                     (unless (gethash k seen)
-                       (setf (gethash k seen) t)
-                       (push r unique-list)))))))
+        (unique-list '()))
+    
+    ;; On parcourt la HashMap *module-registry* (Module -> Liste de Routes)
+    (maphash 
+     (lambda (module-name routes-list)
+       (declare (ignore module-name)) ;; On n'a pas besoin du nom ici, juste des routes
+       (dolist (r routes-list)
+         (ignore-errors
+           ;; On utilise les accesseurs internes du routeur
+           (let* ((m (lumen.core.router::route-method r))
+                  (p (lumen.core.router::route-source-path r)))
+             (when (and m p)
+               ;; Déduplication basée sur "METHOD PATH"
+               (let ((k (format nil "~A ~A" m p)))
+                 (unless (gethash k seen)
+                   (setf (gethash k seen) t)
+                   (push r unique-list))))))))
+     ;; C'est ici la correction : on pointe sur la bonne variable globale
+     lumen.core.router::*module-registry*)
+    
+    ;; On retourne la liste plate des routes uniques
     unique-list))
 
 (defun find-module-for-path (path)
+  "Trouve le module responsable d'un path donné (inchangé, car get-modules est le registre statique)."
   (unless (stringp path) (return-from find-module-for-path nil))
   (let ((modules (lumen.dev.module:get-modules))
         (best-match nil)
@@ -51,12 +59,19 @@
     best-match))
 
 (defun find-route-summary (method path)
+  "Cherche le résumé d'une route dans les métadonnées des modules chargés."
   (ignore-errors 
-    (let ((entry (find-if (lambda (x) 
-                            (and (string= (getf x :method) method)
-                                 (string= (getf x :path) path)))
-                          lumen.http.crud::*custom-route-registry*)))
-      (getf entry :summary))))
+    (block search-block
+      (dolist (mod (lumen.dev.module:get-modules))
+        ;; On parcourt les routes déclarées dans le module (générées par defmodule)
+        (dolist (r (lumen.dev.module:module-meta-routes mod))
+          ;; r est une plist : (:method "GET" :path "/api/..." :summary "..." ...)
+          (when (and (string-equal (getf r :method) method)
+                     (string= (getf r :path) path))
+            (return-from search-block (getf r :summary)))))
+      
+      ;; Fallback : Si non trouvé, on retourne une chaine vide
+      "")))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 2. FRONTEND ASSETS
@@ -289,7 +304,7 @@
 (defun safe-render-rows (s)
   (let ((routes (handler-case (get-unique-routes) 
                   (error () nil))))
-    
+    (print routes)
     (dolist (r routes)
       (handler-case
           (let* ((m (or (lumen.core.router::route-method r) "UNK")) 
@@ -390,5 +405,7 @@
     (write-string "</div></div></body></html>" s)))
 
 (defun mount-inspector! (&key (path "/_inspector"))
-  (lumen.core.router:defroute :GET path (req)
-    (respond-html (render-dashboard-page))))
+  "Retourne une liste de routes (construct-route) pour le Cockpit."
+  (list 
+   (lumen.core.router:construct-route :GET path (req)
+     (lumen.core.http:respond-html (render-dashboard-page)))))

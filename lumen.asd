@@ -40,15 +40,16 @@
        (:file "trace")
 
        ;; --- SOCLE LUMEN 2.0 (DÉPLACÉ ICI) ---
-       (:file "pipeline")    ;; 1. Base (Class middleware)
-       (:file "middleware" :depends-on ("http" "trace"))  ;; 2. Macros (defmiddleware) + Implems standards
-       ;; -------------------------------------       
-       (:file "scheduler")
        ;; Server utilise tout, donc à la fin
        (:file "server")
+       (:file "pipeline")    ;; 1. Base (Class middleware)
+       (:file "app")              
+       (:file "middleware" :depends-on ("http" "trace"))  ;; 2. Macros (defmiddleware) + Implems standards
+       ;; -------------------------------------       
+       (:file "scheduler")       
        ))
      (:module "data"
-	      :depends-on ("core")
+      :depends-on ("core")
       :components
       ((:file "config")
        (:file "metrics")
@@ -62,9 +63,9 @@
        (:file "migrations")
        ))     
      (:module "http"
+      :depends-on ("data" "core")
       :components
       ((:file "crud")
-       (:file "openapi")
        ))
      (:module "extras"
       :components
@@ -83,6 +84,7 @@
       :components
       ((:file "metrics")))
      (:module "dev"
+      :depends-on ("core" "data" "http")
       :components
       ((:file "cli")
        (:file "scaffold")
