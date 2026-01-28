@@ -109,4 +109,6 @@
        (:file "repo-tests")
        (:file "form-tests")))
      )))
-  :depends-on (alexandria usocket bordeaux-threads flexi-streams cl-ppcre cl-json local-time trivial-utf-8 fiveam salza2 ironclad cl-base64 cl+ssl uuid postmodern str))
+  :depends-on (alexandria usocket bordeaux-threads flexi-streams cl-ppcre cl-json
+			  local-time trivial-utf-8 fiveam salza2 ironclad cl-base64
+			  cl+ssl uuid postmodern str dexador))

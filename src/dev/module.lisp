@@ -33,6 +33,7 @@
          (req-sym (or req-sym (intern "REQ" *package*)))
          
          (rk (gensym "ROUTEKEY"))
+	 (host         (getf options :host))
          (required (getf options :required))
          (roles    (getf options :roles))
          (scopes   (getf options :scopes))
@@ -49,7 +50,7 @@
          
          (required-effective (or required (not (null roles)) (not (null scopes)))))
 
-    `(construct-route ,method ,path-arg ,args
+    `(construct-route ,method ,path-arg ,args :host ,host
        (let* ((,rk (or ,route-key
                        (multiple-value-bind (host-spec real-path)
                            (lumen.core.router::%parse-route-args ,path-arg)
@@ -136,7 +137,7 @@
         nil))
 
   ;; --- EXPANSION ROUTES CUSTOM ---
-(defun %expand-route (method subpath args body-and-opts prefix module-mws-sym)
+(defun %expand-route (method subpath args body-and-opts prefix module-mws-sym &key host)
   (multiple-value-bind (opts raw-code) (%split-body-opts body-and-opts)
     (multiple-value-bind (decls code) (%extract-declarations raw-code)
       (let* ((full-path (format nil "~A~A" prefix subpath))
@@ -172,10 +173,12 @@
                (:roles ,(getf opts :roles) 
                 :scopes ,(getf opts :scopes)
                 :admin-bypass? ,(getf opts :admin-bypass? t)
-                :allow-query-token? t)
+                :allow-query-token? t
+		:host ,host)
                ,@final-body)
             
             `(lumen.core.router:construct-route ,method-kw ,full-path ,args
+	       :host ,host
                ,@final-body))))))
 
 ;; --- EXPANSION HOOKS ---
@@ -234,7 +237,7 @@
                ,@body)))))))
 
 ;;; --- LA MACRO DEFMODULE ---
-(defmacro defmodule (name &key doc path-prefix middlewares entities resources routes hooks &environment env)
+(defmacro defmodule (name &key doc path-prefix host middlewares entities resources routes hooks &environment env)
   (let ((sanitized-prefix (string-right-trim "/" (or path-prefix "")))
         (mws-var (intern (format nil "*~A-MIDDLEWARES*" name)))) 
     
@@ -277,7 +280,7 @@
                       (if (%is-static-route-p r)
                           `(list ,(%ensure-expanded 
                                    (destructuring-bind (method subpath args &body body) r
-                                     (%expand-route method subpath args body sanitized-prefix mws-var))
+                                     (%expand-route method subpath args body sanitized-prefix mws-var :host host))
                                    env))
                           r))))
            

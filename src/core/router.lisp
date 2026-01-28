@@ -19,7 +19,7 @@
 (in-package :lumen.core.router)
 
 ;;; ===========================================================================
-;;; 1. STRUCTURES DE DONNÉES (Route & Router)
+;;; 1. STRUCTURES DE DONNÉES
 ;;; ===========================================================================
 
 (defstruct route
@@ -31,8 +31,6 @@
   host-param-names      ; réservé
   source-path)          ; "/users/:id" (pour introspection)
 
-;; NOUVEAU : On encapsule la liste des routes dans une structure "Router"
-;; Cela permet d'avoir plusieurs routeurs (un par App)
 (defclass router ()
   ((routes :initform (make-array 0 :adjustable t :fill-pointer 0) 
            :accessor router-routes)))
@@ -45,16 +43,14 @@
   (vector-push-extend r (router-routes router)))
 
 ;;; ===========================================================================
-;;; 2. REGISTRE DES MODULES (Le "Catalogue")
+;;; 2. REGISTRE DES MODULES
 ;;; ===========================================================================
 
-;; Stocke les définitions de routes par module (avant instanciation de l'app)
-;; Map : Keyword (Nom Module) -> List of Route Objects
 (defvar *module-registry* (make-hash-table :test 'equal))
 
 (defun register-module-routes (module-name routes-list)
   "Enregistre une liste de routes pour un module donné."
-  (let ((clean-routes (remove nil routes-list)))
+  (let ((clean-routes (remove-if #'null routes-list)))
     (setf (gethash module-name *module-registry*) clean-routes)
     (format t "~&[Router] Module ~A : ~D routes enregistrées.~%" 
             module-name (length clean-routes))
@@ -69,24 +65,20 @@
       (add-route-to-router router r))))
 
 ;;; ===========================================================================
-;;; 3. COMPATIBILITÉ GLOBALE (Legacy)
+;;; 3. COMPATIBILITÉ GLOBALE
 ;;; ===========================================================================
 
-;; Le routeur par défaut pour les scripts simples (sans defapp)
 (defparameter *global-router* (make-instance 'router))
 
 (defun clear-routes ()
-  "Réinitialise le routeur global."
   (setf (router-routes *global-router*) (make-array 0 :adjustable t :fill-pointer 0)))
 
 (defun add-route (r)
-  "Ajoute une route au routeur global (Legacy)."
   (add-route-to-router *global-router* r))
 
 ;;; ===========================================================================
-;;; 4. LOGIQUE DE MATCHING (Hôte, Path, Regex)
+;;; 4. LOGIQUE DE MATCHING & REGEX
 ;;; ===========================================================================
-;; (Fonctions utilitaires inchangées, je les garde compactes)
 
 (defun normalize-host (req)
   (let* ((h (or (ctx-get req :host)
@@ -120,6 +112,7 @@
          (cl-ppcre:create-scanner (format nil "^(?:~{~A~^|~})$" (mapcar #'%host->regex-body spec)) :case-insensitive-mode t))
         (t (error "Invalid Host spec: ~S" spec))))
 
+;; --- MISE A JOUR PROXY : Support du Wildcard "*" ---
 (defun compile-path (path)
   (let* ((path (or path "/"))
          (parts (remove-if (lambda (s) (zerop (length s))) (cl-ppcre:split "/" path)))
@@ -127,47 +120,54 @@
     (if (null parts) (setf rx "^/$")
         (progn (dolist (p parts)
                  (setf rx (concatenate 'string rx "/"))
-                 (if (and (> (length p) 1) (char= (char p 0) #\:))
-                     (progn (push (string-downcase (subseq p 1)) params)
-                            (setf rx (concatenate 'string rx "([^/]+)")))
-                     (setf rx (concatenate 'string rx (cl-ppcre:quote-meta-chars p)))))
+                 (cond
+                   ;; 1. Paramètre nommé :id
+                   ((and (> (length p) 1) (char= (char p 0) #\:))
+                    (push (string-downcase (subseq p 1)) params)
+                    (setf rx (concatenate 'string rx "([^/]+)")))
+                   
+                   ;; 2. Wildcard Proxy * (Devient ".*" pour tout capturer)
+                   ((string= p "*")
+                    (setf rx (concatenate 'string rx ".*")))
+                   
+                   ;; 3. Segment statique (échappé)
+                   (t
+                    (setf rx (concatenate 'string rx (cl-ppcre:quote-meta-chars p))))))
                (setf rx (concatenate 'string rx "$"))))
     (values rx (nreverse params))))
 
 ;;; ===========================================================================
-;;; 5. DEFROUTE & PARAMS
+;;; 5. DEFROUTE & CONSTRUCT-ROUTE
 ;;; ===========================================================================
+
 (defun %parse-route-args (path-arg)
   (cond ((stringp path-arg) (values nil path-arg))
         ((listp path-arg) (values (or (getf path-arg :hosts) (getf path-arg :host)) (getf path-arg :path)))
         (t (error "Invalid defroute path-arg: ~S" path-arg))))
 
-;; 1. Fabrique l'objet route (Regex, Handler) mais ne l'enregistre pas.
-(defmacro construct-route (method path-arg arglist &body body)
-  "Compile une route et retourne l'instance #S(ROUTE ...) sans effet de bord."
+;; --- MISE A JOUR VHOST : Ajout de &key host ---
+(defmacro construct-route (method path-arg arglist &key host &body body)
+  "Compile une route. Supporte maintenant :host explicitement."
   (let* ((m (string-upcase (string method)))
-         (doc (when (stringp (first body)) (first body)))
-         ;;(actual-body (if doc (rest body) body))
          (rx (gensym "RX")) 
          (params (gensym "PARAMS")) 
          (host-sc (gensym "HOSTSC")) 
          (handler (gensym "HANDLER"))
          
-         ;; --- FIX DÉFENSIF ULTIME ---
          (raw (if (and arglist (listp arglist)) (first arglist) arglist))
          (req-sym (if (listp raw) (first raw) raw))
          (req-sym (or req-sym (intern "REQ" *package*)))
-         
          (extra-args (if (listp arglist) (rest arglist) nil)))
     
-    `(multiple-value-bind (host-spec %path) (%parse-route-args ,path-arg)
-       (let* ((,rx     (nth-value 0 (compile-path %path)))
-              (,params (nth-value 1 (compile-path %path)))
-              (,host-sc (compile-host-spec host-spec)))
+    `(multiple-value-bind (parsed-host %path) (%parse-route-args ,path-arg)
+       ;; Priorité : Argument explicite > Argument dans le path (Legacy)
+       (let* ((final-host (or ,host parsed-host))
+              (,rx      (nth-value 0 (compile-path %path)))
+              (,params  (nth-value 1 (compile-path %path)))
+              (,host-sc (compile-host-spec final-host)))
          (flet ((,handler (,req-sym ,@extra-args)
                   (declare (ignorable ,req-sym ,@extra-args))
                   ,@body))
-           ;; ON RETOURNE L'OBJET
            (make-route :method ,m 
                        :pattern (cl-ppcre:create-scanner ,rx)
                        :param-names ,params 
@@ -175,14 +175,10 @@
                        :host-scanner ,host-sc 
                        :source-path ,path-arg))))))
 
-;; Legacy Wrapper (pour compatibilité si nécessaire ailleurs)
 (defmacro defguarded (method path-arg args options &body body)
   `(add-route (construct-guarded-route ,method ,path-arg ,args ,options ,@body)))
 
-;; 2. DEFROUTE (Legacy / Scripting)
-;; On garde defroute pour la compatibilité, mais il utilise maintenant construct-route
 (defmacro defroute (method path-arg arglist &body body)
-  "Ajoute une route au routeur global (Comportement legacy)."
   `(add-route (construct-route ,method ,path-arg ,arglist ,@body)))
 
 (defun extract-path-params (scanner names path)
@@ -198,7 +194,7 @@
   `(let ,(mapcar (lambda (n) `(,n (param ,req-sym ,(string-downcase (string n))))) names) ,@body))
 
 ;;; ===========================================================================
-;;; 6. DISPATCH & EXECUTION (Refactorisé pour l'instance)
+;;; 6. DISPATCH
 ;;; ===========================================================================
 
 (defun %match-route-host-p (route host)
@@ -234,38 +230,31 @@
              (match-method (if (string= method "HEAD") "GET" method))
              (host   (normalize-host req))
              (matched nil))
-
-	(print method)
-	(print path)
-	(print match-method)
-	(print host)
+        
+        ;; Debug léger si besoin
+        ;; (print (list :method method :host host :path path))
         
         (cond
-          ;; OPTIONS Auto-magic
           ((string= method "OPTIONS")
            (if (allowed-methods-for router path)
                (respond-options router path)
                (respond-404 "Not Found")))
           
           (t
-           ;; Recherche linéaire dans le routeur fourni
            (loop for r across (router-routes router) do
              (when (and (string= match-method (route-method r))
                         (%match-route-host-p r host)
                         (cl-ppcre:scan (route-pattern r) path))
                (setf matched r)
                (return)))
-	   (print matched)
            
            (if matched
-               ;; MATCH
                (progn
                  (lumen.core.http:ctx-set! req :params 
                    (extract-path-params (route-pattern matched) (route-param-names matched) path))
                  (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
                  (funcall (route-handler matched) req))
                
-               ;; NO MATCH
                (if (allowed-methods-for router path)
                    (respond-405 router path)
                    (respond-404 "Not Found"))))))
@@ -273,7 +262,6 @@
     (http-halt (c) (halt-response c))))
 
 (defun dispatch (req)
-  "Legacy Dispatcher (utilise le routeur global)."
   (match-and-execute *global-router* req))
 
 ;;; ===========================================================================

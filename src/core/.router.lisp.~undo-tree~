@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"b4333b624ea53242fa69a1780267765b300d5f22"
+"1aa9eeff58521dcf4cab1b57842b9edfc6bc3fbc"
 [nil nil nil nil (26790 4293 283756 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 1810 . 1811) (nil fontified nil 1 . 1811) (1 . 1811) (t . -1)) nil (26790 8105 918683 0) 0 nil] [nil nil ((nil rear-nonsticky nil 2140 . 2141) (nil fontified nil 1 . 2141) (1 . 2141) (t . -1)) ((#("(in-package :cl)
 (defun compile-path (path)
@@ -2035,5 +2035,295 @@ nil
 ([nil nil ((2493 . 2497) (2431 . 2433) (2490 . 2491) (t 27002 753 0 0)) nil (27002 1327 325613 0) 0 nil])
 ([nil nil ((nil rear-nonsticky nil 2604 . 2605) (nil fontified nil 2497 . 2605) (2497 . 2605)) nil (27002 1327 325612 0) 0 nil])
 ([nil nil ((2605 . 2610)) nil (27002 1327 325611 0) 0 nil])
-([nil current ((2610 . 2622)) nil (27002 1327 325607 0) 0 nil])
+([nil nil ((2610 . 2622)) nil (27002 1327 325607 0) 0 nil])
+([nil nil ((#("(in-package :cl)
+(defpackage :lumen.core.router
+  (:use :cl :alexandria :cl-ppcre)
+  (:import-from :lumen.core.http
+   :request :response :req-method :req-path :req-headers :req-query :req-cookies
+   :req-params :req-body-stream :req-ctx :resp-status :resp-headers
+   :resp-body :respond-text :respond-json :respond-404 :respond-500 :respond-405
+   :ctx-get :ctx-set! :halt-response :http-halt)
+  (:export 
+   ;; API Utilisateur
+   :defroute :param :with-params :clear-routes
+   :defprotected :defroles :with-guards :defguarded :def-api-route
+   ;; API Introspection
+   :%all-routes-registry-list :respond-415 :respond-options
+   ;; API Container (Lumen 2.0)
+   :create-router :register-module-routes :merge-module-routes :match-and-execute
+   :*global-router* :construct-route))
+
+(in-package :lumen.core.router)
+
+;;; ===========================================================================
+;;; 1. STRUCTURES DE DONNÉES (Route & Router)
+;;; ===========================================================================
+
+(defstruct route
+  method                ; \"GET\" / \"POST\" ...
+  pattern               ; scanner cl-ppcre pour le PATH
+  param-names           ; noms des params extraits du PATH
+  handler               ; (req &rest extras) -> response
+  host-scanner          ; scanner cl-ppcre pour l'HÔTE (NIL => match tout)
+  host-param-names      ; réservé
+  source-path)          ; \"/users/:id\" (pour introspection)
+
+;; NOUVEAU : On encapsule la liste des routes dans une structure \"Router\"
+;; Cela permet d'avoir plusieurs routeurs (un par App)
+(defclass router ()
+  ((routes :initform (make-array 0 :adjustable t :fill-pointer 0) 
+           :accessor router-routes)))
+
+(defun create-router ()
+  \"Crée une nouvelle instance de routeur vide.\"
+  (make-instance 'router))
+
+(defun add-route-to-router (router r)
+  (vector-push-extend r (router-routes router)))
+
+;;; ===========================================================================
+;;; 2. REGISTRE DES MODULES (Le \"Catalogue\")
+;;; ===========================================================================
+
+;; Stocke les définitions de routes par module (avant instanciation de l'app)
+;; Map : Keyword (Nom Module) -> List of Route Objects
+(defvar *module-registry* (make-hash-table :test 'equal))
+
+(defun register-module-routes (module-name routes-list)
+  \"Enregistre une liste de routes pour un module donné.\"
+  (let ((clean-routes (remove nil routes-list)))
+    (setf (gethash module-name *module-registry*) clean-routes)
+    (format t \"~&[Router] Module ~A : ~D routes enregistrées.~%\" 
+            module-name (length clean-routes))
+    clean-routes))
+
+(defun merge-module-routes (router module-name)
+  \"Injecte les routes d'un module dans un routeur actif.\"
+  (let ((routes (gethash module-name *module-registry*)))
+    (unless routes
+      (warn \"Module ~A not found in registry (or empty).\" module-name))
+    (dolist (r routes)
+      (add-route-to-router router r))))
+
+;;; ===========================================================================
+;;; 3. COMPATIBILITÉ GLOBALE (Legacy)
+;;; ===========================================================================
+
+;; Le routeur par défaut pour les scripts simples (sans defapp)
+(defparameter *global-router* (make-instance 'router))
+
+(defun clear-routes ()
+  \"Réinitialise le routeur global.\"
+  (setf (router-routes *global-router*) (make-array 0 :adjustable t :fill-pointer 0)))
+
+(defun add-route (r)
+  \"Ajoute une route au routeur global (Legacy).\"
+  (add-route-to-router *global-router* r))
+
+;;; ===========================================================================
+;;; 4. LOGIQUE DE MATCHING (Hôte, Path, Regex)
+;;; ===========================================================================
+;; (Fonctions utilitaires inchangées, je les garde compactes)
+
+(defun normalize-host (req)
+  (let* ((h (or (ctx-get req :host)
+                (cdr (assoc \"host\" (req-headers req) :test #'string-equal)))))
+    (when h (let ((p (position #\\: h))) (if p (subseq h 0 p) h)))))
+
+(defun %wildcard-host->regex (s)
+  (let* ((parts (uiop:split-string s :separator \".\"))
+         (rx (map 'string #'identity
+                  (with-output-to-string (out)
+                    (loop for i from 0 below (length parts) do
+                      (when (> i 0) (write-string \"\\\\.\" out))
+                      (let ((p (elt parts i)))
+                        (if (string= p \"*\") (write-string \"[^.]+\" out) (write-string (cl-ppcre:quote-meta-chars p) out))))))))
+    (format nil \"^(?:~A)$\" rx)))
+
+(defun %re-quote (s) (cl-ppcre:quote-meta-chars s))
+
+(defun %host->regex-body (host)
+  (cond ((cl-ppcre:scan \"^\\\\*\\\\*\\\\.(.+)$\" host)
+         (format nil \"(?:[^.]+\\\\.)+~A\" (%re-quote (subseq host 3))))
+        ((cl-ppcre:scan \"^\\\\*\\\\.(.+)$\" host)
+         (format nil \"(?:[^.]+\\\\.)~A\" (%re-quote (subseq host 2))))
+        (t (%re-quote host))))
+
+(defun compile-host-spec (spec)
+  (cond ((null spec) nil)
+        ((stringp spec)
+         (cl-ppcre:create-scanner (format nil \"^(?:~A)$\" (%host->regex-body spec)) :case-insensitive-mode t))
+        ((listp spec)
+         (cl-ppcre:create-scanner (format nil \"^(?:~{~A~^|~})$\" (mapcar #'%host->regex-body spec)) :case-insensitive-mode t))
+        (t (error \"Invalid Host spec: ~S\" spec))))
+
+(defun compile-path (path)
+  (let* ((path (or path \"/\"))
+         (parts (remove-if (lambda (s) (zerop (length s))) (cl-ppcre:split \"/\" path)))
+         (rx \"^\") (params '()))
+    (if (null parts) (setf rx \"^/$\")
+        (progn (dolist (p parts)
+                 (setf rx (concatenate 'string rx \"/\"))
+                 (if (and (> (length p) 1) (char= (char p 0) #\\:))
+                     (progn (push (string-downcase (subseq p 1)) params)
+                            (setf rx (concatenate 'string rx \"([^/]+)\")))
+                     (setf rx (concatenate 'string rx (cl-ppcre:quote-meta-chars p)))))
+               (setf rx (concatenate 'string rx \"$\"))))
+    (values rx (nreverse params))))
+
+;;; ===========================================================================
+;;; 5. DEFROUTE & PARAMS
+;;; ===========================================================================
+(defun %parse-route-args (path-arg)
+  (cond ((stringp path-arg) (values nil path-arg))
+        ((listp path-arg) (values (or (getf path-arg :hosts) (getf path-arg :host)) (getf path-arg :path)))
+        (t (error \"Invalid defroute path-arg: ~S\" path-arg))))
+
+;; 1. Fabrique l'objet route (Regex, Handler) mais ne l'enregistre pas.
+(defmacro construct-route (method path-arg arglist &body body)
+  \"Compile une route et retourne l'instance #S(ROUTE ...) sans effet de bord.\"
+  (let* ((m (string-upcase (string method)))
+         (doc (when (stringp (first body)) (first body)))
+         ;;(actual-body (if doc (rest body) body))
+         (rx (gensym \"RX\")) 
+         (params (gensym \"PARAMS\")) 
+         (host-sc (gensym \"HOSTSC\")) 
+         (handler (gensym \"HANDLER\"))
+         
+         ;; --- FIX DÉFENSIF ULTIME ---
+         (raw (if (and arglist (listp arglist)) (first arglist) arglist))
+         (req-sym (if (listp raw) (first raw) raw))
+         (req-sym (or req-sym (intern \"REQ\" *package*)))
+         
+         (extra-args (if (listp arglist) (rest arglist) nil)))
+    
+    `(multiple-value-bind (host-spec %path) (%parse-route-args ,path-arg)
+       (let* ((,rx     (nth-value 0 (compile-path %path)))
+              (,params (nth-value 1 (compile-path %path)))
+              (,host-sc (compile-host-spec host-spec)))
+         (flet ((,handler (,req-sym ,@extra-args)
+                  (declare (ignorable ,req-sym ,@extra-args))
+                  ,@body))
+           ;; ON RETOURNE L'OBJET
+           (make-route :method ,m 
+                       :pattern (cl-ppcre:create-scanner ,rx)
+                       :param-names ,params 
+                       :handler #',handler
+                       :host-scanner ,host-sc 
+                       :source-path ,path-arg))))))
+
+;; Legacy Wrapper (pour compatibilité si nécessaire ailleurs)
+(defmacro defguarded (method path-arg args options &body body)
+  `(add-route (construct-guarded-route ,method ,path-arg ,args ,options ,@body)))
+
+;; 2. DEFROUTE (Legacy / Scripting)
+;; On garde defroute pour la compatibilité, mais il utilise maintenant construct-route
+(defmacro defroute (method path-arg arglist &body body)
+  \"Ajoute une route au routeur global (Comportement legacy).\"
+  `(add-route (construct-route ,method ,path-arg ,arglist ,@body)))
+
+(defun extract-path-params (scanner names path)
+  (multiple-value-bind (match regs) (cl-ppcre:scan-to-strings scanner path)
+    (when match
+      (loop for nm in names for i from 0
+            for v = (aref regs i) when v collect (cons (string-downcase (string nm)) v)))))
+
+(defun param (req name)
+  (cdr (assoc (string-downcase name) (req-params req) :test #'string=)))
+
+(defmacro with-params ((req-sym &rest names) &body body)
+  `(let ,(mapcar (lambda (n) `(,n (param ,req-sym ,(string-downcase (string n))))) names) ,@body))
+
+;;; ===========================================================================
+;;; 6. DISPATCH & EXECUTION (Refactorisé pour l'instance)
+;;; ===========================================================================
+
+(defun %match-route-host-p (route host)
+  (let ((sc (route-host-scanner route)))
+    (or (null sc) (and host (cl-ppcre:scan sc host)))))
+
+(defun allowed-methods-for (router path)
+  (let ((methods '()))
+    (loop for r across (router-routes router) do
+      (when (cl-ppcre:scan (route-pattern r) path)
+        (pushnew (route-method r) methods :test #'string=)))
+    (when (member \"GET\" methods :test #'string=) (pushnew \"HEAD\" methods :test #'string=))
+    (when methods (pushnew \"OPTIONS\" methods :test #'string=))
+    (sort (copy-list methods) #'string<)))
+
+(defun respond-options (router path)
+  (let ((methods (allowed-methods-for router path)))
+    (make-instance 'lumen.core.http:response :status 204
+                   :headers (list (cons \"allow\" (format nil \"~{~A~^, ~}\" methods)))
+                   :body \"\")))
+
+(defun respond-405 (router path)
+  (let ((methods (allowed-methods-for router path)))
+    (lumen.core.http:respond-json 
+     `((:error . ((:type . \"method_not_allowed\") (:allowed . ,methods))))
+     :status 405 :headers (list (cons \"allow\" (format nil \"~{~A~^, ~}\" methods))))))
+
+(defun match-and-execute (router req)
+  \"Cœur du routage : Prend un routeur spécifique et une requête.\"
+  (handler-case
+      (let* ((method (req-method req))
+             (path   (req-path req))
+             (match-method (if (string= method \"HEAD\") \"GET\" method))
+             (host   (normalize-host req))
+             (matched nil))
+
+	(print method)
+	(print path)
+	(print match-method)
+	(print host)
+        
+        (cond
+          ;; OPTIONS Auto-magic
+          ((string= method \"OPTIONS\")
+           (if (allowed-methods-for router path)
+               (respond-options router path)
+               (respond-404 \"Not Found\")))
+          
+          (t
+           ;; Recherche linéaire dans le routeur fourni
+           (loop for r across (router-routes router) do
+             (when (and (string= match-method (route-method r))
+                        (%match-route-host-p r host)
+                        (cl-ppcre:scan (route-pattern r) path))
+               (setf matched r)
+               (return)))
+	   (print matched)
+           
+           (if matched
+               ;; MATCH
+               (progn
+                 (lumen.core.http:ctx-set! req :params 
+                   (extract-path-params (route-pattern matched) (route-param-names matched) path))
+                 (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
+                 (funcall (route-handler matched) req))
+               
+               ;; NO MATCH
+               (if (allowed-methods-for router path)
+                   (respond-405 router path)
+                   (respond-404 \"Not Found\"))))))
+    
+    (http-halt (c) (halt-response c))))
+
+(defun dispatch (req)
+  \"Legacy Dispatcher (utilise le routeur global).\"
+  (match-and-execute *global-router* req))
+
+;;; ===========================================================================
+;;; 7. INTROSPECTION
+;;; ===========================================================================
+
+(defun %all-routes-registry-list ()
+  (loop for r across (router-routes *global-router*)
+        collect (list :method (route-method r)
+                      :path (route-source-path r)
+                      :params (route-param-names r))))
+" 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 15 (face font-lock-builtin-face fontified t) 15 18 (fontified t) 18 28 (face font-lock-keyword-face fontified t) 28 29 (fontified t) 29 47 (face font-lock-type-face fontified t) 47 51 (fontified t) 51 55 (face font-lock-builtin-face fontified t) 55 56 (fontified t) 56 59 (face font-lock-builtin-face fontified t) 59 60 (fontified t) 60 71 (face font-lock-builtin-face fontified t) 71 72 (fontified t) 72 81 (face font-lock-builtin-face fontified t) 81 86 (fontified t) 86 98 (face font-lock-builtin-face fontified t) 98 99 (fontified t) 99 115 (face font-lock-builtin-face fontified t) 115 119 (fontified t) 119 127 (face font-lock-builtin-face fontified t) 127 128 (fontified t) 128 137 (face font-lock-builtin-face fontified t) 137 138 (fontified t) 138 149 (face font-lock-builtin-face fontified t) 149 150 (fontified t) 150 159 (face font-lock-builtin-face fontified t) 159 160 (fontified t) 160 172 (face font-lock-builtin-face fontified t) 172 173 (fontified t) 173 183 (face font-lock-builtin-face fontified t) 183 184 (fontified t) 184 196 (face font-lock-builtin-face fontified t) 196 200 (fontified t) 200 211 (face font-lock-builtin-face fontified t) 211 212 (fontified t) 212 228 (face font-lock-builtin-face fontified t) 228 229 (fontified t) 229 237 (face font-lock-builtin-face fontified t) 237 238 (fontified t) 238 250 (face font-lock-builtin-face fontified t) 250 251 (fontified t) 251 264 (face font-lock-builtin-face fontified t) 264 268 (fontified t) 268 278 (face font-lock-builtin-face fontified t) 278 279 (fontified t) 279 292 (face font-lock-builtin-face fontified t) 292 293 (fontified t) 293 306 (face font-lock-builtin-face fontified t) 306 307 (fontified t) 307 319 (face font-lock-builtin-face fontified t) 319 320 (fontified t) 320 332 (face font-lock-builtin-face fontified t) 332 333 (fontified t) 333 345 (face font-lock-builtin-face fontified t) 345 349 (fontified t) 349 357 (face font-lock-builtin-face fontified t) 357 358 (fontified t) 358 367 (face font-lock-builtin-face fontified t) 367 368 (fontified t) 368 382 (face font-lock-builtin-face fontified t) 382 383 (fontified t) 383 393 (face font-lock-builtin-face fontified t) 393 398 (fontified t) 398 405 (face font-lock-builtin-face fontified t) 405 410 (fontified t) 410 413 (face font-lock-comment-delimiter-face fontified t) 413 429 (face font-lock-comment-face fontified t) 429 432 (fontified t) 432 441 (face font-lock-builtin-face fontified t) 441 442 (fontified t) 442 448 (face font-lock-builtin-face fontified t) 448 449 (fontified t) 449 461 (face font-lock-builtin-face fontified t) 461 462 (fontified t) 462 475 (face font-lock-builtin-face fontified t) 475 479 (fontified t) 479 492 (face font-lock-builtin-face fontified t) 492 493 (fontified t) 493 502 (face font-lock-builtin-face fontified t) 502 503 (fontified t) 503 515 (face font-lock-builtin-face fontified t) 515 516 (fontified t) 516 527 (face font-lock-builtin-face fontified t) 527 528 (fontified t) 528 542 (face font-lock-builtin-face fontified t) 542 546 (fontified t) 546 549 (face font-lock-comment-delimiter-face fontified t) 549 567 (face font-lock-comment-face fontified t) 567 570 (fontified t) 570 596 (face font-lock-builtin-face fontified t) 596 597 (fontified t) 597 609 (face font-lock-builtin-face fontified t) 609 610 (fontified t) 610 626 (face font-lock-builtin-face fontified t) 626 630 (fontified t) 630 633 (face font-lock-comment-delimiter-face fontified t) 633 659 (face font-lock-comment-face fontified t) 659 662 (fontified t) 662 676 (face font-lock-builtin-face fontified t) 676 677 (fontified t) 677 700 (face font-lock-builtin-face fontified t) 700 701 (fontified t) 701 721 (face font-lock-builtin-face fontified t) 721 722 (fontified t) 722 740 (face font-lock-builtin-face fontified t) 740 744 (fontified t) 744 760 (face font-lock-builtin-face fontified t) 760 761 (fontified t) 761 777 (face font-lock-builtin-face fontified t) 777 782 (fontified t) 782 792 (face font-lock-keyword-face fontified t) 792 793 (fontified t) 793 811 (face font-lock-builtin-face fontified t) 811 814 (fontified t) 814 818 (face font-lock-comment-delimiter-face fontified t) 818 894 (face font-lock-comment-face fontified t) 894 898 (face font-lock-comment-delimiter-face fontified t) 898 940 (face font-lock-comment-face fontified t) 940 944 (face font-lock-comment-delimiter-face fontified t) 944 1020 (face font-lock-comment-face fontified t) 1020 1022 (fontified t) 1022 1031 (face font-lock-keyword-face fontified t) 1031 1032 (fontified t) 1032 1037 (face font-lock-type-face fontified t) 1037 1062 (fontified t) 1062 1083 (face font-lock-comment-face fontified t) 1083 1107 (fontified t) 1107 1139 (face font-lock-comment-face fontified t) 1139 1163 (fontified t) 1163 1198 (face font-lock-comment-face fontified t) 1198 1222 (fontified t) 1222 1255 (face font-lock-comment-face fontified t) 1255 1279 (fontified t) 1279 1330 (face font-lock-comment-face fontified t) 1330 1354 (fontified t) 1354 1364 (face font-lock-comment-face fontified t) 1364 1388 (fontified t) 1388 1424 (face font-lock-comment-face fontified t) 1424 1425 (fontified t) 1425 1428 (face font-lock-comment-delimiter-face fontified t) 1428 1499 (face font-lock-comment-face fontified t) 1499 1500 (face font-lock-comment-delimiter-face fontified t) 1500 1502 (face font-lock-comment-delimiter-face fontified t) 1502 1554 (face font-lock-comment-face fontified t) 1554 1555 (fontified t) 1555 1563 (face font-lock-keyword-face fontified t) 1563 1564 (fontified t) 1564 1570 (face font-lock-type-face fontified t) 1570 1585 (fontified t) 1585 1594 (face font-lock-builtin-face fontified t) 1594 1609 (fontified t) 1609 1620 (face font-lock-builtin-face fontified t) 1620 1623 (fontified t) 1623 1636 (face font-lock-builtin-face fontified t) 1636 1652 (fontified t) 1652 1661 (face font-lock-builtin-face fontified t) 1661 1681 (fontified t) 1681 1686 (face font-lock-keyword-face fontified t) 1686 1687 (fontified t) 1687 1700 (face font-lock-function-name-face fontified t) 1700 1706 (fontified t) 1706 1751 (face font-lock-doc-face fontified t) 1751 1781 (fontified t) 1781 1786 (face font-lock-keyword-face fontified t) 1786 1787 (fontified t) 1787 1806 (face font-lock-function-name-face fontified t) 1806 1868 (fontified t) 1868 1872 (face font-lock-comment-delimiter-face fontified t) 1872 1948 (face font-lock-comment-face fontified t) 1948 1952 (face font-lock-comment-delimiter-face fontified t) 1952 1993 (face font-lock-comment-face fontified t) 1993 1997 (face font-lock-comment-delimiter-face fontified t) 1997 2073 (face font-lock-comment-face fontified t) 2073 2074 (fontified t) 2074 2077 (face font-lock-comment-delimiter-face fontified t) 2077 2152 (face font-lock-comment-face fontified t) 2152 2155 (face font-lock-comment-delimiter-face fontified t) 2155 2207 (face font-lock-comment-face fontified t) 2207 2208 (fontified t) 2208 2214 (face font-lock-keyword-face fontified t) 2214 2215 (fontified t) 2215 2232 (face font-lock-variable-name-face fontified t) 2232 2250 (fontified t) 2250 2255 (face font-lock-builtin-face fontified t) 2255 2267 (fontified t) 2267 2272 (face font-lock-keyword-face fontified t) 2272 2273 (fontified t) 2273 2295 (face font-lock-function-name-face fontified t) 2295 2324 (fontified t) 2324 2378 (face font-lock-doc-face fontified t) 2378 2382 (fontified t) 2382 2385 (face font-lock-keyword-face fontified t) 2385 2506 (fontified t) 2506 2556 (face font-lock-string-face fontified t) 2556 2626 (fontified t) 2626 2631 (face font-lock-keyword-face fontified t) 2631 2632 (fontified t) 2632 2651 (face font-lock-function-name-face fontified t) 2651 2675 (fontified t) 2675 2730 (face font-lock-doc-face fontified t) 2730 2734 (fontified t) 2734 2737 (face font-lock-keyword-face fontified t) 2737 2794 (fontified t) 2794 2800 (face font-lock-keyword-face fontified t) 2800 2815 (fontified t) 2815 2819 (face font-lock-warning-face fontified t) 2819 2820 (fontified t) 2820 2865 (face font-lock-string-face fontified t) 2865 2885 (fontified t) 2885 2891 (face font-lock-keyword-face fontified t) 2891 2944 (fontified t) 2944 2948 (face font-lock-comment-delimiter-face fontified t) 2948 3024 (face font-lock-comment-face fontified t) 3024 3028 (face font-lock-comment-delimiter-face fontified t) 3028 3054 (face font-lock-comment-face fontified t) 3054 3062 (face font-lock-comment-face fontified t) 3062 3066 (face font-lock-comment-delimiter-face fontified t) 3066 3142 (face font-lock-comment-face fontified t) 3142 3143 (fontified t) 3143 3146 (face font-lock-comment-delimiter-face fontified t) 3146 3207 (face font-lock-comment-face fontified t) 3207 3208 (fontified t) 3208 3220 (face font-lock-keyword-face fontified t) 3220 3221 (fontified t) 3221 3236 (face font-lock-variable-name-face fontified t) 3236 3264 (fontified t) 3264 3269 (face font-lock-keyword-face fontified t) 3269 3270 (fontified t) 3270 3282 (face font-lock-function-name-face fontified t) 3282 3288 (fontified t) 3288 3321 (face font-lock-doc-face fontified t) 3321 3376 (fontified t) 3376 3387 (face font-lock-builtin-face fontified t) 3387 3390 (fontified t) 3390 3403 (face font-lock-builtin-face fontified t) 3403 3411 (fontified t) 3411 3416 (face font-lock-keyword-face fontified t) 3416 3417 (fontified t) 3417 3426 (face font-lock-function-name-face fontified t) 3426 3433 (fontified t) 3433 3479 (face font-lock-doc-face fontified t) 3479 3524 (fontified t) 3524 3528 (face font-lock-comment-delimiter-face fontified t) 3528 3604 (face font-lock-comment-face fontified t) 3604 3608 (face font-lock-comment-delimiter-face fontified t) 3608 3651 (face font-lock-comment-face fontified t) 3651 3655 (face font-lock-comment-delimiter-face fontified t) 3655 3731 (face font-lock-comment-face fontified t) 3731 3734 (face font-lock-comment-delimiter-face fontified t) 3734 3793 (face font-lock-comment-face fontified t) 3793 3795 (fontified t) 3795 3800 (face font-lock-keyword-face fontified t) 3800 3801 (fontified t) 3801 3815 (face font-lock-function-name-face fontified t) 3815 3825 (fontified t) 3825 3829 (face font-lock-keyword-face fontified t) 3829 3851 (fontified t) 3851 3856 (face font-lock-builtin-face fontified t) 3856 3886 (fontified t) 3886 3892 (face font-lock-string-face fontified t) 3892 3911 (fontified t) 3911 3916 (face font-lock-builtin-face fontified t) 3916 3942 (fontified t) 3942 3946 (face font-lock-keyword-face fontified t) 3946 3950 (fontified t) 3950 3953 (face font-lock-keyword-face fontified t) 3953 3978 (fontified t) 3978 3980 (face font-lock-keyword-face fontified t) 3980 4007 (fontified t) 4007 4012 (face font-lock-keyword-face fontified t) 4012 4013 (fontified t) 4013 4034 (face font-lock-function-name-face fontified t) 4034 4042 (fontified t) 4042 4046 (face font-lock-keyword-face fontified t) 4046 4076 (fontified t) 4076 4086 (face font-lock-builtin-face fontified t) 4086 4087 (fontified t) 4087 4090 (face font-lock-string-face fontified t) 4090 4149 (fontified t) 4149 4170 (face font-lock-keyword-face fontified t) 4170 4198 (fontified t) 4198 4202 (face font-lock-keyword-face fontified t) 4202 4263 (fontified t) 4263 4267 (face font-lock-keyword-face fontified t) 4267 4290 (fontified t) 4290 4295 (face font-lock-string-face fontified t) 4295 4325 (fontified t) 4325 4328 (face font-lock-keyword-face fontified t) 4328 4374 (fontified t) 4374 4376 (face font-lock-keyword-face fontified t) 4376 4388 (fontified t) 4388 4391 (face font-lock-string-face fontified t) 4391 4407 (fontified t) 4407 4409 (face font-lock-string-face fontified t) 4409 4410 (face (font-lock-negation-char-face font-lock-string-face) fontified t) 4410 4414 (face font-lock-string-face fontified t) 4414 4492 (fontified t) 4492 4502 (face font-lock-string-face fontified t) 4502 4511 (fontified t) 4511 4516 (face font-lock-keyword-face fontified t) 4516 4517 (fontified t) 4517 4526 (face font-lock-function-name-face fontified t) 4526 4562 (fontified t) 4562 4564 (fontified t) 4564 4569 (face font-lock-keyword-face fontified t) 4569 4570 (fontified t) 4570 4587 (face font-lock-function-name-face fontified t) 4587 4598 (fontified t) 4598 4602 (face font-lock-keyword-face fontified t) 4602 4619 (fontified t) 4619 4636 (face font-lock-string-face fontified t) 4636 4664 (fontified t) 4664 4669 (face font-lock-string-face fontified t) 4669 4670 (face (font-lock-negation-char-face font-lock-string-face) fontified t) 4670 4681 (face font-lock-string-face fontified t) 4681 4736 (fontified t) 4736 4750 (face font-lock-string-face fontified t) 4750 4778 (fontified t) 4778 4783 (face font-lock-string-face fontified t) 4783 4784 (face (font-lock-negation-char-face font-lock-string-face) fontified t) 4784 4794 (face font-lock-string-face fontified t) 4794 4858 (fontified t) 4858 4863 (face font-lock-keyword-face fontified t) 4863 4864 (fontified t) 4864 4881 (face font-lock-function-name-face fontified t) 4881 4892 (fontified t) 4892 4896 (face font-lock-keyword-face fontified t) 4896 4985 (fontified t) 4985 4995 (face font-lock-string-face fontified t) 4995 5022 (fontified t) 5022 5044 (face font-lock-builtin-face fontified t) 5044 5117 (fontified t) 5117 5134 (face font-lock-string-face fontified t) 5134 5170 (fontified t) 5170 5192 (face font-lock-builtin-face fontified t) 5192 5209 (fontified t) 5209 5214 (face font-lock-warning-face fontified t) 5214 5215 (fontified t) 5215 5238 (face font-lock-string-face fontified t) 5238 5250 (fontified t) 5250 5255 (face font-lock-keyword-face fontified t) 5255 5256 (fontified t) 5256 5268 (face font-lock-function-name-face fontified t) 5268 5279 (fontified t) 5279 5283 (face font-lock-keyword-face fontified t) 5283 5300 (fontified t) 5300 5303 (face font-lock-string-face fontified t) 5303 5334 (fontified t) 5334 5340 (face font-lock-keyword-face fontified t) 5340 5381 (fontified t) 5381 5384 (face font-lock-string-face fontified t) 5384 5406 (fontified t) 5406 5409 (face font-lock-string-face fontified t) 5409 5430 (fontified t) 5430 5432 (face font-lock-keyword-face fontified t) 5432 5455 (fontified t) 5455 5460 (face font-lock-string-face fontified t) 5460 5471 (fontified t) 5471 5476 (face font-lock-keyword-face fontified t) 5476 5478 (fontified t) 5478 5484 (face font-lock-keyword-face fontified t) 5484 5545 (fontified t) 5545 5548 (face font-lock-string-face fontified t) 5548 5569 (fontified t) 5569 5571 (face font-lock-keyword-face fontified t) 5571 5640 (fontified t) 5640 5645 (face font-lock-keyword-face fontified t) 5645 5752 (fontified t) 5752 5755 (face font-lock-string-face fontified t) 5755 5756 (face (font-lock-negation-char-face font-lock-string-face) fontified t) 5756 5761 (face font-lock-string-face fontified t) 5761 5901 (fontified t) 5901 5904 (face font-lock-string-face fontified t) 5904 5946 (fontified t) 5946 5950 (face font-lock-comment-delimiter-face fontified t) 5950 6026 (face font-lock-comment-face fontified t) 6026 6030 (face font-lock-comment-delimiter-face fontified t) 6030 6051 (face font-lock-comment-face fontified t) 6051 6055 (face font-lock-comment-delimiter-face fontified t) 6055 6062 (face font-lock-comment-face fontified t) 6062 6131 (face font-lock-comment-face fontified t) 6131 6132 (fontified t) 6132 6137 (face font-lock-keyword-face fontified t) 6137 6138 (fontified t) 6138 6155 (face font-lock-function-name-face fontified t) 6155 6170 (fontified t) 6170 6174 (face font-lock-keyword-face fontified t) 6174 6271 (fontified t) 6271 6277 (face font-lock-builtin-face fontified t) 6277 6294 (fontified t) 6294 6299 (face font-lock-builtin-face fontified t) 6299 6317 (fontified t) 6317 6322 (face font-lock-builtin-face fontified t) 6322 6338 (fontified t) 6338 6343 (face font-lock-warning-face fontified t) 6343 6344 (fontified t) 6344 6375 (face font-lock-string-face fontified t) 6375 6390 (fontified t) 6390 6393 (face font-lock-comment-delimiter-face fontified t) 6393 6462 (face font-lock-comment-face fontified t) 6462 6463 (fontified t) 6463 6471 (face font-lock-keyword-face fontified t) 6471 6472 (fontified t) 6472 6487 (face font-lock-function-name-face fontified t) 6487 6513 (fontified t) 6513 6518 (face font-lock-type-face fontified t) 6518 6527 (fontified t) 6527 6603 (face font-lock-doc-face fontified t) 6603 6607 (fontified t) 6607 6611 (face font-lock-keyword-face fontified t) 6611 6664 (fontified t) 6664 6668 (face font-lock-keyword-face fontified t) 6668 6716 (fontified t) 6716 6718 (face font-lock-comment-delimiter-face fontified t) 6718 6758 (face font-lock-comment-face fontified t) 6758 6779 (fontified t) 6779 6783 (face font-lock-string-face fontified t) 6783 6812 (fontified t) 6812 6820 (face font-lock-string-face fontified t) 6820 6850 (fontified t) 6850 6858 (face font-lock-string-face fontified t) 6858 6888 (fontified t) 6888 6897 (face font-lock-string-face fontified t) 6897 6919 (fontified t) 6919 6922 (face font-lock-comment-delimiter-face fontified t) 6922 6950 (face font-lock-comment-face fontified t) 6950 6965 (fontified t) 6965 6967 (face font-lock-keyword-face fontified t) 6967 7043 (fontified t) 7043 7045 (face font-lock-keyword-face fontified t) 7045 7114 (fontified t) 7114 7119 (face font-lock-string-face fontified t) 7119 7165 (fontified t) 7165 7167 (face font-lock-keyword-face fontified t) 7167 7217 (fontified t) 7217 7236 (face font-lock-keyword-face fontified t) 7236 7293 (fontified t) 7293 7297 (face font-lock-keyword-face fontified t) 7297 7469 (fontified t) 7469 7473 (face font-lock-keyword-face fontified t) 7473 7528 (fontified t) 7528 7535 (face font-lock-keyword-face fontified t) 7535 7609 (fontified t) 7609 7612 (face font-lock-comment-delimiter-face fontified t) 7612 7631 (face font-lock-comment-face fontified t) 7631 7632 (face font-lock-comment-face fontified t) 7632 7655 (fontified t) 7655 7662 (face font-lock-builtin-face fontified t) 7662 7690 (fontified t) 7690 7698 (face font-lock-builtin-face fontified t) 7698 7752 (fontified t) 7752 7764 (face font-lock-builtin-face fontified t) 7764 7797 (fontified t) 7797 7805 (face font-lock-builtin-face fontified t) 7805 7840 (fontified t) 7840 7853 (face font-lock-builtin-face fontified t) 7853 7887 (fontified t) 7887 7899 (face font-lock-builtin-face fontified t) 7899 7917 (fontified t) 7917 7920 (face font-lock-comment-delimiter-face fontified t) 7920 7979 (face font-lock-comment-face fontified t) 7979 7980 (fontified t) 7980 7988 (face font-lock-keyword-face fontified t) 7988 7989 (fontified t) 7989 7999 (face font-lock-function-name-face fontified t) 7999 8030 (fontified t) 8030 8035 (face font-lock-type-face fontified t) 8035 8125 (fontified t) 8125 8128 (face font-lock-comment-delimiter-face fontified t) 8128 8161 (face font-lock-comment-face fontified t) 8161 8164 (face font-lock-comment-delimiter-face fontified t) 8164 8248 (face font-lock-comment-face fontified t) 8248 8249 (fontified t) 8249 8257 (face font-lock-keyword-face fontified t) 8257 8258 (fontified t) 8258 8266 (face font-lock-function-name-face fontified t) 8266 8292 (fontified t) 8292 8297 (face font-lock-type-face fontified t) 8297 8306 (fontified t) 8306 8365 (face font-lock-doc-face fontified t) 8365 8436 (fontified t) 8436 8441 (face font-lock-keyword-face fontified t) 8441 8442 (fontified t) 8442 8461 (face font-lock-function-name-face fontified t) 8461 8486 (fontified t) 8486 8505 (face font-lock-keyword-face fontified t) 8505 8564 (fontified t) 8564 8568 (face font-lock-keyword-face fontified t) 8568 8582 (fontified t) 8582 8586 (face font-lock-keyword-face fontified t) 8586 8710 (fontified t) 8710 8715 (face font-lock-keyword-face fontified t) 8715 8716 (fontified t) 8716 8721 (face font-lock-function-name-face fontified t) 8721 8787 (fontified t) 8787 8792 (face font-lock-builtin-face fontified t) 8792 8808 (fontified t) 8808 8816 (face font-lock-keyword-face fontified t) 8816 8817 (fontified t) 8817 8828 (face font-lock-function-name-face fontified t) 8828 8839 (fontified t) 8839 8844 (face font-lock-type-face fontified t) 8844 8852 (fontified t) 8852 8857 (face font-lock-type-face fontified t) 8857 8868 (fontified t) 8868 8871 (face font-lock-keyword-face fontified t) 8871 8882 (fontified t) 8882 8888 (face font-lock-keyword-face fontified t) 8888 8964 (fontified t) 8964 8968 (face font-lock-comment-delimiter-face fontified t) 8968 9044 (face font-lock-comment-face fontified t) 9044 9048 (face font-lock-comment-delimiter-face fontified t) 9048 9102 (face font-lock-comment-face fontified t) 9102 9106 (face font-lock-comment-delimiter-face fontified t) 9106 9132 (face font-lock-comment-face fontified t) 9132 9182 (face font-lock-comment-face fontified t) 9182 9184 (fontified t) 9184 9189 (face font-lock-keyword-face fontified t) 9189 9190 (fontified t) 9190 9209 (face font-lock-function-name-face fontified t) 9209 9226 (fontified t) 9226 9229 (face font-lock-keyword-face fontified t) 9229 9322 (fontified t) 9322 9327 (face font-lock-keyword-face fontified t) 9327 9328 (fontified t) 9328 9347 (face font-lock-function-name-face fontified t) 9347 9365 (fontified t) 9365 9368 (face font-lock-keyword-face fontified t) 9368 9390 (fontified t) 9390 9394 (face font-lock-keyword-face fontified t) 9394 9441 (fontified t) 9441 9445 (face font-lock-keyword-face fontified t) 9445 9527 (fontified t) 9527 9532 (face font-lock-builtin-face fontified t) 9532 9551 (fontified t) 9551 9555 (face font-lock-keyword-face fontified t) 9555 9564 (fontified t) 9564 9569 (face font-lock-string-face fontified t) 9569 9578 (fontified t) 9578 9583 (face font-lock-builtin-face fontified t) 9583 9604 (fontified t) 9604 9610 (face font-lock-string-face fontified t) 9610 9619 (fontified t) 9619 9624 (face font-lock-builtin-face fontified t) 9624 9642 (fontified t) 9642 9646 (face font-lock-keyword-face fontified t) 9646 9664 (fontified t) 9664 9673 (face font-lock-string-face fontified t) 9673 9682 (fontified t) 9682 9687 (face font-lock-builtin-face fontified t) 9687 9745 (fontified t) 9745 9750 (face font-lock-keyword-face fontified t) 9750 9751 (fontified t) 9751 9766 (face font-lock-function-name-face fontified t) 9766 9784 (fontified t) 9784 9787 (face font-lock-keyword-face fontified t) 9787 9879 (fontified t) 9879 9886 (face font-lock-builtin-face fontified t) 9886 9910 (fontified t) 9910 9918 (face font-lock-builtin-face fontified t) 9918 9931 (fontified t) 9931 9938 (face font-lock-string-face fontified t) 9938 9951 (fontified t) 9951 9963 (face font-lock-string-face fontified t) 9963 9994 (fontified t) 9994 9999 (face font-lock-builtin-face fontified t) 9999 10000 (fontified t) 10000 10002 (face font-lock-string-face fontified t) 10002 10008 (fontified t) 10008 10013 (face font-lock-keyword-face fontified t) 10013 10014 (fontified t) 10014 10025 (face font-lock-function-name-face fontified t) 10025 10043 (fontified t) 10043 10046 (face font-lock-keyword-face fontified t) 10046 10136 (fontified t) 10136 10142 (face font-lock-builtin-face fontified t) 10142 10147 (fontified t) 10147 10152 (face font-lock-builtin-face fontified t) 10152 10155 (fontified t) 10155 10175 (face font-lock-string-face fontified t) 10175 10178 (fontified t) 10178 10186 (face font-lock-builtin-face fontified t) 10186 10207 (fontified t) 10207 10214 (face font-lock-builtin-face fontified t) 10214 10219 (fontified t) 10219 10227 (face font-lock-builtin-face fontified t) 10227 10240 (fontified t) 10240 10247 (face font-lock-string-face fontified t) 10247 10260 (fontified t) 10260 10272 (face font-lock-string-face fontified t) 10272 10288 (fontified t) 10288 10289 (fontified t) 10289 10294 (face font-lock-keyword-face fontified t) 10294 10295 (fontified t) 10295 10312 (face font-lock-function-name-face fontified t) 10312 10328 (fontified t) 10328 10391 (face font-lock-doc-face fontified t) 10391 10395 (fontified t) 10395 10407 (face font-lock-keyword-face fontified t) 10407 10415 (fontified t) 10415 10419 (face font-lock-keyword-face fontified t) 10419 10512 (fontified t) 10512 10514 (face font-lock-keyword-face fontified t) 10514 10531 (fontified t) 10531 10537 (face font-lock-string-face fontified t) 10537 10539 (fontified t) 10539 10544 (face font-lock-string-face fontified t) 10544 10682 (fontified t) 10682 10692 (fontified t) 10692 10710 (fontified t) 10710 10714 (face font-lock-keyword-face fontified t) 10714 10725 (fontified t) 10725 10728 (face font-lock-comment-delimiter-face fontified t) 10728 10747 (face font-lock-comment-face fontified t) 10747 10774 (fontified t) 10774 10783 (face font-lock-string-face fontified t) 10783 10797 (fontified t) 10797 10799 (face font-lock-keyword-face fontified t) 10799 10907 (fontified t) 10907 10918 (face font-lock-string-face fontified t) 10918 10957 (fontified t) 10957 10960 (face font-lock-comment-delimiter-face fontified t) 10960 11002 (face font-lock-comment-face fontified t) 11002 11014 (fontified t) 11014 11018 (face font-lock-keyword-face fontified t) 11018 11072 (fontified t) 11072 11076 (face font-lock-keyword-face fontified t) 11076 11287 (fontified t) 11287 11293 (face font-lock-keyword-face fontified t) 11293 11341 (fontified t) 11341 11343 (face font-lock-keyword-face fontified t) 11343 11367 (fontified t) 11367 11370 (face font-lock-comment-delimiter-face fontified t) 11370 11376 (face font-lock-comment-face fontified t) 11376 11392 (fontified t) 11392 11397 (face font-lock-keyword-face fontified t) 11397 11445 (fontified t) 11445 11452 (face font-lock-builtin-face fontified t) 11452 11600 (fontified t) 11600 11614 (face font-lock-builtin-face fontified t) 11614 11727 (fontified t) 11727 11730 (face font-lock-comment-delimiter-face fontified t) 11730 11739 (face font-lock-comment-face fontified t) 11739 11755 (fontified t) 11755 11757 (face font-lock-keyword-face fontified t) 11757 11869 (fontified t) 11869 11880 (face font-lock-string-face fontified t) 11880 11934 (fontified t) 11934 11939 (face font-lock-keyword-face fontified t) 11939 11940 (fontified t) 11940 11948 (face font-lock-function-name-face fontified t) 11948 11957 (fontified t) 11957 12005 (face font-lock-doc-face fontified t) 12005 12050 (fontified t) 12050 12054 (face font-lock-comment-delimiter-face fontified t) 12054 12130 (face font-lock-comment-face fontified t) 12130 12134 (face font-lock-comment-delimiter-face fontified t) 12134 12151 (face font-lock-comment-face fontified t) 12151 12155 (face font-lock-comment-delimiter-face fontified t) 12155 12192 (face font-lock-comment-face fontified t) 12192 12231 (face font-lock-comment-face fontified t) 12231 12473 (fontified nil)) . 1) (undo-tree-id0 . -12473) (undo-tree-id1 . -2807) (t 27002 1327 0 0)) nil (27002 18402 232132 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 11800 . 11801) (nil fontified nil 1 . 11801) (1 . 11801)) nil (27002 18402 232117 0) 0 nil])
+([nil current ((11801 . 11802)) nil (27002 18402 232113 0) 0 nil])
 nil
