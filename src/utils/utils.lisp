@@ -7,17 +7,25 @@
            :str-prefix-p :str-suffix-p :str-contains-p
 	   :ensure-trailing :ensure-leading
    :ends-with-slash-p :starts-with-slash-p :%trim
-   :join-lines
+   :join-lines :slugify
 	   ;; Query string
 	   :url-decode-qs
 	   ;; alists
-	   :alist-get :alist-set :ensure-header :plist-put
+   :alist-get :alist-get-all :alist-set :ensure-header :plist-put
+	   :remove-from-alist
 	   ;; HTTP Dates
    :parse-http-date :format-http-date :current-db-time-string
    ;; Crypto
    :hmac-sha256 :gen-uuid-string
-   :subsetp-list :to-snake-case
-   :secure-uuid-equal))
+   :subsetp-list :to-snake-case :keyword-to-kebab :to-kebab-case :lookup
+   :secure-uuid-equal
+
+   ;; Dates
+   :%val->date-input :%val->date-display :to-timestamp :format-timestamp
+   :format-now-fr :ts-filename
+
+   ;; Files
+   :gen-safe-filename :get-extension))
 
 (in-package :lumen.utils)
 
@@ -245,6 +253,31 @@ Retourne la nouvelle plist."
     ;; CAS 3 : Autre (NIL ou erreur)
     (t default)))
 
+(defun lookup (collection key &optional default)
+  "Récupère une valeur dans une ALIST ou PLIST de manière robuste.
+   Gère :
+   1. Les clés exactes (eq/equalp)
+   2. Les clés normalisées (kebab-case vs snake_case)
+   3. Les Strings vs Keywords
+   Retourne DEFAULT si rien n'est trouvé."
+  
+  (let ((kebab-key (to-kebab-case key))
+        ;; Détection heuristique : Si le premier élément est une cons (pair), c'est une Alist.
+        (is-alist (and (listp collection) (consp (first collection)))))
+    
+    (if is-alist
+        ;; --- Logique ALIST ---
+        (let ((pair (or (assoc key collection :test #'equalp)       ;; Essai 1 : Clé exacte
+                        (assoc kebab-key collection :test #'eq))))  ;; Essai 2 : Clé Kebab
+          (if pair (cdr pair) default))
+        
+        ;; --- Logique PLIST ---
+        (let ((val (getf collection key '%%not-found%%)))
+          (if (eq val '%%not-found%%)
+              ;; Essai 2 : On tente avec la clé Kebab
+              (getf collection kebab-key default)
+              val)))))
+
 (defun to-snake-case (designator)
   "Convertit un designator (Symbole, Keyword ou String) de kebab-case vers snake_case.
    Utilisé pour mapper les noms de slots Lisp vers les colonnes SQL.
@@ -257,6 +290,11 @@ Retourne la nouvelle plist."
     (substitute #\_ #\-            ;; 3. Remplace les tirets par des underscores
                 (string-downcase str)))) ;; 2. Passe tout en minuscules
 
+(defun to-kebab-case (kw-or-str)
+  "Convertit :my_value ou 'my_value' en :my-value."
+  (let ((s (string-upcase (string kw-or-str))))
+    (intern (substitute #\- #\_ s) :keyword)))
+
 (defun to-kebab-keyword (str)
   "Convertit une string snake_case en keyword kebab-case.
    Exemple: \"created_at\" -> :CREATED-AT"
@@ -265,8 +303,167 @@ Retourne la nouvelle plist."
      (substitute #\- #\_ up)           ;; 2. Remplace _ par -
      :keyword)))
 
+(defun keyword-to-kebab (kw)
+  "Convertit :project_id en :project-id"
+  (if (keywordp kw)
+      (intern (substitute #\- #\_ (string-upcase (symbol-name kw))) :keyword)
+      kw))
+
 (defun secure-uuid-equal (u1 u2)
   "Compare deux UUIDs qu'ils soient string, symbol ou vector."
   (let ((s1 (string-downcase (princ-to-string u1)))
         (s2 (string-downcase (princ-to-string u2))))
     (string= s1 s2)))
+
+;;; Gestion des Dates
+(defun %val->date-input (val)
+  "Format ISO (YYYY-MM-DD) pour les inputs date."
+  (cond
+    ((null val) "")
+    ;; Gestion native local-time
+    #+local-time
+    ((typep val 'local-time:timestamp)
+     (local-time:format-timestring nil val :format '((:year 4) #\- (:month 2) #\- (:day 2))))
+    ((integerp val)
+     (multiple-value-bind (s m h dd mm yy) (decode-universal-time val)
+       (declare (ignore s m h))
+       (format nil "~4,'0D-~2,'0D-~2,'0D" yy mm dd)))
+    ((stringp val) (subseq val 0 (min 10 (length val))))
+    (t (format nil "~A" val))))
+
+(defun %val->date-display (val)
+  "Format Français (DD/MM/YYYY) pour l'affichage tableau."
+  (cond
+    ((null val) "")
+    
+    ;; CORRECTION 1 : Vérifier que c'est une string avant d'utiliser string=
+    ((and (stringp val) (string= val "NULL")) "")
+    
+    ;; CORRECTION 2 : Gestion native local-time (objets @...)
+    #+local-time
+    ((typep val 'local-time:timestamp)
+     (local-time:format-timestring nil val :format '((:day 2) #\/ (:month 2) #\/ (:year 4))))
+
+    ((integerp val)
+     (multiple-value-bind (s m h dd mm yy) (decode-universal-time val)
+       (declare (ignore s m h))
+       (format nil "~2,'0D/~2,'0D/~4,'0D" dd mm yy)))
+    
+    ;; Cas chaîne ISO existante YYYY-MM-DD
+    ((and (stringp val) (>= (length val) 10) (char= (char val 4) #\-))
+     (let ((y (subseq val 0 4))
+           (m (subseq val 5 7))
+           (d (subseq val 8 10)))
+       (format nil "~A/~A/~A" d m y)))
+    
+    (t (format nil "~A" val))))
+
+(defun slugify (string)
+  "Convertit une chaîne en slug URL-friendly (ex: 'Hôtel & Spa!' -> 'hotel-spa')."
+  (if (or (null string) (zerop (length string)))
+      ""
+      (let ((s (string-downcase string)))
+        ;; 1. Translitération basique (Accents français courants)
+        ;; Note : Pour une translitération complète, on utiliserait une lib comme cl-unidecode,
+        ;; mais ceci suffit pour 99% des cas B2B.
+        (setf s (cl-ppcre:regex-replace-all "[àáâãäå]" s "a"))
+        (setf s (cl-ppcre:regex-replace-all "[ç]" s "c"))
+        (setf s (cl-ppcre:regex-replace-all "[èéêë]" s "e"))
+        (setf s (cl-ppcre:regex-replace-all "[ìíîï]" s "i"))
+        (setf s (cl-ppcre:regex-replace-all "[ñ]" s "n"))
+        (setf s (cl-ppcre:regex-replace-all "[òóôõö]" s "o"))
+        (setf s (cl-ppcre:regex-replace-all "[ùúûü]" s "u"))
+        (setf s (cl-ppcre:regex-replace-all "[ýÿ]" s "y"))
+        (setf s (cl-ppcre:regex-replace-all "[œ]" s "oe"))
+        (setf s (cl-ppcre:regex-replace-all "[æ]" s "ae"))
+
+        ;; 2. Remplacement des caractères non-alphanumériques par des tirets
+        (setf s (cl-ppcre:regex-replace-all "[^a-z0-9]" s "-"))
+
+        ;; 3. Réduction des tirets multiples (ex: "a---b" -> "a-b")
+        (setf s (cl-ppcre:regex-replace-all "-+" s "-"))
+
+        ;; 4. Nettoyage des extrémités
+        (string-trim "-" s))))
+
+(defun alist-get-all (alist key &key (test #'equal))
+  "Retourne la liste de toutes les valeurs associées à la clé KEY dans ALIST.
+   Par défaut utilise EQUAL pour la comparaison (fonctionne pour les Strings et Keywords)."
+  (loop for (k . v) in alist
+        when (funcall test k key)
+          collect v))
+
+(defun to-timestamp (val)
+  "Convertit une valeur (Integer, String, Timestamp) en objet local-time:timestamp."
+  (cond
+    ((null val) nil)
+    
+    ;; Déjà un timestamp local-time
+    ((typep val 'local-time:timestamp) val)
+    
+    ;; Universal Time (Integer standard Lisp)
+    ((integerp val) (local-time:universal-to-timestamp val))
+    
+    ;; String ISO (ex: "2024-01-01T12:00:00Z")
+    ((stringp val) 
+     (handler-case 
+         (local-time:parse-timestring val)
+       (error () nil)))
+    
+    (t nil)))
+
+(defun format-timestamp (val &key (format '(:day "/" (:month 2) "/" :year " " (:hour 2) ":" (:min 2) ":" (:sec 2))))
+  "Formate une date pour l'affichage (JJ/MM/YYYY HH:mm:ss)."
+  (let ((ts (to-timestamp val)))
+    (if ts
+        (local-time:format-timestring 
+         nil 
+         ts
+         :format format
+         :timezone local-time:+utc-zone+) ;; Ou local-time:*default-timezone* si configuré
+        
+        ;; Fallback si la date est nulle ou invalide
+        "-")))
+
+(defun format-now-fr ()
+  (format-timestamp (local-time:now)
+		    :format '((:day 2) "/" (:month 2) "/" :year)))
+
+(defun ts-filename (filename)
+  (let* ((stamp (format-timestamp (local-time:now)
+				  :format '((:day 2) "" (:month 2) "" (:year 2)
+					    "_" (:hour 2) "" (:min 2)))))
+    (format nil "~A_~A" filename stamp)))
+
+;; Helper pour générer un nom de fichier unique sécurisé
+(defun gen-safe-filename (ext)
+  (format nil "~A~A" (lumen.utils:gen-uuid-string) (if ext (format nil ".~A" ext) "")))
+
+;; Helper pour récupérer l'extension
+(defun get-extension (filename)
+  (let ((pos (position #\. filename :from-end t)))
+    (if pos (subseq filename (1+ pos)) nil)))
+
+(defun %normalize-key-name (k)
+  "Convertit une clé (Symbole ou String) en format canonique KEBAB-CASE majuscule.
+   Ex: :user_id -> \"USER-ID\"
+       \"user_id\" -> \"USER-ID\"
+       :user-id -> \"USER-ID\""
+  (string-upcase (substitute #\- #\_ (string k))))
+
+(defun remove-from-alist (alist key)
+  "Retourne une alist sans la clé KEY, en ignorant la casse et la différence _/-.
+   
+   Exemples:
+     (remove-from-alist '((:user_id . 1)) :user-id)  => NIL
+     (remove-from-alist '((\"user_id\" . 1)) :user-id) => NIL"
+  (let ((target (if (listp key) 
+                    (mapcar #'%normalize-key-name key)
+                    (%normalize-key-name key))))
+    (remove-if (lambda (item-key)
+                 (let ((norm-item (%normalize-key-name item-key)))
+                   (if (listp target)
+                       (member norm-item target :test #'string=)
+                       (string= norm-item target))))
+               alist
+               :key #'car)))

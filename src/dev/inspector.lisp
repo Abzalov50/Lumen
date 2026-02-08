@@ -2,12 +2,13 @@
 
 (defpackage :lumen.dev.inspector
   (:use :cl)
+  (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)
   (:import-from :lumen.core.http :respond-html :req-params)
   (:import-from :lumen.obs.metrics :get-path-stats)
   (:import-from :lumen.dev.module :find-module :get-modules
    :module-meta-path-prefix :module-meta-name :module-meta-doc
 	   :module-meta-entities :module-meta-resources :module-meta-routes)
-  (:export :mount-inspector!))
+  (:export :mount-inspector! :inspector-middleware :trace-middleware))
 
 (in-package :lumen.dev.inspector)
 
@@ -304,7 +305,6 @@
 (defun safe-render-rows (s)
   (let ((routes (handler-case (get-unique-routes) 
                   (error () nil))))
-    (print routes)
     (dolist (r routes)
       (handler-case
           (let* ((m (or (lumen.core.router::route-method r) "UNK")) 
@@ -407,5 +407,85 @@
 (defun mount-inspector! (&key (path "/_inspector"))
   "Retourne une liste de routes (construct-route) pour le Cockpit."
   (list 
-   (lumen.core.router:construct-route :GET path (req)
+   (lumen.core.router:construct-route (:GET path (req))
      (lumen.core.http:respond-html (render-dashboard-page)))))
+
+;;; ---------------------------------------------------------------------------
+;;; 26. INTROSPECTION
+;;; ---------------------------------------------------------------------------
+(defmiddleware inspector-middleware
+    ((path :initarg :path 
+           :initform "/_inspector" 
+           :accessor inspector-path))
+    (req next)
+  
+  (if (string= (lumen.core.http:req-path req) (slot-value mw 'path))
+      
+      ;; --- MODE INSPECTION ---
+      ;; Au lieu d'utiliser un slot :pipeline, on regarde *current-app*
+      (let* ((app lumen.core.context:*current-app*)
+             (mws (lumen.app.app:app-middleware app))
+             (routes (lumen.app.app:app-routes app)))
+        
+        (lumen.core.http:respond-json 
+         `((:app . ,(lumen.app.app:app-name app))
+           (:port . ,(lumen.app.app:app-port app))
+           ;; On introspecte la liste des middlewares de l'app courante
+           (:pipeline . ,(mapcar
+			  (lambda (m) 
+                            `((:name . ,(lumen.core.pipeline:mw-name m))
+                              (:type . ,(string (type-of m)))
+                              (:enabled . ,(lumen.core.pipeline:mw-enabled-p m))))
+                          mws))
+           ;; On peut même ajouter des infos sur les modules chargés !
+           (:modules . ,(lumen.app.app:app-modules app)))))
+      
+      ;; --- MODE PASSE-PLAT ---
+      (funcall next req)))
+
+(defmiddleware trace-middleware
+    ((threshold-ms :initarg :threshold-ms 
+                   :initform 500 
+                   :documentation "Log si plus lent que X ms")
+     (force-header :initarg :force-header 
+                   :initform "x-trace-debug"))
+    (req next)
+  
+  ;; 1. Nettoyage préventif (au cas où le thread est réutilisé)
+  (lumen.core.trace::%clear-thread-ctx)
+  
+  (lumen.core.trace:with-tracing ("HTTP Request" 
+                                  :path (lumen.core.http:req-path req)
+                                  :method (lumen.core.http:req-method req))
+    
+    (let ((resp (funcall next req)))
+      
+      ;; Récupération du contexte pour analyse
+      (let* ((ctx (lumen.core.trace::%get-thread-ctx))
+             (root (lumen.core.trace::ctx-root ctx))
+             (now (get-internal-real-time))
+             (start (if root (lumen.core.trace::trace-start root) now))
+             (dur (lumen.core.trace::%ms (- now start)))
+             (debug-requested-p 
+              (cdr (assoc (slot-value mw 'force-header) 
+                          (lumen.core.http:req-headers req) 
+                          :test #'string-equal))))
+        
+        ;; On force la fin de la racine pour l'affichage correct
+        (when root (setf (lumen.core.trace::trace-end root) now))
+
+        (when (or (>= (lumen.core.http:resp-status resp) 500)
+                  (> dur (slot-value mw 'threshold-ms))
+                  debug-requested-p)
+          
+          (format t "~&[TRACE] Triggered by: ~A (Duration: ~,2Fms)~%" 
+                  (cond ((>= (lumen.core.http:resp-status resp) 500) "Error 500")
+                        (debug-requested-p "Header Request")
+                        (t "Slow Request"))
+                  dur)
+          (lumen.core.trace:print-trace-waterfall))
+        
+        ;; Nettoyage final pour ne pas fuir de mémoire
+        (lumen.core.trace::%clear-thread-ctx))
+      
+      resp)))

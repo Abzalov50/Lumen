@@ -5,8 +5,9 @@
   (:import-from :lumen.core.http
    :ctx-get :ctx-set! :current-jwt :current-role :current-user-id :respond-404 :ctx-from-req)
   (:import-from :lumen.data.dao
-    :entity-metadata :entity-fields :row->entity :entity->row-alist :entity-table :entity-primary-key
-    :entity-insert! :entity-update! :entity-delete! :validate-entity! :entity-slot-symbol)
+   :entity-metadata :entity-fields :row->entity :entity->row-alist :entity-table
+		:entity-primary-key :entity-insert! :entity-update! :entity-delete!
+		:entity-slot-symbol :validate-entity-payload)
   (:import-from :lumen.data.repo.query
     :select* :select-page-keyset* :select-page-keyset-prev* :count*)
   (:import-from :lumen.utils :alist-get :copy-plist :alist-set :to-snake-case :col-get :secure-uuid-equal)
@@ -15,8 +16,8 @@
   (:import-from :lumen.core.error 
    :application-error :application-error-message :application-error-code)
   (:export
-    :repo-index :repo-show :repo-create :repo-patch :repo-delete
-   :repo-authorize :repo-normalize :repo-validate :repo-before :repo-persist :repo-after
+    :repo-index :repo-show :repo-create :repo-patch :repo-delete :repo-after
+   :repo-authorize :repo-normalize :repo-validate :repo-before :repo-persist    
    ))
 
 (in-package :lumen.data.repo.core)
@@ -230,21 +231,26 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
       result))
 
 (defun %rows->serialized-entities (entity rows)
-  "Transforme des résultats SQL bruts en Alist API via l'instanciation d'objets.
-   Garantit que les slots virtuels/calculés sont présents."
-  (print (mapcar (lambda (row)
-            ;; 1. Row SQL -> Objet CLOS (avec logique métier, defaults, etc.)
-            (let ((obj (row->entity entity row)))
-              ;; 2. Objet CLOS -> Alist API (avec formattage sortie)
-              (entity->row-alist obj)))
-		 rows))
-  (format t "~&ROWS->SERIALIZED-ENTITIES: OK~%")
-  (mapcar (lambda (row)
-            ;; 1. Row SQL -> Objet CLOS (avec logique métier, defaults, etc.)
-            (let ((obj (row->entity entity row)))
-              ;; 2. Objet CLOS -> Alist API (avec formattage sortie)
-              (entity->row-alist obj)))
-          rows))
+  "Transforme des résultats SQL en Alist API, en préservant les colonnes jointes."
+  (let* ((serialized
+	   (mapcar (lambda (row)
+		     (let* (;; 1. On hydrate l'objet pour avoir le formatage standard (dates, etc.)
+			    (obj (lumen.data.dao:row->entity entity row))
+			    (standard-data (lumen.data.dao:entity->row-alist obj)))
+              
+		       ;; 2. On réinjecte les données "orphelines" (celles présentes dans le SQL 
+		       ;;    mais absentes de l'entité, comme :project-id-resolved)
+		       (loop for (k . v) in row
+			     ;; Si la clé n'est pas déjà dans les données standard...
+			     unless (assoc k standard-data :test #'eq)
+			       ;; ... on l'ajoute à la liste finale
+			       do (push (cons k v) standard-data))
+              
+		       standard-data))
+		   rows)))
+
+    (format t "~&ROWS SERIALIZED-ENTITIES: ~A~%" serialized)
+    serialized ))
 
 ;;; ---------------------------------------------------------------------------
 ;;; API générique (génériques CLOS)
@@ -280,10 +286,15 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
   ;;(format t "~&[Lumen] In REPO NORMALIZE (Ent: ~A | Op: ~A)~%" entity op)
   payload)
 
-(defmethod repo-validate (op (entity symbol) ctx payload)  
-  (declare (ignore op))
-  ;;(format t "~&[Lumen] In REPO VALIDATE (Ent: ~A | Op: ~A)~%" entity op)
-  (ignore-errors (validate-entity! (row->entity entity payload)))
+(defmethod repo-validate (op (entity symbol) ctx payload)
+  (declare (ignore op ctx))
+  ;; APPEL AU NOUVEAU SYSTÈME
+  ;; On valide le payload brut. Si ça échoue, on lève l'exception classique.
+  ;; Cela permet au code interne (non-HTTP) d'être protégé aussi.
+  (let ((errors (lumen.data.dao:validate-entity-payload entity payload)))
+    (when errors
+      (error 'lumen.data.dao:entity-validation-error :entity entity :errors errors)))
+  ;; Si OK, on retourne le payload
   payload)
 
 (defmethod repo-before (op (entity symbol) ctx &key id payload)  
@@ -293,7 +304,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 
 (defmethod repo-after (op (entity symbol) ctx result &key id payload)
   (declare (ignore id payload))
-  ;;(format t "~&[Lumen] In REPO AFTER (~A)~%" entity)
+  (format t "~&[Lumen] In REPO AFTER (~A)~%" entity)
   (let* ((req   (getf ctx :req))
          ;; fallbacks : si :actor-id absent, on essaie via req/JWT
          (actor (or (getf ctx :actor-id)
@@ -321,45 +332,138 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 ;; Implémentations CRUD
 (defmethod repo-index ((entity symbol) ctx
                        &key filters order select page page-size limit offset
-                          after before key)
-  ;; Note: On enlève ensure-connection car géré par le :around
-  (let* ((md      (entity-metadata entity))
-         (table   (getf md :table))
-         (allowed (entity-allowed-cols entity :include-pk? t :include-tenant? t))
-         (tid     (getf ctx :tenant-id))
-         (tcol    (%entity-tenant-col entity md))
-         (filters* (%maybe-add-tenant-filter filters tcol tid)))
-    
-    ;; On récupère les lignes brutes (optimisé)
+                         after before key joins)
+  
+  (let* ((md       (entity-metadata entity))
+         (table    (getf md :table))
+         (allowed  (entity-allowed-cols entity :include-pk? t :include-tenant? t))
+         (tid      (getf ctx :tenant-id))
+         (tcol     (%entity-tenant-col entity md))
+         (tcol-qualified (when tcol 
+                           (format nil "~A.~A" 
+                                   (lumen.data.repo.query::%ident table) 
+                                   (lumen.data.repo.query::%ident tcol))))
+         
+         ;; --- CORRECTION 2A : Préparation de la Recherche (FTS) ---
+         ;; On détecte automatiquement les colonnes texte pour la recherche "q"
+         (fields     (entity-fields entity))
+         ;; On récupère le nom brut de la table (ex: "tasks")
+         (table-name (lumen.data.repo.query::%ident table))
+	 
+         ;; Extraction et Transformation de "q" ---
+         ;; On sépare "q" des autres filtres
+	 ;; A. Extraction de "q" (Recherche globale)
+         (search-val (cdr (assoc "q" filters :test #'string=)))
+         (raw-list (remove "q" filters :test #'string= :key #'car))
+         
+         ;; B. LOGIQUE D'AGRÉGATION
+         (processed-filters
+          (let ((acc-hash (make-hash-table :test 'equal))
+                (preserved-clauses '()))
+            
+            ;; 2. TRI INTELLIGENT (Fix du bug (= = ...))
+            (loop for item in raw-list do
+              (cond
+                ;; CAS A : PAIRE CLÉ/VALEUR ("status" . "todo")
+                ;; On vérifie que le CDR n'est PAS une liste (donc c'est une paire pointée)
+                ((and (consp item) (not (listp (cdr item))))
+                 (push (cdr item) (gethash (car item) acc-hash)))
+                
+                ;; CAS B : CLAUSE SXQL EXISTANTE (= :col val)
+                ((listp item)
+                 ;; On garde la clause SAUF si elle concerne le tenant_id (car on le gère manuellement après)
+                 ;; On inspecte le 2ème élément de la liste (la colonne)
+                 (let* ((col-sym (if (consp (cdr item)) (second item) nil))
+                        (col-str (string-downcase (format nil "~A" col-sym))))
+                   (unless (or (search "tenant_id" col-str) (search "tenant-id" col-str))
+                     (push item preserved-clauses))))))
+            
+            ;; 3. GÉNÉRATION DES CLAUSES (Depuis la Hash Table)
+            (let ((generated-clauses
+                   (loop for k being the hash-keys of acc-hash using (hash-value vals)
+                         for clean-k = (string-downcase k)
+                         for v-list = (nreverse vals)
+                         
+                         ;; On ignore tenant_id ici aussi (clés string)
+                         unless (or (search "tenant_id" clean-k) (search "tenant-id" clean-k))
+                         collect 
+                         (cond
+                           ;; Intervalle MIN (>=)
+                           ((and (> (length clean-k) 4) (string= (subseq clean-k (- (length clean-k) 4)) "_gte"))
+                            (let ((col-name (subseq clean-k 0 (- (length clean-k) 4))))
+                              `(>= ,(intern (string-upcase col-name) :keyword) ,(first v-list))))
+
+                           ;; Intervalle MAX (<=)
+                           ((and (> (length clean-k) 4) (string= (subseq clean-k (- (length clean-k) 4)) "_lte"))
+                            (let ((col-name (subseq clean-k 0 (- (length clean-k) 4))))
+                              `(<= ,(intern (string-upcase col-name) :keyword) ,(first v-list))))
+                           
+                           ;; Standard (IN ou =)
+                           (t
+                            (let ((col-kw (intern (string-upcase clean-k) :keyword)))
+                              (if (> (length v-list) 1)
+                                  `(in ,col-kw ,v-list)
+                                  `(= ,col-kw ,(first v-list)))))))))
+              
+              ;; FUSION (Clauses préservées + Clauses générées)
+              (append preserved-clauses generated-clauses))))
+         
+         ;; On retire les nils (tenant_id traités)
+         (processed-filters (remove nil processed-filters))
+         
+         ;; --- 3. AJOUT MANUEL DU TENANT (Fix du bug :=) ---
+         (filters-with-tenant 
+          (if (and tcol-qualified tid)
+              ;; On utilise le symbole '=' standard, et on qualifie la colonne
+              (cons `(= ,(intern (string-upcase tcol-qualified) :keyword) ,tid) 
+                    processed-filters)
+              processed-filters))
+         
+         ;; On réintègre la Recherche Globale (Q)
+         (final-filters 
+           (if (and search-val (> (length search-val) 0))
+               (cons `(search :q ,search-val) filters-with-tenant)
+               filters-with-tenant))
+
+	 ;; --- CONFIG FTS ---
+	 (text-cols  (loop for f in fields
+                           when (member (getf f :type) '(:string :text :email))
+                             ;; CORRECTION : On construit "tasks.title" au lieu de juste :title
+                             collect (format nil "~A.~A" 
+                                             table-name
+                                             (lumen.data.repo.query::%ident (getf f :col)))))
+         
+         (fts-config (list :fields text-cols))) ;; On crée la config pour select*
+    (format t "~&[REPO INDEX] FINAL FILTERS: ~A~%" final-filters)
     (let ((rows 
-           (cond
-             ((or after before)
-              (select-page-keyset* table
-                                   :filters filters*
-                                   :order   order
-                                   :key     key
-                                   :after   after
-                                   :limit   (or limit 20)
-                                   :order-whitelist allowed))
-             (t
-              (select* table
-                       :filters filters*
-                       :order   order
-                       :select  (or select :*) ;; On sélectionne tout pour hydrater l'objet correctement
-                       :limit   (or (and page-size (* 1 page-size)) limit 20)
-                       :offset  (or offset (and page page-size (* (max 0 (1- page)) page-size)))
-                       :order-whitelist allowed)))))
-      
-      ;; --- CHANGEMENT MAJEUR ---
-      ;; Si le résultat est paginé (keyset), il a la forme (:items (...) :count ...)
-      ;; Sinon c'est une liste simple.
-      (format t "~&[REPO INDEX] ROWS: ~A~%" rows)
+            (cond
+              ((or after before)
+               ;; Note: select-page-keyset* devra aussi être mis à jour pour accepter fts-config 
+               ;; si vous utilisez la pagination curseur avec recherche.
+               (select-page-keyset* table
+                                    :filters final-filters
+                                    :order   order
+                                    :key     key
+                                    :after   after
+                                    :limit   (or limit 20)
+                                    :joins   joins
+                                    :order-whitelist allowed))
+              (t
+               (select* table
+			:filters final-filters
+			:order   order
+			:select  (or select :*)
+			:joins   joins
+			:limit   (or (and page-size (* 1 page-size)) limit 20)
+			:offset  (or offset (and page page-size (* (max 0 (1- page)) page-size)))
+			:order-whitelist allowed
+			;; --- IMPORTANT : On passe la config FTS ---
+			:fts-config fts-config)))))
+      (format t "~&[REPO INDEX] SQL RESULT: ~A~%" rows)
       (if (and (listp rows) (keywordp (car rows)) (getf rows :items))
-          ;; Cas Pagination
           (let ((items (getf rows :items)))
             (setf (getf rows :items) (%rows->serialized-entities entity items))
             rows)
-          ;; Cas Liste simple
           (%rows->serialized-entities entity rows)))))
 
 ;; SHOW (lecture par PK, filtrée tenant si présent)
@@ -396,7 +500,8 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
   (declare (ignore id))
   (let* ((payload* (%ensure-tenant-on-payload entity ctx payload :op :create))
          (ent      (row->entity entity payload*)))
-    (validate-entity! ent)
+    ;;(validate-entity! ent)
+    (validate-entity-payload entity payload*)
       (multiple-value-bind (_n ent2) (entity-insert! ent :returning t)
         (declare (ignore _n))
         (entity->row-alist ent2))))
@@ -417,7 +522,8 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
              ;; Ceci marque automatiquement le slot comme DIRTY via le (setf slot-value) :after
              (setf (slot-value ent slot) val))))
       
-      (validate-entity! ent)
+      ;;(validate-entity! ent)
+      (validate-entity-payload entity payload*)
       
       ;; 2. Persistance
       ;; On ne met pas :force-all t, car c'est un patch.
@@ -427,10 +533,21 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 
 (defmethod repo-persist ((op (eql :delete)) (entity symbol) ctx &key id payload)
   (declare (ignore payload))
+  
+  ;; On essaie de récupérer l'entité
   (let ((cur (repo-show entity ctx id)))
-    (unless cur (error 'lumen.data.errors:not-found-error))
-    (entity-delete! (row->entity entity cur))
-    `((:deleted . t) (:id . ,id))))
+    (cond
+      ;; CAS 1 : L'entité existe -> On supprime
+      (cur
+       (entity-delete! (row->entity entity cur))
+       `((:deleted . t) (:id . ,id)))
+      
+      ;; CAS 2 : L'entité n'existe pas (Déjà supprimée ?) -> On renvoie un succès muet
+      ;; C'est ce qui absorbe le retry automatique "fantôme" et évite le crash.
+      (t
+       ;; Log pour info (optionnel)
+       (format t "~&[REPO] Delete idempotent: ~A ~A not found (already deleted?)~%" entity id)
+       `((:deleted . t) (:id . ,id) (:warning . "idempotent"))))))
 
 ;; Transactions :around
 (defmethod repo-normalize :around ((op (eql :create)) (entity symbol) ctx payload)
@@ -454,10 +571,13 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
   "Pipeline final framework pour PATCH :
    - Retire les champs protégés
    - Verrouille le tenant (impossible de changer de tenant)."
+  (format t "~&[REPO NORM PATCH] ENTERING PAYLOAD: ~A~%" payload)
   (let* ((out (call-next-method op entity ctx payload))
+	 (x (format t "~&[REPO NORM PATCH] OUT NEXT METHOD: ~A~%" out))
          (p0 (%normalize-payload-keys out))
          (p1 (%remove-protected-fields p0))
          (tid (%resolve-tenant-id ctx p1)))
+    (format t "~&[REPO NORM PATCH] PAYLOAD: ~A~%" p1)
     (unless tid
       (error 'lumen.data.errors:db-error
              :message "missing or invalid tenant-id"))
@@ -538,8 +658,8 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
                 (repo-validate op entity ctx p1)
                 (repo-before    op entity ctx :payload p1)
                 (let ((r (call-next-method entity ctx p1)))
-                  (repo-after op entity ctx r :payload p1)
-		  r))))))
+                  (let ((r (repo-after op entity ctx r :payload p1)))
+		  r)))))))
       ;; On traite le résultat (throw ou return)
       (%handle-tx-result res))))
 
@@ -555,6 +675,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
                 ;; call-next-method est capturé par la closure (lexical scope)
                 ;; C'est safe car run-in-transaction ne fait pas de magie macro.
                 (let ((r (call-next-method entity ctx id p1)))
+		  (format t "~&[REPO PATCH AROUND] PAYLOAD: ~A~%" p1)
                   (repo-after op entity ctx r :id id :payload p1)))))))
       
       (%handle-tx-result res))))

@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"6d10b667b9e594990743e83d0be6a579bda812fe"
+"de9ce6bf8cacc015337d015bc838a3cb85a67300"
 [nil nil nil nil (26804 51806 749703 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 3469 . 3470) (nil fontified nil 1 . 3470) (1 . 3470) (t . -1)) nil (26804 51806 749699 0) 0 nil])
 ([nil nil ((#("
@@ -300,6 +300,81 @@ nil
 
 (in-package :lumen.http.proxy)
 " 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 15 (face font-lock-builtin-face fontified t) 15 19 (fontified t) 19 29 (face font-lock-keyword-face fontified t) 29 30 (fontified t) 30 47 (face font-lock-type-face fontified t) 47 51 (fontified t) 51 55 (face font-lock-builtin-face fontified t) 55 56 (fontified t) 56 59 (face font-lock-builtin-face fontified t) 59 64 (fontified t) 64 76 (face font-lock-builtin-face fontified t) 76 77 (fontified t) 77 89 (face font-lock-builtin-face fontified t) 89 93 (fontified t) 93 103 (face font-lock-builtin-face fontified t) 103 108 (fontified t) 108 120 (face font-lock-builtin-face fontified t) 120 121 (fontified t) 121 137 (face font-lock-builtin-face fontified t) 137 138 (fontified t) 138 150 (face font-lock-builtin-face fontified t) 150 151 (fontified t) 151 159 (face font-lock-builtin-face fontified t) 159 160 (fontified t) 160 169 (face font-lock-builtin-face fontified t) 169 170 (fontified t) 170 178 (face font-lock-builtin-face fontified t) 178 183 (fontified t) 183 195 (face font-lock-builtin-face fontified t) 195 196 (fontified t) 196 218 (face font-lock-builtin-face fontified t) 218 219 (fontified t) 219 237 (face font-lock-builtin-face fontified t) 237 242 (fontified t) 242 249 (face font-lock-builtin-face fontified t) 249 250 (fontified t) 250 262 (face font-lock-builtin-face fontified t) 262 267 (fontified t) 267 277 (face font-lock-keyword-face fontified t) 277 278 (fontified t) 278 295 (face font-lock-builtin-face fontified t) 295 297 (fontified t)) . 1) (undo-tree-id0 . -297) (t 26996 57301 0 0)) nil (27002 18402 433402 0) 0 nil])
-([nil nil ((nil rear-nonsticky nil 2849 . 2850) (nil fontified nil 1 . 2850) (1 . 2850)) nil (27002 18402 433384 0) 0 nil])
-([nil current ((2850 . 2851)) nil (27002 18402 433379 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 2849 . 2850) (nil fontified nil 1 . 2850) (1 . 2850)) nil (27003 16974 796386 0) 0 nil])
+([nil nil ((2850 . 2851)) ((#("
+" 0 1 (fontified t)) . 2850) (t 27002 18402 0 0)) (27003 16985 323620 0) 0 nil])
+([nil nil ((#("(defpackage :lumen.http.proxy
+  (:use :cl)
+  (:import-from :lumen.core.http 
+                :request-method :request-uri :request-headers :request-raw-body)
+  (:export :proxy-pass))
+
+(in-package :lumen.http.proxy)
+
+(defun %clean-headers-for-proxy (headers)
+  \"Nettoie les headers entrants avant de les envoyer à la cible.
+   On retire 'Host' car Dexador va le recalculer pour la cible.
+   On retire 'Content-Length' car Dexador le gère selon le body envoyé.\"
+  (let ((h (make-hash-table :test 'equal)))
+    (loop for (k . v) in headers do
+          (unless (member k '(\"host\" \"content-length\" \"transfer-encoding\" \"connection\") 
+                          :test #'string-equal)
+            (setf (gethash k h) v)))
+    h))
+
+(defun proxy-pass (target-base-url &key (timeout 10))
+  \"Retourne un Handler Lumen qui relaie tout vers target-base-url.\"
+  (lambda (req)
+    (let* ((method  (request-method req))
+           ;; On concatène l'URL cible avec l'URI de la requête (path + query)
+           (url     (format nil \"~A~A\" 
+                            (string-right-trim \"/\" target-base-url) 
+                            (request-uri req)))
+           (headers (%clean-headers-for-proxy (request-headers req)))
+           (body    (request-raw-body req)))
+
+      ;; Debug optionnel
+      ;; (format t \"~&[Proxy] Relaying ~A ~A -> ~A~%\" method (request-uri req) url)
+
+      (handler-case
+          (multiple-value-bind (resp-body status resp-headers)
+              (dex:request url
+                           :method method
+                           :headers headers
+                           :content body
+                           :use-connection-pool t
+                           :keep-alive t
+                           :connect-timeout timeout
+                           :read-timeout timeout
+                           ;; Important : ne pas signaler d'erreur Lisp pour les 4xx/5xx
+                           :ignore-status t)
+            
+            ;; Conversion de la réponse pour Lumen
+            ;; Dexador renvoie les headers sous forme de hash-table ou alist
+            (let ((lumen-headers '()))
+              (maphash (lambda (k v) 
+                         (push (cons (string-downcase k) v) lumen-headers))
+                       resp-headers)
+              
+              ;; On retourne (status headers body)
+              (list status lumen-headers resp-body)))
+
+        ;; Gestion des erreurs de connexion (Cible éteinte, DNS fail...)
+        (usocket:socket-condition (e)
+          (declare (ignore e))
+          (lumen.core.http:respond-json 
+           '((:error . \"Bad Gateway\") (:message . \"Upstream unreachable\"))
+           :status 502))
+        
+        (error (e)
+          (format t \"~&[Proxy Error] ~A~%\" e)
+          (lumen.core.http:respond-json 
+           '((:error . \"Proxy Error\"))
+           :status 500))))))
+" 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 29 (face font-lock-type-face fontified t) 29 33 (fontified t) 33 37 (face font-lock-builtin-face fontified t) 37 38 (fontified t) 38 41 (face font-lock-builtin-face fontified t) 41 46 (fontified t) 46 58 (face font-lock-builtin-face fontified t) 58 59 (fontified t) 59 75 (face font-lock-builtin-face fontified t) 75 77 (fontified t) 77 93 (fontified t) 93 97 (face font-lock-builtin-face fontified t) 97 101 (face font-lock-builtin-face fontified t) 101 108 (face font-lock-builtin-face fontified t) 108 109 (fontified t) 109 113 (face font-lock-builtin-face fontified t) 113 117 (face font-lock-builtin-face fontified t) 117 121 (face font-lock-builtin-face fontified t) 121 122 (fontified t) 122 126 (face font-lock-builtin-face fontified t) 126 130 (face font-lock-builtin-face fontified t) 130 138 (face font-lock-builtin-face fontified t) 138 139 (fontified t) 139 156 (face font-lock-builtin-face fontified t) 156 158 (fontified t) 158 161 (fontified t) 161 168 (face font-lock-builtin-face fontified t) 168 169 (fontified t) 169 180 (face font-lock-builtin-face fontified t) 180 183 (fontified t) 183 184 (fontified t) 184 185 (fontified t) 185 195 (face font-lock-keyword-face fontified t) 195 196 (fontified t) 196 213 (face font-lock-builtin-face fontified t) 213 215 (fontified t) 215 216 (fontified t) 216 217 (fontified t) 217 222 (fontified t face font-lock-keyword-face) 222 223 (fontified t) 223 247 (fontified t face font-lock-function-name-face) 247 260 (fontified t) 260 459 (fontified t face font-lock-doc-face) 459 463 (fontified t) 463 466 (fontified t face font-lock-keyword-face) 466 488 (fontified t) 488 493 (fontified t face font-lock-builtin-face) 493 509 (fontified t) 509 513 (fontified t face font-lock-keyword-face) 513 551 (fontified t) 551 557 (fontified t face font-lock-keyword-face) 557 570 (fontified t) 570 576 (fontified t face font-lock-string-face) 576 577 (fontified t) 577 593 (fontified t face font-lock-string-face) 593 594 (fontified t) 594 613 (fontified t face font-lock-string-face) 613 614 (fontified t) 614 626 (fontified t face font-lock-string-face) 626 655 (fontified t) 655 660 (fontified t face font-lock-builtin-face) 660 677 (fontified t) 677 722 (fontified t) 722 723 (fontified t) 723 724 (fontified t) 724 729 (face font-lock-keyword-face fontified t) 729 730 (fontified t) 730 740 (face font-lock-function-name-face fontified t) 740 758 (fontified t) 758 762 (face font-lock-type-face fontified t) 762 779 (fontified t) 779 844 (face font-lock-doc-face fontified t) 844 848 (fontified t) 848 854 (face font-lock-keyword-face fontified t) 854 866 (fontified t) 866 870 (face font-lock-keyword-face fontified t) 870 914 (fontified t) 914 917 (face font-lock-comment-delimiter-face fontified t) 917 982 (face font-lock-comment-face fontified t) 982 1014 (fontified t) 1014 1020 (face font-lock-string-face fontified t) 1020 1069 (fontified t) 1069 1072 (face font-lock-string-face fontified t) 1072 1261 (fontified t) 1261 1264 (face font-lock-comment-delimiter-face fontified t) 1264 1280 (face font-lock-comment-face fontified t) 1280 1286 (fontified t) 1286 1289 (face font-lock-comment-delimiter-face fontified t) 1289 1364 (face font-lock-comment-face fontified t) 1364 1372 (fontified t) 1372 1384 (face font-lock-keyword-face fontified t) 1384 1396 (fontified t) 1396 1415 (face font-lock-keyword-face fontified t) 1415 1500 (fontified t) 1500 1506 (fontified t) 1506 1513 (face font-lock-builtin-face fontified t) 1513 1521 (fontified t) 1521 1548 (fontified t) 1548 1556 (face font-lock-builtin-face fontified t) 1556 1565 (fontified t) 1565 1592 (fontified t) 1592 1600 (face font-lock-builtin-face fontified t) 1600 1633 (fontified t) 1633 1653 (face font-lock-builtin-face fontified t) 1653 1658 (fontified t) 1658 1683 (fontified t) 1683 1694 (face font-lock-builtin-face fontified t) 1694 1697 (fontified t) 1697 1724 (fontified t) 1724 1740 (face font-lock-builtin-face fontified t) 1740 1776 (fontified t) 1776 1789 (face font-lock-builtin-face fontified t) 1789 1825 (fontified t) 1825 1828 (face font-lock-comment-delimiter-face fontified t) 1828 1887 (face font-lock-comment-face fontified t) 1887 1914 (fontified t) 1914 1928 (face font-lock-builtin-face fontified t) 1928 1957 (fontified t) 1957 1960 (face font-lock-comment-delimiter-face fontified t) 1960 1996 (face font-lock-comment-face fontified t) 1996 2008 (fontified t) 2008 2011 (face font-lock-comment-delimiter-face fontified t) 2011 2073 (face font-lock-comment-face fontified t) 2073 2086 (fontified t) 2086 2089 (face font-lock-keyword-face fontified t) 2089 2136 (fontified t) 2136 2142 (face font-lock-keyword-face fontified t) 2142 2150 (fontified t) 2150 2292 (fontified t) 2292 2295 (face font-lock-comment-delimiter-face fontified t) 2295 2329 (face font-lock-comment-face fontified t) 2329 2392 (fontified t) 2392 2395 (face font-lock-comment-delimiter-face fontified t) 2395 2457 (face font-lock-comment-face fontified t) 2457 2506 (fontified t) 2506 2513 (face font-lock-keyword-face fontified t) 2513 2581 (fontified t) 2581 2587 (face font-lock-builtin-face fontified t) 2587 2590 (fontified t) 2590 2603 (face font-lock-string-face fontified t) 2603 2606 (fontified t) 2606 2614 (face font-lock-builtin-face fontified t) 2614 2617 (fontified t) 2617 2639 (face font-lock-string-face fontified t) 2639 2653 (fontified t) 2653 2660 (face font-lock-builtin-face fontified t) 2660 2685 (fontified t) 2685 2690 (face font-lock-warning-face fontified t) 2690 2715 (fontified t) 2715 2737 (face font-lock-string-face fontified t) 2737 2796 (fontified t) 2796 2802 (face font-lock-builtin-face fontified t) 2802 2805 (fontified t) 2805 2818 (face font-lock-string-face fontified t) 2818 2821 (fontified t) 2821 2832 (fontified t) 2832 2839 (face font-lock-builtin-face fontified t) 2839 2848 (fontified t) 2848 2849 (fontified t rear-nonsticky t) 2849 2850 (fontified t)) . 1) (undo-tree-id1 . -2850) (undo-tree-id2 . -1063) (undo-tree-id3 . -1384) (t 27002 18402 0 0)) nil (27003 18578 10715 0) 0 nil] [nil nil ((#("uest" 0 4 (face font-lock-builtin-face fontified t)) . -98) (t 27002 18402 0 0) (102 . 102) (t 27002 18402 0 0)) ((98 . 102)) (27003 16974 40340 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3793 . 3794) (nil fontified nil 1 . 3794) (1 . 3794)) nil (27003 18578 10702 0) 0 nil])
+([nil nil ((#("uest" 0 4 (face font-lock-builtin-face fontified t)) . -110) (114 . 114)) ((110 . 114)) (27003 16972 598632 0) 0 nil])
+([nil current ((3794 . 3795)) nil (27003 18578 10697 0) 0 nil])
+([nil nil ((#("uest" 0 4 (face font-lock-builtin-face fontified t)) . -119) (123 . 123)) ((119 . 123)) (27003 16972 598577 0) 0 nil])
+nil
 nil

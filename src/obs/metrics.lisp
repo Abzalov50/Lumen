@@ -108,12 +108,12 @@
                    :initform '("/health" "/favicon.ico") 
                    :accessor mw-ignore-paths))
     (req next)
-  
   (let ((path (lumen.core.http:req-path req)))
     
     ;; 1. SKIP si le path est ignoré
     (if (member path (slot-value mw 'ignore-paths) :test #'string=)
-        (funcall next req)
+	(progn
+        (funcall next req))
         
         ;; 2. LOGIQUE METRICS
         (let* ((method (string-upcase (or (lumen.core.http:req-method req) "GET")))
@@ -123,7 +123,6 @@
                (clen (lumen.utils:alist-get (lumen.core.http:req-headers req) "content-length"))
                (req-bytes (when clen (parse-integer clen :junk-allowed t)))
                (t0 (get-internal-real-time)))
-          
           ;; Gauge In-Flight (+1)
           (bt:with-lock-held (*lock*) (incf *inflight*))
           
@@ -147,7 +146,6 @@
 
                    ;; B. Mise à jour stats Inspecteur (Interne Lumen)
                    (%record-path-stats! method route-pattern ms is-error)
-                   
                    resp))
             
             ;; Cleanup In-Flight (-1)

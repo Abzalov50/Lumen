@@ -26,6 +26,9 @@
 (defvar *started* nil)
 (defvar *current-config* nil)
 (defvar *connection-mode* :pooled-native)
+(defvar *in-transaction* nil "Indique si le thread courant est déjà dans une transaction SQL.")
+;; Variable globale pour suivre la profondeur d'imbrication
+(defparameter *tx-depth* 0)
 
 ;;; --- POOL INFRASTRUCTURE (Inchangé) ---
 (defstruct pool
@@ -221,6 +224,7 @@
 ;;; ----------------------------------------------------------------------------
 ;;; TRANSACTION MANAGEMENT (BLOCK/LABELS - SAFE FLOW)
 ;;; ----------------------------------------------------------------------------
+#|
 (defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
   "Transaction avec flux de contrôle explicite (pas de loop/return implicite)."
   (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
@@ -261,6 +265,55 @@
                              
                                (error (or mapped err))))))))
         
+          (retry-loop))))))
+|#
+
+(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  "Transaction avec flux de contrôle explicite et support des valeurs multiples."
+  (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
+    (let ((attempt 0))
+      (block txn-block
+        (labels ((retry-loop ()
+                   ;; 1. Exécution
+                   (let ((result 
+                          (ensure-connection
+                            (handler-case
+                                (progn
+                                  (%raw-exec "BEGIN")
+                                  ;; --- CHANGEMENT 1 : Capture de TOUTES les valeurs ---
+                                  ;; On transforme (values a b) en (list a b) pour le stocker
+                                  (let ((vals (multiple-value-list (funcall thunk))))
+                                    (%raw-exec "COMMIT")
+                                    ;; On retourne la liste dans notre wrapper interne
+                                    (list :ok vals)))
+                              
+                              (error (c)
+                                (ignore-errors (%raw-exec "ROLLBACK"))
+                                (list :error c))))))
+                   
+                   ;; 2. Analyse
+                   (if (eq (first result) :ok)
+                       ;; --- CHANGEMENT 2 : Restitution des valeurs ---
+                       ;; On transforme (list a b) en (values a b) pour sortir du bloc
+                       (return-from txn-block (values-list (second result)))
+                       
+                       (let* ((err (second result))
+                              (is-app (typep err 'lumen.core.error:application-error))
+                              (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                         
+                         (when is-app (error err))
+                         
+                         (if (and mapped 
+                                  (< attempt retries) 
+                                  (lumen.data.errors:retryable-db-error-p mapped))
+                             (progn
+                               (incf attempt)
+                               (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
+                               (sleep (/ (max 50 sleep-ms) 1000.0))
+                               (retry-loop)) ;; Appel récursif sûr
+                             
+                             (error (or mapped err))))))))
+          
           (retry-loop))))))
 
 (defmacro with-tx ((&key retries) &body body)

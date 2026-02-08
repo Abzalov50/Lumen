@@ -4,9 +4,11 @@
   (:use :cl)
   (:import-from :lumen.core.http :req-query :ctx-from-req :respond-json :respond-404)
   (:import-from :lumen.utils :alist-get)
-  (:import-from :lumen.data.dao  :validate-entity! :row->entity :entity-insert!
-		:entity-update! :entity-delete! :entity-metadata  :entity-fields
-		:entity-slot-symbol :entity->row-alist :entity-table)
+  (:import-from :lumen.data.dao :row->entity :entity-insert!
+		:entity-update! :entity-delete! :entity-metadata :entity-fields
+		:entity-slot-symbol :entity->row-alist :entity-table
+   :entity-validation-error :validate-entity-payload
+   :entity-validation-errors :entity-validation-entity)
   (:import-from :lumen.core.http
    :respond-text :respond-json :resp-status :req-path :req-headers :req-query
    :req-method :req-cookies :req-params :respond-404 :respond-422 :respond-500
@@ -116,13 +118,28 @@
    (%maybe-number (alist-get qp :limit))))
 
 (defun %parse-filter-params (qp)
-  (let* ((reserved '("q" "select" "order" "key" "after" "before" "page" "page_size" "limit"))
-         (q-filters (or (alist-get qp :q) '()))
-         (root-filters (remove-if (lambda (p) (member (car p) reserved :test #'string-equal)) qp)))
-    (append q-filters root-filters)))
+  "Extrait les filtres de la Query String en excluant les mots clés réservés."
+  (let* (;; --- CORRECTION ICI : Ajout de sort et dir ---
+         (reserved '("select" "order" "sort" "dir" 
+                     "key" "after" "before" "page" "page_size" "limit"))
+         
+         ;; 1. On cherche explicitement la paire ("q" . "valeur")
+         (q-pair (assoc "q" qp :test #'string=))
+         
+         ;; 2. On récupère le reste des filtres
+         (other-filters 
+          (remove-if (lambda (p) 
+                       (let ((k (car p)))
+                         (or (string= k "q") 
+                             (member k reserved :test #'string-equal))))
+                     qp)))
+    
+    ;; 3. Reconstruction
+    (if q-pair
+        (cons q-pair other-filters)
+        other-filters)))
 
 ;; --- HANDLERS D'ACTIONS ---
-
 (defun %handle-crud-index (req entity-sym auth-guard order-whitelist)
   (with-crud-error-handling
     ;; 1. Garde
@@ -163,17 +180,57 @@
   (with-crud-error-handling
     (when auth-guard (funcall auth-guard req :op :create))
     (let* ((ctx (ctx-from-req req))
-           (payload (lumen.core.http:ctx-get req :json))
-           (res (lumen.data.repo.core:repo-create entity-sym ctx payload)))
-      (respond-json res :status 201))))
+           (payload (getf ctx :json))
+	   )
+      ;; 2. VALIDATION SYNTAXIQUE (API Layer)
+    ;; On appelle directement le validateur pour avoir le format JSON 422
+    (let ((errors (lumen.data.dao:validate-entity-payload entity-sym payload)))
+      (if errors
+          ;; Cas Erreur "Input Utilisateur"
+          (lumen.core.http:respond-json 
+           `((:error . "Validation Error") (:fields . ,errors)) 
+           :status 422)
+          
+          ;; 3. EXECUTION REPO
+          ;; Si on arrive ici, le payload est "propre".
+          ;; repo-create appellera repo-validate, qui pourra faire des checks "Métier"
+          ;; (ex: check DB unique constraints) et lever une erreur 500/409 si besoin.
+          (handler-case
+              (let ((item (lumen.data.repo.core:repo-create entity-sym ctx payload)))
+                (lumen.core.http:respond-json item :status 201))
+            
+            ;; On peut catcher les erreurs logiques ici si on veut les transformer en 400
+            (entity-validation-error (e)
+              (lumen.core.http:respond-json 
+               `((:error . "Business Rule Error")
+		 (:details . ,(entity-validation-errors e))) 
+               :status 400))))))))
 
 (defun %handle-crud-patch (req entity-sym auth-guard id)
   (with-crud-error-handling
     (when auth-guard (funcall auth-guard req :op :patch))
     (let* ((ctx (ctx-from-req req))
-           (payload (lumen.core.http:ctx-get req :json))
-           (res (lumen.data.repo.core:repo-patch entity-sym ctx id payload)))
-      (respond-json res))))
+           (payload (getf ctx :json)))
+
+      (let ((errors (lumen.data.dao:validate-entity-payload
+		     entity-sym payload :partial t)))
+	(if errors
+            (lumen.core.http:respond-json 
+             `((:error . "Validation Failed") 
+               (:fields . ,errors)) 
+             :status 422)
+
+	    (handler-case
+		(let ((item (lumen.data.repo.core:repo-patch entity-sym ctx id payload)))
+		  (if item
+		      (lumen.core.http:respond-json item)
+		      (lumen.core.http:respond-404)))
+
+	      (entity-validation-error (e)
+		(lumen.core.http:respond-json 
+		 `((:error . "Business Rule Error")
+		   (:details . ,(entity-validation-errors e))) 
+		 :status 400))))))))
 
 (defun %handle-crud-delete (req entity-sym auth-guard id)
   (with-crud-error-handling
@@ -265,33 +322,33 @@
 
       ;; INDEX
       (when (member :index actions)
-        (push `(lumen.core.router:construct-route :GET ,(route-spec base-list) (req)
+        (push `(lumen.core.router:construct-route (:GET ,(route-spec base-list) (req) :host ,host)
                  (%handle-crud-index req ',entity-sym ,auth-guard ',order-whitelist))
               forms))
 
       ;; SHOW
       (when (member :show actions)
-        (push `(lumen.core.router:construct-route :GET ,(route-spec base-item) (req)
+        (push `(lumen.core.router:construct-route (:GET ,(route-spec base-item) (req) :host ,host)
                  (lumen.core.router:with-params (req id)
                    (%handle-crud-show req ',entity-sym ,auth-guard id)))
               forms))
 
       ;; CREATE
       (when (member :create actions)
-        (push `(lumen.core.router:construct-route :POST ,(route-spec base-list) (req)
+        (push `(lumen.core.router:construct-route (:POST ,(route-spec base-list) (req) :host ,host)
                  (%handle-crud-create req ',entity-sym ,auth-guard))
               forms))
 
       ;; PATCH
       (when (member :patch actions)
-        (push `(lumen.core.router:construct-route :PATCH ,(route-spec base-item) (req)
+        (push `(lumen.core.router:construct-route (:PATCH ,(route-spec base-item) (req) :host ,host)
                  (lumen.core.router:with-params (req id)
                    (%handle-crud-patch req ',entity-sym ,auth-guard id)))
               forms))
 
       ;; DELETE
       (when (member :delete actions)
-        (push `(lumen.core.router:construct-route :DELETE ,(route-spec base-item) (req)
+        (push `(lumen.core.router:construct-route (:DELETE ,(route-spec base-item) (req) :host ,host)
                  (lumen.core.router:with-params (req id)
                    (%handle-crud-delete req ',entity-sym ,auth-guard id)))
               forms)))

@@ -284,7 +284,7 @@
 (defun mount-discovery! (&key (routes-path "/_routes") (openapi-path "/openapi.json")
                               (title "Lumen API") (version "1.0.0") (servers nil))
   (list
-   (construct-route :GET openapi-path (req)
+   (construct-route (:GET openapi-path (req))
      (let ((doc `((:openapi . "3.1.0")
                   (:info . ((:title . ,title) (:version . ,version)))
                   ,@(when servers `((:servers . ,(mapcar (lambda (u) `((:url . ,u))) servers))))

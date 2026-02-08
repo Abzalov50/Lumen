@@ -6,7 +6,7 @@
   (:import-from :lumen.data.db :query-1a :query-a :exec)
   (:import-from :lumen.data.dao
     :entity-metadata :entity-fields :row->entity :entity->row-alist :entity-table :entity-primary-key
-    :entity-insert! :entity-update! :entity-delete! :validate-entity! :entity-slot-symbol)
+    :entity-insert! :entity-update! :entity-delete! :entity-slot-symbol)
   (:export
    :select* :count* :select-page*
    ;; Constructeurs sûrs (n'entrent pas en conflit avec CL)
@@ -55,17 +55,20 @@
   (lumen.data.dao:entity-table class-sym))
 
 (defun %ident-p (x)
-  "Autorise symbol/keyword/string convertibles en ident SQL simple (lowercase, _)."
+  "Autorise symbol/keyword/string convertibles en ident SQL (lowercase, _, .).
+   Supporte désormais les noms qualifiés (ex: 'tasks.id')."
   (and (or (symbolp x) (keywordp x) (stringp x))
        (let* ((s (string-downcase (etypecase x
                                     (string x)
                                     (symbol (symbol-name x))))))
          (and (> (length s) 0)
+              ;; Doit commencer par une lettre (SQL standard)
               (char<= #\a (aref s 0) #\z)
               (every (lambda (ch)
                        (or (char<= #\a ch #\z)
                            (char<= #\0 ch #\9)
-                           (char= ch #\_)))
+                           (char= ch #\_)
+                           (char= ch #\.))) ;; <--- AJOUT CRUCIAL ICI
                      s)))))
 
 (defun %ident (x)
@@ -76,7 +79,19 @@
                      (symbol (symbol-name x)))))
 
 (defun %table-sql (table) (%ident table))
-(defun %column-sql (col)  (%ident col))
+(defun %column-sql (col)
+  "Génère le SQL pour une colonne, gère les alias (:col :as :alias)."
+  (cond
+    ;; CAS 1 : C'est une liste avec alias (source :as cible)
+    ((and (consp col) (member :as col))
+     (destructuring-bind (source _as target) col
+       (declare (ignore _as)) ;; On ignore le keyword :as
+       (format nil "~A AS ~A" 
+               (%ident source)  ;; "join_p.name" -> validé
+               (%ident target)))) ;; :project_id_resolved -> validé
+
+    ;; CAS 2 : C'est une colonne simple
+    (t (%ident col))))
 
 (defun %comma-join (strings)
   (with-output-to-string (s)
@@ -103,6 +118,27 @@
      (lambda () (nreverse ps)))))
 
 ;;; ---------------------------------------------------------------------------
+;;; JOINS builder (auto-contenu)
+;;; ---------------------------------------------------------------------------
+(defun %build-joins (joins)
+  "Génère la clause JOIN.
+   Input: '((:left :table :users :on \"users.id = tasks.user_id\" :as \"u\"))
+   Output: \"LEFT JOIN users AS u ON users.id = tasks.user_id\""
+  (if joins
+      (with-output-to-string (s)
+        (dolist (j joins)
+          (let* ((type (or (getf j :type) :left)) ;; LEFT par défaut
+                 (table (getf j :table))
+                 (on    (getf j :on))
+                 (as    (getf j :as)))
+            (format s " ~A JOIN ~A~@[ AS ~A~] ON ~A" 
+                    (string-upcase type) 
+                    (string-downcase table)
+                    as
+                    on))))
+      ""))
+
+;;; ---------------------------------------------------------------------------
 ;;; WHERE builder (auto-contenu)
 ;;; ---------------------------------------------------------------------------
 (defun %build-where (filters fts-config)
@@ -126,8 +162,8 @@
                ((or (string= op-str "!=") (string= op-str "<>")) '!=) ;; Gère != et <>
                ((string-equal op-str "like") 'like)
                ((string-equal op-str "ilike") 'ilike)
-               (t '=)))) 
-
+               (t '=))))
+    (print "OK")
     (multiple-value-bind (emit-f params-f) (%make-param-emitter)
       (labels
           ((rec (f)
@@ -208,7 +244,7 @@
                                 ((= 1 (length parts)) (first parts))
                                 (t (format nil "(~{~a~^ OR ~})" parts))))))))))))
 
-               ;; 5. Forme ALIST ("key" . "val") -> CORRECTION MAJEURE ICI
+               ;; 5. Forme ALIST ("key" . "val")
                ((and (consp f) (stringp (car f)))
                 (let* ((raw-key (car f))
                        (raw-val (cdr f)))
@@ -266,15 +302,27 @@
   (let ((wl (or whitelist '())))
     (labels
         ((allowed? (sym)
-           (member (intern (string-upcase (%ident sym)) :keyword) wl :test #'eql)))
+           ;; 1. On récupère le nom SQL (ex: "tasks.created_at" ou "created_at")
+           (let* ((full-name (%ident sym)) 
+                  ;; 2. On cherche le séparateur de table (le point)
+                  (dot-pos   (position #\. full-name :from-end t))
+                  ;; 3. On extrait uniquement la colonne ("created_at")
+                  (col-only  (if dot-pos 
+                                 (subseq full-name (1+ dot-pos)) 
+                                 full-name))
+                  ;; 4. On convertit en keyword pour matcher la whitelist (:CREATED_AT)
+                  (kw        (intern (string-upcase col-only) :keyword)))
+             
+             (member kw wl :test #'eql))))
+
       (let ((parts
-              (loop for spec in (or order '())
-                    for (col dir) = spec
-                    do (unless (allowed? col)
-                         (error "ORDER BY interdit pour la colonne ~S (hors whitelist)" col))
-                    collect (format nil "~a ~a"
-                                    (%column-sql col)
-                                    (string-upcase (if (eq dir :desc) "DESC" "ASC"))))))
+             (loop for spec in (or order '())
+                   for (col dir) = spec
+                   do (unless (allowed? col)
+                        (error "ORDER BY interdit pour la colonne ~S (hors whitelist)" col))
+                   collect (format nil "~a ~a"
+                                   (%column-sql col)
+                                   (string-upcase (if (eq dir :desc) "DESC" "ASC"))))))
         (if (null parts) "" (%comma-join parts))))))
 
 ;;; ---------------------------------------------------------------------------
@@ -318,24 +366,37 @@
             do (return v)
           finally (return nil))))
 
-(defun select* (table &key filters order select limit offset
+(defun select* (table &key filters order select limit offset joins
                       (order-whitelist '()) (fts-config nil))
-  "Retourne (list d'alists)."
+  "Retourne (list d'alists) avec support des JOINs."
   (multiple-value-bind (where-sql where-params) (%build-where filters fts-config)
     (let* ((select-sql (%build-select select))
+	   (x (print "OKKK"))
+	   (x (print select-sql))
+           (join-sql   (%build-joins joins))
            (order-sql  (%build-order order (or order-whitelist *default-order-whitelist*)))
+           (table-name (%table-sql table))
            (sql (with-output-to-string (s)
-                  (format s "select ~a from ~a" select-sql (%table-sql table))
+                  (format s "select ~a from ~a" select-sql table-name)
+                  
+                  ;; Injection des JOINS
+                  (when (and join-sql (> (length join-sql) 0))
+                    (format s "~a" join-sql))
+                  
                   (when (and where-sql (> (length where-sql) 0))
                     (format s " where ~a" where-sql))
+                  
                   (when (and order-sql (> (length order-sql) 0))
                     (format s " order by ~a" order-sql))
+                  
                   (when limit  (format s " limit ~d" (max 0 (truncate limit))))
                   (when offset (format s " offset ~d" (max 0 (truncate offset)))))))
-      (format t "~&### IN SELECT* | SQL: ~A~%WHERE-PARAMS: ~A~%##########~%"
-	      sql where-params)
+      
+      ;; Debug
+      (format t "~&[SELECT*] SQL: ~A~%[SELECT*] PARAMS: ~A~%" sql where-params)
+      
       (multiple-value-bind (rows _n)
-          (apply #'query-a sql where-params)
+          (apply #'lumen.data.db:query-a sql where-params)
         (declare (ignore _n))
         rows))))
 
@@ -513,8 +574,8 @@ Mono-colonne: même logique sans tuple."
               (values (format nil "~a ~a ~a" cols-sql op row-sql) t)))))))
 
 (defun select-page-keyset* (table
-                            &key filters order key after limit
-                                 (order-whitelist '()) (fts-config nil))
+                            &key filters order key after limit joins
+                              (order-whitelist '()) (fts-config nil))
   "Keyset pagination: retourne plist :items :next-cursor :limit."
   (let* ((lim (max 1 (or limit 20)))
          (key-cols (%normalize-key key)))
@@ -530,6 +591,7 @@ Mono-colonne: même logique sans tuple."
             (declare (ignore pushed?))
             (let* ((select-sql (%build-select :*))
                    (order-sql  (%build-order order (or order-whitelist *default-order-whitelist*)))
+		   (join-sql   (%build-joins joins))
                    (sql (with-output-to-string (s)
                           (format s "select ~a from ~a" select-sql (%table-sql table))
                           (cond
@@ -539,6 +601,9 @@ Mono-colonne: même logique sans tuple."
                              (format s " where ~a" where-sql-base))
                             ((and ks-where (plusp (length ks-where)))
                              (format s " where ~a" ks-where)))
+			  ;; Injection des JOINS
+			  (when (and join-sql (> (length join-sql) 0))
+			    (format s "~a" join-sql))
                           (when (and order-sql (plusp (length order-sql)))
                             (format s " order by ~a" order-sql))
                           (format s " limit ~d" lim))))

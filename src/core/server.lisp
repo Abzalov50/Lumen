@@ -407,6 +407,7 @@
                    (let* ((qpos (and uri (position #\? uri)))
                           (path-only (if qpos (subseq uri 0 qpos) (or uri "/")))
                           (query-str (and qpos (subseq uri (1+ qpos))))
+			  ;;(x (format t "~&[LUMEN SERVER] QUERY STR: ~A~%" query-str))
                           (headers (read-headers flexi))
                           (req (make-instance 'lumen.core.http:request
                                               :method (string-upcase method)

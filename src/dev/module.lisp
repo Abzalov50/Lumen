@@ -50,7 +50,7 @@
          
          (required-effective (or required (not (null roles)) (not (null scopes)))))
 
-    `(construct-route ,method ,path-arg ,args :host ,host
+    `(construct-route (,method ,path-arg ,args :host ,host)
        (let* ((,rk (or ,route-key
                        (multiple-value-bind (host-spec real-path)
                            (lumen.core.router::%parse-route-args ,path-arg)
@@ -112,7 +112,7 @@
   (defun %generate-crud-meta (resource-def module-prefix)
     (destructuring-bind (entity-sym
 			 &key (name (string-downcase (symbol-name entity-sym)))
-                           (actions '(:index :show :create :patch :delete))
+                           (actions '(:index :show :create :edit :patch :delete))
 			 &allow-other-keys)
 	resource-def
       (let* ((prefix (string-right-trim "/" (or module-prefix "")))
@@ -123,6 +123,7 @@
         (when (member :show actions) (push `(:method "GET" :path ,(format nil "~A/:id" base-path) :summary ,(format nil "Get ~A" name)) routes))
         (when (member :patch actions) (push `(:method "PATCH" :path ,(format nil "~A/:id" base-path) :summary ,(format nil "Update ~A" name)) routes))
         (when (member :delete actions) (push `(:method "DELETE" :path ,(format nil "~A/:id" base-path) :summary ,(format nil "Delete ~A" name)) routes))
+	(when (member :edit actions) (push `(:method "PATCH" :path ,(format nil "~A/:id" base-path) :summary ,(format nil "Update ~A" name)) routes))
         (nreverse routes))))
 
   (defun %extract-custom-route-meta (route-def module-prefix)
@@ -137,6 +138,7 @@
         nil))
 
   ;; --- EXPANSION ROUTES CUSTOM ---
+  #|
 (defun %expand-route (method subpath args body-and-opts prefix module-mws-sym &key host)
   (multiple-value-bind (opts raw-code) (%split-body-opts body-and-opts)
     (multiple-value-bind (decls code) (%extract-declarations raw-code)
@@ -177,10 +179,55 @@
 		:host ,host)
                ,@final-body)
             
-            `(lumen.core.router:construct-route ,method-kw ,full-path ,args
-	       :host ,host
+            `(lumen.core.router:construct-route (,method-kw ,full-path ,args
+	       :host ,host)
                ,@final-body))))))
+  |#
+  (defun %expand-route (method subpath args body-and-opts prefix module-mws-sym &key host)
+    (multiple-value-bind (opts raw-code) (%split-body-opts body-and-opts)
+      (multiple-value-bind (decls code) (%extract-declarations raw-code)
+	(let* ((full-path (format nil "~A~A" prefix subpath))
+               (method-str (string-upcase (symbol-name method)))
+               (method-kw  (intern method-str :keyword))
+             
+               ;; 1. EXTRACTION ROBUSTE DE REQ-SYM (Votre code est bon ici)
+               (req-sym (let ((raw (if (and args (listp args)) (first args) args)))
+                          (if (listp raw) (first raw) raw)))
+               (req-sym (or req-sym (intern "REQ" *package*)))
 
+               (is-api-route (or (getf opts :roles) (getf opts :scopes) (getf opts :tag)))
+               (traced-code 
+		 `((lumen.core.trace:with-tracing ("Route Handler" :path ,full-path :method ,method-str)
+                     ,@code)))
+             
+               (final-body 
+		 (if module-mws-sym
+                     `((lumen.core.pipeline:execute-middleware-chain 
+			,module-mws-sym 
+			;; --- CORRECTION CRITIQUE ICI ---
+			;; Au lieu de ,args (qui peut être (req id)), on met juste (,req-sym)
+			;; car 'id' est déjà capturé par la closure parente.
+			(lambda (,req-sym) 
+			  (declare (ignorable ,req-sym)) ;; Évite warning si inutilisé
+			  ,@decls
+			  ,@traced-code) 
+			;; -------------------------------
+			,req-sym)) 
+                     `(,@decls
+                       ,@traced-code))))
+        
+          (if is-api-route
+              `(construct-guarded-route ,method-kw ,full-path ,args
+		   (:roles ,(getf opts :roles) 
+                    :scopes ,(getf opts :scopes)
+                    :admin-bypass? ,(getf opts :admin-bypass? t)
+                    :allow-query-token? t
+		    :host ,host)
+		 ,@final-body)
+            
+              `(lumen.core.router:construct-route (,method-kw ,full-path ,args
+                                                   :host ,host)
+		 ,@final-body))))))
 ;; --- EXPANSION HOOKS ---
 (defun %ensure-expanded (form env)
     "Force l'expansion de macro si FORM commence par construct-route."
@@ -246,15 +293,26 @@
         (lumen.data.dao:register-entity-meta-only! sym args)))
 
     (let ((crud-code-forms 
-            (loop for res in resources appending
-                  (destructuring-bind (entity-sym &key (name (string-downcase (symbol-name entity-sym)))
-                                                       (guard nil) (required-p t) (host nil) (order-whitelist nil)
-                                                       (actions '(:index :show :create :patch :delete)) 
-                                                       &allow-other-keys) res
-                    (lumen.http.crud:mount-crud! 
-                       entity-sym :base sanitized-prefix :name name :host host
-                       :order-whitelist order-whitelist :actions actions
-                       :auth-guard (if guard guard `(lumen.http.crud:make-entity-crud-guard ',entity-sym :required-p ,required-p)))))))
+            (loop for res in resources
+		  appending
+		  (destructuring-bind (entity-sym
+				       &key (name (string-downcase (symbol-name entity-sym)))
+					 (guard nil) (required-p t) (host nil) (order-whitelist nil)
+					 (actions '(:index :show :create :edit :patch :delete))
+					 (type :API)
+					 name title columns
+				       &allow-other-keys) res
+		    (if (eq type :API)
+			(lumen.http.crud:mount-crud! 
+			 entity-sym :base (str:concat "/api" sanitized-prefix)
+				    :name name :host host
+				    :order-whitelist order-whitelist :actions actions
+				    :auth-guard (if guard guard `(lumen.http.crud:make-entity-crud-guard ',entity-sym :required-p ,required-p)))
+			(lumen.view.htmx:mount-htmx-resource 
+			 entity-sym :base sanitized-prefix :name name :host host
+				    :order-whitelist order-whitelist :actions actions
+				    :name name :title title :columns columns
+				    :auth-guard (if guard guard `(lumen.http.crud:make-entity-crud-guard ',entity-sym :required-p ,required-p))))))))
 
       (let ((all-routes-meta 
               (append (loop for res in resources appending (%generate-crud-meta res sanitized-prefix))
@@ -263,27 +321,27 @@
         `(progn
            (defparameter ,mws-var (list ,@middlewares))
            (register-module! ,name 
-             (make-module-meta :name ,name :doc ,doc :path-prefix ,sanitized-prefix
-                               :entities ',(mapcar #'car entities) :resources ',(mapcar #'car resources)
-                               :routes ',all-routes-meta))
+			     (make-module-meta :name ,name :doc ,doc :path-prefix ,sanitized-prefix
+					       :entities ',(mapcar #'car entities) :resources ',(mapcar #'car resources)
+					       :routes ',all-routes-meta))
            ,@(loop for e in entities collect `(defentity ,@e))
            
            (lumen.core.router:register-module-routes ,name
-             (append
-              ;; A. CRUD
-              (list ,@(loop for form in crud-code-forms collect
-                            ;; On force l'expansion ici pour garantir que le compilateur voit du code Lisp de base
-                            (%ensure-expanded form env)))
+						     (append
+						      ;; A. CRUD
+						      (list ,@(loop for form in crud-code-forms collect
+								    ;; On force l'expansion ici pour garantir que le compilateur voit du code Lisp de base
+												(%ensure-expanded form env)))
               
-              ;; B. ROUTES & GÉNÉRATEURS
-              ,@(loop for r in routes collect
-                      (if (%is-static-route-p r)
-                          `(list ,(%ensure-expanded 
-                                   (destructuring-bind (method subpath args &body body) r
-                                     (%expand-route method subpath args body sanitized-prefix mws-var :host host))
-                                   env))
-                          r))))
+						      ;; B. ROUTES & GÉNÉRATEURS
+						      ,@(loop for r in routes collect
+									      (if (%is-static-route-p r)
+										  `(list ,(%ensure-expanded 
+											   (destructuring-bind (method subpath args &body body) r
+											     (%expand-route method subpath args body sanitized-prefix mws-var :host host))
+											   env))
+										  r))))
            
            ,@(loop for (entity-sym . entity-hooks) in hooks appending
-                   (loop for hook-def in entity-hooks collect
-                         (%expand-hook entity-sym hook-def))))))))
+							    (loop for hook-def in entity-hooks collect
+											       (%expand-hook entity-sym hook-def))))))))

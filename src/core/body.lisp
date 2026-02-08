@@ -4,18 +4,10 @@
   (:use :cl)
   (:import-from :lumen.utils :%trim :url-decode-qs)
   (:import-from :lumen.core.mime :guess-content-type)
-  (:import-from :lumen.core.http :respond-json :response :ctx-get :ctx-set! :req-body-stream)
   (:export :parse-urlencoded :parse-multipart :json-get :parse-json 
 	   :read-exact-bytes :bytes->string-utf8 :string->bytes-utf8))
 
 (in-package :lumen.core.body)
-
-#|
-(defun read-exact-bytes (stream len)
-  (let ((buf (make-array len :element-type '(unsigned-byte 8))))
-    (let ((n (read-sequence buf stream)))
-      (if (= n len) buf (subseq buf 0 n)))))
-|#
 
 (defun read-exact-bytes (stream n &key limit)
   "Lit exactement N octets. Si N > LIMIT, erreur."
@@ -73,19 +65,64 @@
           nil)))))
 
 ;;; ---------- x-www-form-urlencoded ------------------------------------------
+(defun url-decode-utf8 (s)
+  "Décode une chaîne URL-encoded en UTF-8 réel.
+   Transforme %C3%A9 en octets #xC3 #xA9 puis en string 'é'."
+  (when s
+    (let* ((len (length s))
+           ;; On prépare un buffer d'octets (unsigned-byte 8)
+           ;; La taille décodée sera <= la taille encodée.
+           (bytes (make-array len :element-type '(unsigned-byte 8) :fill-pointer 0)))
+      
+      (loop with i = 0
+            while (< i len)
+            for c = (char s i)
+            do (cond
+                 ;; 1. Gestion du + (Espace)
+                 ((char= c #\+)
+                  (vector-push 32 bytes) ;; 32 = Code ASCII de l'espace
+                  (incf i))
+                 
+                 ;; 2. Gestion du %XX (Hexadécimal)
+                 ((and (char= c #\%)
+                       (< (+ i 2) len))
+                  ;; On parse les 2 caractères suivants comme un entier HEXA
+                  (let ((hex-val (parse-integer s :start (1+ i) :end (+ i 3) :radix 16 :junk-allowed t)))
+                    (if hex-val
+                        (progn
+                          (vector-push hex-val bytes) ;; On pousse l'OCTET, pas le char
+                          (incf i 3))
+                        ;; Fallback si % n'est pas suivi de hex valide
+                        (progn
+                          (vector-push (char-code c) bytes)
+                          (incf i)))))
+                 
+                 ;; 3. Caractères standards (ASCII 7-bit)
+                 (t
+                  (vector-push (char-code c) bytes)
+                  (incf i))))
+      
+      ;; Conversion finale : Tableau d'octets -> String UTF-8
+      (trivial-utf-8:utf-8-bytes-to-string bytes))))
+
+;; Mise à jour de votre parseur pour utiliser la nouvelle fonction
 (defun parse-urlencoded-string (s)
-  "Transforme \"a=1&b=2&b=3\" -> alist '( (\"a\" . \"1\") (\"b\" . \"2\") (\"b\" . \"3\") )."
+  "Transforme \"a=1&b=%C3%A9\" -> alist '( (\"a\" . \"1\") (\"b\" . \"é\") )."
   (let ((pairs (uiop:split-string (or s "") :separator "&")))
     (loop for p in pairs
           for pos = (position #\= p)
-          for k   = (url-decode-qs (subseq p 0 (or pos (length p))))
-          for v   = (url-decode-qs (and pos (subseq p (1+ pos))))
-          when (plusp (length k))
+          ;; Utilisation de url-decode-utf8 au lieu de url-decode-qs
+          for k   = (url-decode-utf8 (subseq p 0 (or pos (length p))))
+          for v   = (url-decode-utf8 (and pos (subseq p (1+ pos))))
+          when (and k (plusp (length k)))
           collect (cons k (or v "")))))
 
+;; Votre point d'entrée reste inchangé
 (defun parse-urlencoded (stream length)
   "Lit LENGTH octets du STREAM et renvoie une alist (name . value)."
   (when (and stream length (> length 0))
+    ;; Note: bytes->string-utf8 ici est sûr car le body url-encoded est 100% ASCII
+    ;; (les caractères spéciaux sont déjà échappés en %).
     (parse-urlencoded-string (bytes->string-utf8 (read-exact-bytes stream length)))))
 
 ;;; ---------- multipart/form-data (in-memory minimal) -------------------------

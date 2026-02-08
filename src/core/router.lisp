@@ -146,7 +146,7 @@
         (t (error "Invalid defroute path-arg: ~S" path-arg))))
 
 ;; --- MISE A JOUR VHOST : Ajout de &key host ---
-(defmacro construct-route (method path-arg arglist &key host &body body)
+(defmacro construct-route ((method path-arg arglist &key host) &body body)
   "Compile une route. Supporte maintenant :host explicitement."
   (let* ((m (string-upcase (string method)))
          (rx (gensym "RX")) 
@@ -179,7 +179,7 @@
   `(add-route (construct-guarded-route ,method ,path-arg ,args ,options ,@body)))
 
 (defmacro defroute (method path-arg arglist &body body)
-  `(add-route (construct-route ,method ,path-arg ,arglist ,@body)))
+  `(add-route (construct-route (,method ,path-arg ,arglist) ,@body)))
 
 (defun extract-path-params (scanner names path)
   (multiple-value-bind (match regs) (cl-ppcre:scan-to-strings scanner path)
@@ -207,7 +207,12 @@
       (when (cl-ppcre:scan (route-pattern r) path)
         (pushnew (route-method r) methods :test #'string=)))
     (when (member "GET" methods :test #'string=) (pushnew "HEAD" methods :test #'string=))
+    (when (member "PATCH" methods :test #'string=) (pushnew "PUT" methods :test #'string=))
+    (when (member "PUT" methods :test #'string=) (pushnew "PATCH" methods :test #'string=))
     (when methods (pushnew "OPTIONS" methods :test #'string=))
+    (print "IN ALLOWAD METHODS")
+    (print path)
+    (print methods)
     (sort (copy-list methods) #'string<)))
 
 (defun respond-options (router path)
@@ -227,12 +232,14 @@
   (handler-case
       (let* ((method (req-method req))
              (path   (req-path req))
-             (match-method (if (string= method "HEAD") "GET" method))
+             (match-method
+	       (cond ((string= method "HEAD") "GET")
+		     ((string= method "PUT") '("PATCH" "PUT"))
+		     ((string= method "PATCH") '("PATCH" "PUT"))
+		     (t	 method)))
              (host   (normalize-host req))
              (matched nil))
-        
-        ;; Debug léger si besoin
-        ;; (print (list :method method :host host :path path))
+        (format t "~&[MATCH-AND-EXECUTE] METHODE: ~A | HOST: ~A | PATH: ~A | MATCH-METHOD: ~A~%" method host path match-method)
         
         (cond
           ((string= method "OPTIONS")
@@ -241,20 +248,40 @@
                (respond-404 "Not Found")))
           
           (t
+           ;; 1. Recherche de la route
            (loop for r across (router-routes router) do
-             (when (and (string= match-method (route-method r))
+             (when (and (if (stringp match-method)
+			    (string= match-method (route-method r))
+			    (member (route-method r) match-method :test #'equal))
                         (%match-route-host-p r host)
                         (cl-ppcre:scan (route-pattern r) path))
                (setf matched r)
                (return)))
+	   (format t "~&[MATCH-AND-EXECUTE] ROUTE MATCHED? ~A~%" (if matched t nil))
            
            (if matched
                (progn
-                 (lumen.core.http:ctx-set! req :params 
-                   (extract-path-params (route-pattern matched) (route-param-names matched) path))
-                 (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
-                 (funcall (route-handler matched) req))
+                 ;; 2. Extraction des valeurs des paramètres (ex: #("123"))
+                 ;; On utilise scan-to-strings pour récupérer les groupes de capture
+                 (let ((param-values 
+                        (multiple-value-bind (full-match regs)
+                            (cl-ppcre:scan-to-strings (route-pattern matched) path)
+                          (declare (ignore full-match))
+                          (if regs (coerce regs 'list) nil)))) ;; Convertit le vecteur en liste
+                   
+                   ;; 3. Mise à jour du contexte (Votre logique existante)
+                   (lumen.core.http:ctx-set! req :params 
+                     (extract-path-params (route-pattern matched) (route-param-names matched) path))
+                   (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
+                   
+                   ;; 4. EXECUTION AVEC APPLY (Le Correctif)
+                   ;; Si param-values est ("123"), cela appelle (handler req "123")
+                   ;; Si param-values est NIL, cela appelle (handler req)
+                   (let ((response (apply (route-handler matched) req param-values)))
+		     ;;(print response)
+		     response)))
                
+               ;; Pas de route trouvée
                (if (allowed-methods-for router path)
                    (respond-405 router path)
                    (respond-404 "Not Found"))))))

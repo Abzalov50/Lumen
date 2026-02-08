@@ -86,9 +86,6 @@
          (msg (trivial-utf-8:string-to-utf-8-bytes (format nil "~A.~A" h p)))
          (sig (hmac-sha256 (trivial-utf-8:string-to-utf-8-bytes secret) msg))
          (s (b64url-encode sig)))
-    ;;(print h)
-    ;;(print p)
-    ;;(print s)
     (format nil "~A.~A.~A" h p s)))
 
 (defun jwt-decode (token &key (secret *jwt-secret*) (verify t) (leeway 60) (debug nil))
@@ -140,14 +137,6 @@ Retourne (values payload t) si OK, sinon (values nil nil).
       (error (e)
         (logf "~&[jwt] decode error: ~A~%" e)
         (values nil nil)))))
-#|
-(defun issue-access (user-id &key role scopes)
-  (jwt-encode `((:sub . ,user-id)
-                (:role . ,role)
-                (:scopes . ,scopes)
-                (:iat . ,(now))
-                (:exp . ,(+ (now) *access-ttl*)))))
-|#
 
 (defun issue-access (user-id &key role scopes tenant claims (ttl *access-ttl*))
   "Émet un access JWT (dates en UNIX seconds).
@@ -157,7 +146,7 @@ Retourne (values payload t) si OK, sinon (values nil nil).
          (base `((:sub    . ,user-id)
                  (:typ    . "access")
                  (:role   . ,role)
-                 (:scopes . scopes)
+                 (:scopes . ,scopes)
                  ,@(when tenant `((:tenant . ,tenant)))
                  (:iat    . ,now)
                  (:exp    . ,exp)))

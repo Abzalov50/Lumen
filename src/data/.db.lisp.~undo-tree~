@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"c404e77ada7d5fea6a18d92b7f2b3e88ed728092"
+"a84da0d257652c7066bdb08a6751da252686d6ec"
 [nil nil nil nil (26790 8105 766715 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 230 . 231) (nil fontified nil 1 . 231) (1 . 231) (t . -1)) nil (26790 8105 766715 0) 0 nil])
 ([nil nil ((17 . 18)) nil (26790 8105 766714 0) 0 nil])
@@ -11155,7 +11155,281 @@ Options :
 ([nil nil ((9939 . 9941) (9890 . 9892) (9790 . 9795) (#("                               " 0 31 (fontified t)) . 9790) (9748 . 9753) (#("                               " 0 31 (fontified t)) . 9748) (9685 . 9690) (#("                               " 0 31 (fontified t)) . 9685) (9665 . 9670) (#("                               " 0 31 (fontified t)) . 9665) (9656 . 9658) (9576 . 9578) (9519 . 9521) (9466 . 9468) (9387 . 9389) (9269 . 9273) (#("                              " 0 30 (fontified t)) . 9269) (9208 . 9212) (#("                              " 0 30 (fontified t)) . 9208) (9175 . 9179) (#("                       " 0 23 (fontified t)) . 9175) (9107 . 9111) (#("                       " 0 23 (fontified t)) . 9107) (9077 . 9079) (9042 . 9044) (8977 . 8982) (#("                              " 0 30 (fontified t)) . 8977) (8933 . 8938) (#("                              " 0 30 (fontified t)) . 8933) (8919 . 8922) (8871 . 8874) (8813 . 8816) (8747 . 8750) (8692 . 8695) (8648 . 8653) (#("                              " 0 30 (fontified t)) . 8648) (8631 . 8634) (8583 . 8586) (8542 . 8544) (8507 . 8509) (8465 . 8466) (#("      " 0 6 (fontified t)) . 8465) (8446 . 8448) (8421 . 8423) 8201) nil (26998 21961 973189 0) 0 nil])
 ([nil nil ((9958 . 9959)) nil (26998 21961 973185 0) 0 nil])
 ([nil nil ((#(")" 0 1 (fontified t)) . -9958) (undo-tree-id1 . -1) 9959) nil (26998 21961 973183 0) 0 nil])
-([nil current ((#("
+([nil nil ((#("
   (print sql)
   (print params)" 0 31 (fontified t)) . 7912) (undo-tree-id0 . -31)) nil (26998 21961 973178 0) 0 nil])
+([nil nil ((1079 . 1080) (t 26998 21961 0 0)) nil (27009 57470 864191 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1174 . 1175) (nil fontified nil 1080 . 1175) (1080 . 1175)) nil (27009 57470 864190 0) 0 nil])
+([nil nil ((8265 . 8266)) nil (27009 57470 864190 0) 0 nil])
+([nil nil ((8266 . 8268)) nil (27009 57470 864189 0) 0 nil])
+([nil nil ((10027 . 10029)) nil (27009 57470 864189 0) 0 nil])
+([nil nil ((10029 . 10030)) nil (27009 57470 864189 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 12782 . 12783) (nil fontified nil 10030 . 12783) (10030 . 12783)) nil (27009 57470 864188 0) 0 nil])
+([nil nil ((12783 . 12784)) nil (27009 57470 864186 0) 0 nil])
+([nil nil ((10029 . 10030)) nil (27009 57470 864182 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1262 . 1263) (nil fontified nil 1176 . 1263) (1176 . 1263) (t 27009 57470 0 0)) nil (27009 58988 660563 0) 0 nil])
+([nil nil ((1263 . 1264)) nil (27009 58988 660562 0) 0 nil])
+([nil nil ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  \"Exécute THUNK dans une transaction SQL. Gère correctement l'imbrication.\"
+  
+  (if *in-transaction*
+      ;; --- CAS 1 : DÉJÀ DANS UNE TRANSACTION (Nested) ---
+      ;; On ne fait rien de spécial, on exécute juste le code.
+      ;; La gestion d'erreur/rollback est déléguée à la transaction parente.
+      (funcall thunk)
+      
+      ;; --- CAS 2 : NOUVELLE TRANSACTION (Root) ---
+      (let ((*in-transaction* t)) ;; On marque le thread comme \"occupé\"
+        (lumen.core.trace:with-tracing (\"DB:Transaction\" :retries-max retries)
+          (let ((attempt 0))
+            (block txn-block
+              (labels ((retry-loop ()
+                         ;; 1. Exécution
+                         (let ((result 
+                                (ensure-connection
+                                  (handler-case
+                                      (progn
+                                        (%raw-exec \"BEGIN\")
+                                        (let ((res (funcall thunk)))
+                                          (%raw-exec \"COMMIT\")
+                                          (list :ok res)))
+                                    (error (c)
+                                      ;; En cas d'erreur, on rollback ICI, car nous sommes la racine.
+                                      (ignore-errors (%raw-exec \"ROLLBACK\"))
+                                      (list :error c))))))
+                           
+                           ;; 2. Analyse
+                           (if (eq (first result) :ok)
+                               (return-from txn-block (second result))
+                               
+                               (let* ((err (second result))
+                                      (is-app (typep err 'lumen.core.error:application-error))
+                                      (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                                 
+                                 (when is-app (error err))
+                                 
+                                 (if (and mapped 
+                                          (< attempt retries) 
+                                          (lumen.data.errors:retryable-db-error-p mapped))
+                                     (progn
+                                       (incf attempt)
+                                       (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
+                                       (sleep (/ (max 50 sleep-ms) 1000.0))
+                                       (retry-loop))
+                                     
+                                     (error (or mapped err))))))))
+                
+                (retry-loop))))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 25 (face font-lock-function-name-face fontified t) 25 33 (fontified t) 33 37 (face font-lock-type-face fontified t) 37 67 (fontified t) 67 141 (face font-lock-doc-face fontified t) 141 148 (fontified t) 148 150 (face font-lock-keyword-face fontified t) 150 174 (fontified t) 174 177 (face font-lock-comment-delimiter-face fontified t) 177 228 (face font-lock-comment-face fontified t) 228 234 (fontified t) 234 237 (face font-lock-comment-delimiter-face fontified t) 237 291 (face font-lock-comment-face fontified t) 291 297 (fontified t) 297 300 (face font-lock-comment-delimiter-face fontified t) 300 316 (face font-lock-comment-face fontified t) 316 368 (face font-lock-comment-face fontified t) 368 403 (fontified t) 403 406 (face font-lock-comment-delimiter-face fontified t) 406 450 (face font-lock-comment-face fontified t) 450 457 (fontified t) 457 460 (face font-lock-keyword-face fontified t) 460 484 (fontified t) 484 487 (face font-lock-comment-delimiter-face fontified t) 487 522 (face font-lock-comment-face fontified t) 522 531 (fontified t) 531 560 (face font-lock-keyword-face fontified t) 560 562 (fontified t) 562 578 (face font-lock-string-face fontified t) 578 579 (fontified t) 579 591 (face font-lock-builtin-face fontified t) 591 612 (fontified t) 612 615 (face font-lock-keyword-face fontified t) 615 643 (fontified t) 643 648 (face font-lock-keyword-face fontified t) 648 674 (fontified t) 674 680 (face font-lock-keyword-face fontified t) 680 722 (fontified t) 722 725 (face font-lock-comment-delimiter-face fontified t) 725 738 (face font-lock-comment-face fontified t) 738 764 (fontified t) 764 767 (face font-lock-keyword-face fontified t) 767 864 (fontified t) 864 876 (face font-lock-keyword-face fontified t) 876 916 (fontified t) 916 921 (face font-lock-keyword-face fontified t) 921 973 (fontified t) 973 980 (face font-lock-string-face fontified t) 980 1023 (fontified t) 1023 1026 (face font-lock-keyword-face fontified t) 1026 1104 (fontified t) 1104 1112 (face font-lock-string-face fontified t) 1112 1162 (fontified t) 1162 1165 (face font-lock-builtin-face fontified t) 1165 1210 (fontified t) 1210 1215 (face font-lock-warning-face fontified t) 1215 1258 (fontified t) 1258 1261 (face font-lock-comment-delimiter-face fontified t) 1261 1322 (face font-lock-comment-face fontified t) 1322 1361 (fontified t) 1361 1374 (face font-lock-keyword-face fontified t) 1374 1386 (fontified t) 1386 1396 (face font-lock-string-face fontified t) 1396 1443 (fontified t) 1443 1449 (face font-lock-builtin-face fontified t) 1449 1513 (fontified t) 1513 1516 (face font-lock-comment-delimiter-face fontified t) 1516 1527 (face font-lock-comment-face fontified t) 1527 1555 (fontified t) 1555 1557 (face font-lock-keyword-face fontified t) 1557 1577 (fontified t) 1577 1580 (face font-lock-builtin-face fontified t) 1580 1614 (fontified t) 1614 1625 (face font-lock-keyword-face fontified t) 1625 1717 (fontified t) 1717 1721 (face font-lock-keyword-face fontified t) 1721 1868 (fontified t) 1868 1887 (fontified t) 1887 1893 (face font-lock-keyword-face fontified t) 1893 1941 (fontified t) 1941 2009 (fontified t) 2009 2013 (face font-lock-keyword-face fontified t) 2013 2022 (fontified t) 2022 2027 (face font-lock-warning-face fontified t) 2027 2102 (fontified t) 2102 2104 (face font-lock-keyword-face fontified t) 2104 2310 (fontified t) 2310 2315 (face font-lock-keyword-face fontified t) 2315 2419 (fontified t) 2419 2449 (face font-lock-string-face fontified t) 2449 2672 (fontified t) 2672 2677 (face font-lock-warning-face fontified t) 2677 2753 (fontified t)) . -10119) (undo-tree-id0 . -2753) (undo-tree-id1 . -1304) (undo-tree-id2 . -368) (undo-tree-id3 . -1941) (undo-tree-id4 . -697) (undo-tree-id5 . -697) (undo-tree-id6 . -697) (undo-tree-id7 . -697) (undo-tree-id8 . -697) (undo-tree-id9 . -697) (undo-tree-id10 . -697) (undo-tree-id11 . -697) (undo-tree-id12 . -697) (undo-tree-id13 . -697) (undo-tree-id14 . -697) (undo-tree-id15 . -697) (undo-tree-id16 . -697) (undo-tree-id17 . -697) (undo-tree-id18 . -697) (undo-tree-id19 . -697) (undo-tree-id20 . -697) (undo-tree-id21 . -697) (undo-tree-id22 . -697) (undo-tree-id23 . -697) (undo-tree-id24 . -697) (undo-tree-id25 . -697) (undo-tree-id26 . -697) (undo-tree-id27 . -697) (undo-tree-id28 . -697) (undo-tree-id29 . -697) (undo-tree-id30 . -697) (undo-tree-id31 . -697) (undo-tree-id32 . -697) (undo-tree-id33 . -697) (undo-tree-id34 . -697) (undo-tree-id35 . -697) (undo-tree-id36 . -697) (undo-tree-id37 . -697) (undo-tree-id38 . -697) (undo-tree-id39 . -697) (undo-tree-id40 . -697) (undo-tree-id41 . -697) (undo-tree-id42 . -697) (undo-tree-id43 . -697) (undo-tree-id44 . -697) (undo-tree-id45 . -697) (undo-tree-id46 . -697) (undo-tree-id47 . -2181) (undo-tree-id48 . -2181) (undo-tree-id49 . -2181) (undo-tree-id50 . -2181) (undo-tree-id51 . -2181) (undo-tree-id52 . -2181) (undo-tree-id53 . -2181) (undo-tree-id54 . -2181) (undo-tree-id55 . -2181) (undo-tree-id56 . -2181) (undo-tree-id57 . -2181) (undo-tree-id58 . -2181) (undo-tree-id59 . -2181) (undo-tree-id60 . -2181) (undo-tree-id61 . -2181) (undo-tree-id62 . -2181) (undo-tree-id63 . -2181) (undo-tree-id64 . -2181) (undo-tree-id65 . -2181) (undo-tree-id66 . -2181) (undo-tree-id67 . -2181) (undo-tree-id68 . -2181) (undo-tree-id69 . -2181) (undo-tree-id70 . -2181) (undo-tree-id71 . -2181) (undo-tree-id72 . -2181) (undo-tree-id73 . -2181) (undo-tree-id74 . -2181) (undo-tree-id75 . -2181) (undo-tree-id76 . -2181) (undo-tree-id77 . -2181) (undo-tree-id78 . -2181) (undo-tree-id79 . -2181) (undo-tree-id80 . -2181) (undo-tree-id81 . -659) (undo-tree-id82 . -659) (undo-tree-id83 . -659) (undo-tree-id84 . -659) (undo-tree-id85 . -659) (undo-tree-id86 . -659) (undo-tree-id87 . -659) (undo-tree-id88 . -659) (undo-tree-id89 . -659) (undo-tree-id90 . -659) (undo-tree-id91 . -659) (undo-tree-id92 . -659) (undo-tree-id93 . -659) (undo-tree-id94 . -659) (undo-tree-id95 . -659) (undo-tree-id96 . -2753) (undo-tree-id97 . -2753) (undo-tree-id98 . -2718) (undo-tree-id99 . -2753) (undo-tree-id100 . -2753) (undo-tree-id101 . -2753) 12872) nil (27009 58988 660559 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 13034 . 13035) (nil fontified nil 10119 . 13035) (10119 . 13035)) nil (27009 60160 390887 0) 0 nil])
+([nil nil ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  \"Exécute THUNK dans une transaction. Gère l'imbrication par comptage.\"
+  
+  ;; On incrémente la profondeur pour ce bloc
+  (let ((*tx-depth* (1+ *tx-depth*)))
+    
+    (lumen.core.trace:with-tracing (\"DB:Transaction\" :depth *tx-depth*)
+      ;; DEBUG TEMPORAIRE (Pour vérifier dans vos logs que la profondeur augmente bien)
+      ;; (format t \"~&[TX] Depth: ~A~%\" *tx-depth*)
+      
+      (if (> *tx-depth* 1)
+          ;; --- CAS IMBRIQUÉ (Depth > 1) ---
+          ;; On est déjà dans une transaction. On exécute, mais SANS toucher au SQL (BEGIN/COMMIT).
+          ;; C'est une \"Transaction Logique\".
+          (funcall thunk)
+
+          ;; --- CAS RACINE (Depth = 1) ---
+          ;; C'est la vraie transaction SQL physique.
+          (let ((attempt 0))
+            (block txn-block
+              (labels ((retry-loop ()
+                         ;; 1. EXÉCUTION
+                         (let ((result 
+                                (ensure-connection
+                                  (handler-case
+                                      (progn
+                                        (%raw-exec \"BEGIN\")
+                                        (let ((res (funcall thunk)))
+                                          (%raw-exec \"COMMIT\")
+                                          (list :ok res)))
+                                    (error (c)
+                                      ;; Rollback uniquement si on est racine
+                                      (ignore-errors (%raw-exec \"ROLLBACK\"))
+                                      (list :error c))))))
+                           
+                           ;; 2. ANALYSE DU RÉSULTAT
+                           (if (eq (first result) :ok)
+                               (return-from txn-block (second result))
+                               
+                               (let* ((err (second result))
+                                      (is-app (typep err 'lumen.core.error:application-error))
+                                      (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                                 
+                                 (when is-app (error err))
+                                 
+                                 (if (and mapped 
+                                          (< attempt retries) 
+                                          (lumen.data.errors:retryable-db-error-p mapped))
+                                     (progn
+                                       (incf attempt)
+                                       (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
+                                       (sleep (/ (max 50 sleep-ms) 1000.0))
+                                       (retry-loop))
+                                     
+                                     (error (or mapped err))))))))
+                (retry-loop))))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 25 (face font-lock-function-name-face fontified t) 25 33 (fontified t) 33 37 (face font-lock-type-face fontified t) 37 67 (fontified t) 67 137 (face font-lock-doc-face fontified t) 137 143 (fontified t) 143 146 (face font-lock-comment-delimiter-face fontified t) 146 187 (face font-lock-comment-face fontified t) 187 190 (fontified t) 190 193 (face font-lock-keyword-face fontified t) 193 235 (fontified t) 235 264 (face font-lock-keyword-face fontified t) 264 266 (fontified t) 266 282 (face font-lock-string-face fontified t) 282 283 (fontified t) 283 289 (face font-lock-builtin-face fontified t) 289 308 (fontified t) 308 311 (face font-lock-comment-delimiter-face fontified t) 311 390 (face font-lock-comment-face fontified t) 390 396 (fontified t) 396 399 (face font-lock-comment-delimiter-face fontified t) 399 442 (face font-lock-comment-face fontified t) 442 456 (fontified t) 456 458 (face font-lock-keyword-face fontified t) 458 486 (fontified t) 486 489 (face font-lock-comment-delimiter-face fontified t) 489 522 (face font-lock-comment-face fontified t) 522 532 (fontified t) 532 535 (face font-lock-comment-delimiter-face fontified t) 535 622 (face font-lock-comment-face fontified t) 622 632 (fontified t) 632 635 (face font-lock-comment-delimiter-face fontified t) 635 668 (face font-lock-comment-face fontified t) 668 705 (fontified t) 705 708 (face font-lock-comment-delimiter-face fontified t) 708 739 (face font-lock-comment-face fontified t) 739 749 (fontified t) 749 752 (face font-lock-comment-delimiter-face fontified t) 752 793 (face font-lock-comment-face fontified t) 793 804 (fontified t) 804 807 (face font-lock-keyword-face fontified t) 807 835 (fontified t) 835 840 (face font-lock-keyword-face fontified t) 840 866 (fontified t) 866 872 (face font-lock-keyword-face fontified t) 872 914 (fontified t) 914 917 (face font-lock-comment-delimiter-face fontified t) 917 930 (face font-lock-comment-face fontified t) 930 956 (fontified t) 956 959 (face font-lock-keyword-face fontified t) 959 1056 (fontified t) 1056 1068 (face font-lock-keyword-face fontified t) 1068 1108 (fontified t) 1108 1113 (face font-lock-keyword-face fontified t) 1113 1165 (fontified t) 1165 1172 (face font-lock-string-face fontified t) 1172 1215 (fontified t) 1215 1218 (face font-lock-keyword-face fontified t) 1218 1296 (fontified t) 1296 1304 (face font-lock-string-face fontified t) 1304 1354 (fontified t) 1354 1357 (face font-lock-builtin-face fontified t) 1357 1402 (fontified t) 1402 1407 (face font-lock-warning-face fontified t) 1407 1450 (fontified t) 1450 1453 (face font-lock-comment-delimiter-face fontified t) 1453 1490 (face font-lock-comment-face fontified t) 1490 1500 (fontified t) 1500 1529 (fontified t) 1529 1542 (face font-lock-keyword-face fontified t) 1542 1554 (fontified t) 1554 1564 (face font-lock-string-face fontified t) 1564 1567 (fontified t) 1567 1611 (fontified t) 1611 1617 (face font-lock-builtin-face fontified t) 1617 1681 (fontified t) 1681 1684 (face font-lock-comment-delimiter-face fontified t) 1684 1707 (face font-lock-comment-face fontified t) 1707 1735 (fontified t) 1735 1737 (face font-lock-keyword-face fontified t) 1737 1757 (fontified t) 1757 1760 (face font-lock-builtin-face fontified t) 1760 1794 (fontified t) 1794 1805 (face font-lock-keyword-face fontified t) 1805 1897 (fontified t) 1897 1901 (face font-lock-keyword-face fontified t) 1901 2067 (fontified t) 2067 2073 (face font-lock-keyword-face fontified t) 2073 2189 (fontified t) 2189 2193 (face font-lock-keyword-face fontified t) 2193 2202 (fontified t) 2202 2207 (face font-lock-warning-face fontified t) 2207 2282 (fontified t) 2282 2284 (face font-lock-keyword-face fontified t) 2284 2490 (fontified t) 2490 2495 (face font-lock-keyword-face fontified t) 2495 2599 (fontified t) 2599 2629 (face font-lock-string-face fontified t) 2629 2852 (fontified t) 2852 2857 (face font-lock-warning-face fontified t) 2857 2915 (fontified t) 2915 2916 (rear-nonsticky t fontified t)) . -10119) (undo-tree-id142 . -1365) (undo-tree-id143 . -2495) (undo-tree-id144 . -2916) 13035 (t 27009 58988 0 0)) nil (27009 62162 541926 0) 0 nil] [nil nil ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  \"Exécute THUNK dans une transaction. Gère l'imbrication par comptage.\"
+  
+  ;; On incrémente la profondeur pour ce bloc
+  (let ((*tx-depth* (1+ *tx-depth*)))
+    
+    (lumen.core.trace:with-tracing (\"DB:Transaction\" :depth *tx-depth*)
+      ;; DEBUG TEMPORAIRE (Pour vérifier dans vos logs que la profondeur augmente bien)
+      ;; (format t \"~&[TX] Depth: ~A~%\" *tx-depth*)
+      
+      (if (> *tx-depth* 1)
+          ;; --- CAS IMBRIQUÉ (Depth > 1) ---
+          ;; On est déjà dans une transaction. On exécute, mais SANS toucher au SQL (BEGIN/COMMIT).
+          ;; C'est une \"Transaction Logique\".
+          (funcall thunk)
+
+          ;; --- CAS RACINE (Depth = 1) ---
+          ;; C'est la vraie transaction SQL physique.
+          (let ((attempt 0))
+            (block txn-block
+              (labels ((retry-loop ()
+                         ;; 1. EXÉCUTION
+                         (let ((result 
+                                (ensure-connection
+                                  (handler-case
+                                      (progn
+                                        (%raw-exec \"BEGIN\")
+                                        (let ((res (funcall thunk)))
+                                          (%raw-exec \"COMMIT\")
+                                          (list :ok res)))
+                                    (error (c)
+                                      ;; Rollback uniquement si on est racine
+                                      (ignore-errors (%raw-exec \"ROLLBACK\"))
+                                      (list :error c))))))
+                           
+                           ;; 2. ANALYSE DU RÉSULTAT
+                           (if (eq (first result) :ok)
+                               (return-from txn-block (second result))
+                               
+                               (let* ((err (second result))
+                                      (is-app (typep err 'lumen.core.error:application-error))
+                                      (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                                 
+                                 (when is-app (error err))
+                                 
+                                 (if (and mapped 
+                                          (< attempt retries) 
+                                          (lumen.data.errors:retryable-db-error-p mapped))
+                                     (progn
+                                       (incf attempt)
+                                       (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
+                                       (sleep (/ (max 50 sleep-ms) 1000.0))
+                                       (retry-loop))
+                                     
+                                     (error (or mapped err))))))))
+                (retry-loop))))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 25 (face font-lock-function-name-face fontified t) 25 33 (fontified t) 33 37 (face font-lock-type-face fontified t) 37 67 (fontified t) 67 137 (face font-lock-doc-face fontified t) 137 143 (fontified t) 143 146 (face font-lock-comment-delimiter-face fontified t) 146 187 (face font-lock-comment-face fontified t) 187 190 (fontified t) 190 193 (face font-lock-keyword-face fontified t) 193 235 (fontified t) 235 264 (face font-lock-keyword-face fontified t) 264 266 (fontified t) 266 282 (face font-lock-string-face fontified t) 282 283 (fontified t) 283 289 (face font-lock-builtin-face fontified t) 289 308 (fontified t) 308 311 (face font-lock-comment-delimiter-face fontified t) 311 390 (face font-lock-comment-face fontified t) 390 396 (fontified t) 396 399 (face font-lock-comment-delimiter-face fontified t) 399 442 (face font-lock-comment-face fontified t) 442 456 (fontified t) 456 458 (face font-lock-keyword-face fontified t) 458 486 (fontified t) 486 489 (face font-lock-comment-delimiter-face fontified t) 489 522 (face font-lock-comment-face fontified t) 522 532 (fontified t) 532 535 (face font-lock-comment-delimiter-face fontified t) 535 622 (face font-lock-comment-face fontified t) 622 632 (fontified t) 632 635 (face font-lock-comment-delimiter-face fontified t) 635 668 (face font-lock-comment-face fontified t) 668 705 (fontified t) 705 708 (face font-lock-comment-delimiter-face fontified t) 708 739 (face font-lock-comment-face fontified t) 739 749 (fontified t) 749 752 (face font-lock-comment-delimiter-face fontified t) 752 793 (face font-lock-comment-face fontified t) 793 804 (fontified t) 804 807 (face font-lock-keyword-face fontified t) 807 835 (fontified t) 835 840 (face font-lock-keyword-face fontified t) 840 866 (fontified t) 866 872 (face font-lock-keyword-face fontified t) 872 914 (fontified t) 914 917 (face font-lock-comment-delimiter-face fontified t) 917 930 (face font-lock-comment-face fontified t) 930 956 (fontified t) 956 959 (face font-lock-keyword-face fontified t) 959 1056 (fontified t) 1056 1068 (face font-lock-keyword-face fontified t) 1068 1108 (fontified t) 1108 1113 (face font-lock-keyword-face fontified t) 1113 1165 (fontified t) 1165 1172 (face font-lock-string-face fontified t) 1172 1215 (fontified t) 1215 1218 (face font-lock-keyword-face fontified t) 1218 1296 (fontified t) 1296 1304 (face font-lock-string-face fontified t) 1304 1354 (fontified t) 1354 1357 (face font-lock-builtin-face fontified t) 1357 1402 (fontified t) 1402 1407 (face font-lock-warning-face fontified t) 1407 1450 (fontified t) 1450 1453 (face font-lock-comment-delimiter-face fontified t) 1453 1490 (face font-lock-comment-face fontified t) 1490 1500 (fontified t) 1500 1529 (fontified t) 1529 1542 (face font-lock-keyword-face fontified t) 1542 1554 (fontified t) 1554 1564 (face font-lock-string-face fontified t) 1564 1567 (fontified t) 1567 1611 (fontified t) 1611 1617 (face font-lock-builtin-face fontified t) 1617 1681 (fontified t) 1681 1684 (face font-lock-comment-delimiter-face fontified t) 1684 1707 (face font-lock-comment-face fontified t) 1707 1735 (fontified t) 1735 1737 (face font-lock-keyword-face fontified t) 1737 1757 (fontified t) 1757 1760 (face font-lock-builtin-face fontified t) 1760 1794 (fontified t) 1794 1805 (face font-lock-keyword-face fontified t) 1805 1897 (fontified t) 1897 1901 (face font-lock-keyword-face fontified t) 1901 2067 (fontified t) 2067 2073 (face font-lock-keyword-face fontified t) 2073 2189 (fontified t) 2189 2193 (face font-lock-keyword-face fontified t) 2193 2202 (fontified t) 2202 2207 (face font-lock-warning-face fontified t) 2207 2282 (fontified t) 2282 2284 (face font-lock-keyword-face fontified t) 2284 2490 (fontified t) 2490 2495 (face font-lock-keyword-face fontified t) 2495 2599 (fontified t) 2599 2629 (face font-lock-string-face fontified t) 2629 2852 (fontified t) 2852 2857 (face font-lock-warning-face fontified t) 2857 2915 (fontified t) 2915 2916 (rear-nonsticky t fontified t)) . -10119) (undo-tree-id102 . -2495) (undo-tree-id103 . -2495) (undo-tree-id104 . -225) (undo-tree-id105 . -1365) (undo-tree-id106 . -2495) (undo-tree-id107 . -2916) 13035 (t 27009 58988 0 0)) ((10119 . 13035)) (27009 60159 837336 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 12226 . 12227) (nil fontified nil 10119 . 12227) (10119 . 12227)) nil (27009 62162 541923 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 11610 . 11611) (nil fontified nil 10119 . 11611) (10119 . 11611)) ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  \"Version STRICTE : Pas de retry automatique sur le bloc de transaction.\"
+  
+  ;; 1. On s'assure d'avoir une bonne connexion AVANT de démarrer quoi que ce soit.
+  ;; Si ça échoue ici, ensure-connection peut retrier sans risque.
+  (ensure-connection 
+    (lambda () t)) ;; Juste un ping/check
+  
+  (let ((*tx-depth* (1+ *tx-depth*)))
+    (lumen.core.trace:with-tracing (\"DB:Transaction\" :depth *tx-depth*)
+      
+      (if (> *tx-depth* 1)
+          ;; CAS IMBRIQUÉ : On exécute juste le code
+          (funcall thunk)
+
+          ;; CAS RACINE : On gère BEGIN/COMMIT
+          ;; NOTE IMPORTANTE : On a retiré ensure-connection et la boucle de retry d'ici !
+          (handler-case
+              (progn
+                (%raw-exec \"BEGIN\")
+                (let ((res 
+                       (handler-bind ((error (lambda (c)
+                                               ;; En cas d'erreur Lisp, on Rollback
+                                               (declare (ignore c))
+                                               (ignore-errors (%raw-exec \"ROLLBACK\")))))
+                         (funcall thunk))))
+                  (%raw-exec \"COMMIT\")
+                  res))
+            
+            ;; Si le COMMIT échoue ou si une erreur DB survient, on laisse planter.
+            ;; C'est vital pour éviter les doublons.
+            (error (c)
+              (ignore-errors (%raw-exec \"ROLLBACK\"))
+              (error c)))))))" 0 1 (fontified nil) 1 6 (face font-lock-keyword-face fontified nil) 6 7 (fontified nil) 7 25 (face font-lock-function-name-face fontified nil) 25 33 (fontified nil) 33 37 (face font-lock-type-face fontified nil) 37 67 (fontified nil) 67 139 (face font-lock-doc-face fontified nil) 139 145 (fontified nil) 145 148 (face font-lock-comment-delimiter-face fontified nil) 148 227 (face font-lock-comment-face fontified nil) 227 229 (fontified nil) 229 232 (face font-lock-comment-delimiter-face fontified nil) 232 294 (face font-lock-comment-face fontified nil) 294 321 (fontified nil) 321 327 (face font-lock-keyword-face fontified nil) 327 335 (fontified nil) 335 338 (face font-lock-comment-delimiter-face fontified nil) 338 358 (face font-lock-comment-face fontified nil) 358 364 (fontified nil) 364 367 (face font-lock-keyword-face fontified nil) 367 404 (fontified nil) 404 433 (face font-lock-keyword-face fontified nil) 433 435 (fontified nil) 435 451 (face font-lock-string-face fontified nil) 451 452 (fontified nil) 452 458 (face font-lock-builtin-face fontified nil) 458 485 (fontified nil) 485 487 (face font-lock-keyword-face fontified nil) 487 515 (fontified nil) 515 518 (face font-lock-comment-delimiter-face fontified nil) 518 558 (face font-lock-comment-face fontified nil) 558 595 (fontified nil) 595 598 (face font-lock-comment-delimiter-face fontified nil) 598 632 (face font-lock-comment-face fontified nil) 632 642 (fontified nil) 642 645 (face font-lock-comment-delimiter-face fontified nil) 645 723 (face font-lock-comment-face fontified nil) 723 734 (fontified nil) 734 746 (face font-lock-keyword-face fontified nil) 746 762 (fontified nil) 762 767 (face font-lock-keyword-face fontified nil) 767 795 (fontified nil) 795 802 (face font-lock-string-face fontified nil) 802 821 (fontified nil) 821 824 (face font-lock-keyword-face fontified nil) 824 856 (fontified nil) 856 868 (face font-lock-keyword-face fontified nil) 868 871 (fontified nil) 871 876 (face font-lock-warning-face fontified nil) 876 878 (fontified nil) 878 884 (face font-lock-keyword-face fontified nil) 884 936 (fontified nil) 936 939 (face font-lock-comment-delimiter-face fontified nil) 939 973 (face font-lock-comment-face fontified nil) 973 1021 (fontified nil) 1021 1028 (face font-lock-keyword-face fontified nil) 1028 1089 (fontified nil) 1089 1102 (face font-lock-keyword-face fontified nil) 1102 1114 (fontified nil) 1114 1124 (face font-lock-string-face fontified nil) 1124 1203 (fontified nil) 1203 1211 (face font-lock-string-face fontified nil) 1211 1262 (fontified nil) 1262 1265 (face font-lock-comment-delimiter-face fontified nil) 1265 1334 (face font-lock-comment-face fontified nil) 1334 1346 (fontified nil) 1346 1349 (face font-lock-comment-delimiter-face fontified nil) 1349 1387 (face font-lock-comment-face fontified nil) 1387 1400 (fontified nil) 1400 1405 (face font-lock-warning-face fontified nil) 1405 1425 (fontified nil) 1425 1438 (face font-lock-keyword-face fontified nil) 1438 1450 (fontified nil) 1450 1460 (face font-lock-string-face fontified nil) 1460 1463 (fontified nil) 1463 1478 (fontified nil) 1478 1483 (face font-lock-warning-face fontified nil) 1483 1491 (fontified nil) 1491 1492 (rear-nonsticky nil fontified nil)) . 10119) (undo-tree-id108 . -831) (undo-tree-id109 . -1088) (undo-tree-id110 . -831) (undo-tree-id111 . -1088) (undo-tree-id112 . -1088) (undo-tree-id113 . -1041) (nil fontified t 11579 . 11582) (nil fontified t 11569 . 11579) (nil fontified t 11557 . 11569) (nil fontified t 11544 . 11557) (nil fontified t 11524 . 11544) (nil fontified t 11519 . 11524) (nil fontified t 11506 . 11519) (nil fontified t 11468 . 11506) (nil fontified t 11465 . 11468) (nil fontified t 11453 . 11465) (nil fontified t 11384 . 11453) (nil fontified t 11381 . 11384) (nil fontified t 11330 . 11381) (nil fontified t 11322 . 11330) (nil fontified t 11243 . 11322) (nil fontified t 11233 . 11243) (nil fontified t 11221 . 11233) (nil fontified t 11208 . 11221) (nil fontified t 11147 . 11208) (nil fontified t 11140 . 11147) (nil fontified t 11092 . 11140) (nil fontified t 11058 . 11092) (nil fontified t 11055 . 11058) (nil fontified t 11003 . 11055) (nil fontified t 10997 . 11003) (nil fontified t 10995 . 10997) (nil fontified t 10990 . 10995) (nil fontified t 10987 . 10990) (nil fontified t 10975 . 10987) (nil fontified t 10943 . 10975) (nil fontified t 10940 . 10943) (nil fontified t 10921 . 10940) (nil fontified t 10914 . 10921) (nil fontified t 10886 . 10914) (nil fontified t 10881 . 10886) (nil fontified t 10865 . 10881) (nil fontified t 10853 . 10865) (nil fontified t 10842 . 10853) (nil fontified t 10764 . 10842) (nil fontified t 10761 . 10764) (nil fontified t 10751 . 10761) (nil fontified t 10717 . 10751) (nil fontified t 10714 . 10717) (nil fontified t 10677 . 10714) (nil fontified t 10637 . 10677) (nil fontified t 10634 . 10637) (nil fontified t 10606 . 10634) (nil fontified t 10604 . 10606) (nil fontified t 10577 . 10604) (nil fontified t 10571 . 10577) (nil fontified t 10570 . 10571) (nil fontified t 10554 . 10570) (nil fontified t 10552 . 10554) (nil fontified t 10523 . 10552) (nil fontified t 10486 . 10523) (nil fontified t 10483 . 10486) (nil fontified t 10477 . 10483) (nil fontified t 10457 . 10477) (nil fontified t 10454 . 10457) (nil fontified t 10446 . 10454) (nil fontified t 10440 . 10446) (nil fontified t 10413 . 10440) (nil fontified t 10351 . 10413) (nil fontified t 10348 . 10351) (nil fontified t 10346 . 10348) (nil fontified t 10267 . 10346) (nil fontified t 10264 . 10267) (nil fontified t 10258 . 10264) (nil fontified t 10186 . 10258) (nil fontified t 10156 . 10186) (nil fontified t 10152 . 10156) (nil fontified t 10144 . 10152) (nil fontified t 10126 . 10144) (nil fontified t 10125 . 10126) (nil fontified t 10120 . 10125) (nil fontified t 10119 . 10120) (nil rear-nonsticky t 11610 . 11611)) (27009 60159 837210 0) 0 nil])
+([nil nil ((10118 . 10119)) nil (27009 62162 541923 0) 0 nil])
+nil
+([nil nil ((10119 . 10121)) nil (27009 62162 541922 0) 0 nil])
+([nil nil ((12231 . 12233)) nil (27009 62162 541921 0) 0 nil])
+([nil nil ((#("|" 0 1 (face font-lock-comment-face fontified t)) . -12232) (undo-tree-id141 . -1) 12233) nil (27009 62162 541921 0) 0 nil])
+([nil nil ((#("#" 0 1 (face font-lock-comment-face fontified t)) . -12231) (undo-tree-id140 . -1) 12232) nil (27009 62162 541919 0) 0 nil])
+([nil nil ((12231 . 12233)) nil (27009 62162 541918 0) 0 nil])
+([nil nil ((12233 . 12234)) nil (27009 62162 541918 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . -10114) (undo-tree-id128 . -1) (undo-tree-id129 . -1) (undo-tree-id130 . -1) (undo-tree-id131 . -1) (undo-tree-id132 . -1) (undo-tree-id133 . -1) (#("|" 0 1 (face font-lock-comment-face fontified t)) . -10115) (undo-tree-id134 . -1) (undo-tree-id135 . -1) (undo-tree-id136 . -1) (#("#" 0 1 (face font-lock-comment-delimiter-face fontified t)) . -10116) (undo-tree-id137 . -1) (undo-tree-id138 . -1) (undo-tree-id139 . -1) 10117) nil (27009 62162 541916 0) 0 nil])
+([nil nil ((#("#" 0 1 (fontified t)) . -8354) (undo-tree-id114 . -1) (undo-tree-id115 . -1) (undo-tree-id116 . -1) (undo-tree-id117 . -1) (undo-tree-id118 . -1) (undo-tree-id119 . -1) (undo-tree-id120 . -1) (#("|" 0 1 (face font-lock-comment-delimiter-face fontified t)) . -8355) (undo-tree-id121 . -1) (undo-tree-id122 . -1) (undo-tree-id123 . -1) (undo-tree-id124 . -1) (undo-tree-id125 . -1) (undo-tree-id126 . -1) (undo-tree-id127 . -1) 8356) nil (27009 62162 541904 0) 0 nil])
+([nil nil ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
+  \"Exécute THUNK dans une transaction.
+   - Gère la profondeur (nesting).
+   - Gère la connexion (ensure-connection).
+   - PAS de retry automatique pour éviter les doublons (double commit).\"
+  
+  (declare (ignore retries sleep-ms)) ;; On ignore les retries pour la sécurité des données (ACID)
+
+  (if (> *tx-depth* 0)
+      ;; --- CAS IMBRIQUÉ (Depth > 0) ---
+      ;; Une connexion et une transaction existent déjà.
+      ;; On incrémente juste la profondeur et on exécute.
+      (let ((*tx-depth* (1+ *tx-depth*)))
+        (funcall thunk))
+
+      ;; --- CAS RACINE (Depth = 0) ---
+      ;; 1. On acquiert la connexion ICI, pour toute la durée de la transaction.
+      (ensure-connection
+        (let ((*tx-depth* 1))
+          (lumen.core.trace:with-tracing (\"DB:Transaction\" :depth 1)
+            (handler-case
+                (progn
+                  ;; 2. Début physique
+                  (%raw-exec \"BEGIN\")
+                  
+                  ;; 3. Exécution du code métier
+                  ;; On utilise handler-bind pour intercepter l'erreur avant que la stack ne dépile
+                  (let ((res 
+                         (handler-bind ((error (lambda (c)
+                                                 (declare (ignore c))
+                                                 ;; En cas de crash Lisp, on tente le rollback
+                                                 (ignore-errors (%raw-exec \"ROLLBACK\")))))
+                           (funcall thunk))))
+                    
+                    ;; 4. Validation physique
+                    (%raw-exec \"COMMIT\")
+                    res))
+              
+              ;; 5. Gestion des erreurs fatales (Connexion perdue, contrainte SQL...)
+              (error (c)
+                ;; Sécurité : on s'assure que le rollback est envoyé si le handler-bind n'a pas suffi
+                (ignore-errors (%raw-exec \"ROLLBACK\"))
+                ;; On propage l'erreur.
+                ;; SURTOUT PAS DE RETRY ICI -> C'est ça qui causait vos doublons.
+                (error c))))))))" 0 1285 (face font-lock-comment-face fontified t) 1285 1305 (face font-lock-comment-face fontified t) 1305 2108 (face font-lock-comment-face fontified t)) . -10117) (undo-tree-id12 . -2108) (undo-tree-id13 . -1176) 12225 (t 27009 62162 0 0)) nil (27012 57250 977060 0) 0 nil])
+([nil nil ((#("
+#|
+
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 4 (face font-lock-comment-face fontified t) 4 5 (face font-lock-comment-face fontified t) 5 7 (face font-lock-comment-delimiter-face fontified t)) . 10113) (undo-tree-id0 . -7) (undo-tree-id1 . -4) (undo-tree-id2 . -4) (undo-tree-id3 . -4) (undo-tree-id4 . -7) (undo-tree-id5 . -7) (undo-tree-id6 . -1) (undo-tree-id7 . -5) (undo-tree-id8 . -7) (undo-tree-id9 . -7) (undo-tree-id10 . -4) (undo-tree-id11 . -7)) nil (27012 57250 977056 0) 0 nil])
+([nil nil ((10113 . 10115)) nil (27012 57250 977019 0) 0 nil])
+([nil nil ((8354 . 8356)) nil (27012 57250 977018 0) 0 nil])
+([nil nil ((10118 . 10119)) nil (27012 57250 977017 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 12638 . 12639) (nil fontified nil 10119 . 12639) (10119 . 12639)) nil (27012 57250 977015 0) 0 nil])
+([nil current ((12639 . 12640)) nil (27012 57250 977010 0) 0 nil])
 nil

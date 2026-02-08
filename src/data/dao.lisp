@@ -3,11 +3,12 @@
 (defpackage :lumen.data.dao
   (:use :cl)
   (:import-from :lumen.data.db :query-1a :exec)
+  (:import-from :lumen.core.validation :validate-field)
   (:export
    ;; Macro & API
    :defentity
    :row->entity :entity->row-alist :entity-insert! :entity-update! :entity-delete!
-   :validate-entity!
+   :validate-entity-payload :entity-validation-entity :entity-validation-errors
    ;; Hooks (méthodes spécialisables)
    :before-validate :after-validate
    :before-insert :after-insert
@@ -109,7 +110,8 @@
                      s)))))
 
 (defun %ident (x)
-  (unless (%ident-p x) (error "Identifiant SQL invalide: ~S" x))
+  (unless (%ident-p x) (error "Identifiant SQL
+invalide: ~S" x))
   (string-downcase (etypecase x
                      (string x)
                      (symbol (symbol-name x)))))
@@ -230,8 +232,12 @@
   ((entity :initarg :entity :reader entity-validation-entity)
    (errors :initarg :errors :reader entity-validation-errors))
   (:report (lambda (c s)
-             (format s "Validation failed: ~{~a~^, ~}"
-                     (mapcar #'princ-to-string (entity-validation-errors c))))))
+             (format s "Validation failed for ~A: ~{~a~^, ~}"
+                     (entity-validation-entity c)
+                     ;; On formate chaque entrée de l'alist
+                     (mapcar (lambda (entry)
+                               (format nil "~A: ~{~A~^; ~}" (car entry) (cdr entry)))
+                             (entity-validation-errors c))))))
 
 (define-condition concurrent-update-error (error)
   ((entity :initarg :entity :reader concurrent-error-entity)
@@ -243,39 +249,109 @@
 (defgeneric before-validate (entity) (:method (e) (declare (ignore e)) nil))
 (defgeneric after-validate  (entity) (:method (e) (declare (ignore e)) nil))
 
-(defun %run-validator (fun value entity field-spec)
-  (cond
-    ((null fun) t)
-    ((functionp fun) (funcall fun value entity field-spec))
-    ((and (symbolp fun) (fboundp fun))
-     (funcall (symbol-function fun) value entity field-spec))
-    (t (error "Validator invalide: ~S" fun))))
+;; Helper interne pour chercher dans l'alist par Keyword OU String
+(defun %alist-get (key-kw key-str alist)
+  (let ((cell (or (assoc key-kw alist :test #'eq)          ;; Cherche :email
+                  (assoc key-str alist :test #'equalp))))  ;; Cherche "email"
+    (values (cdr cell) (not (null cell)))))
 
-(defun validate-entity! (entity)
-  "Vérifie required? et validator ; lève entity-validation-error si échecs."
-  (before-validate entity)
-  (let* ((class (class-of entity))
-         (cname (class-name class))
-         (md (entity-metadata cname))
-         (fields (getf md :fields))
-         (errors '()))
-    ;;(print fields)
+;; Coercition
+(defun %coerce-integer (val)
+  "Convertit '123' en 123. Retourne NIL si échec."
+  (typecase val
+    (integer val)
+    (string (if (zerop (length val)) nil
+                (parse-integer val :junk-allowed t)))
+    (t nil)))
+
+(defun %coerce-float (val)
+  "Convertit '12.3' en 12.3. Sécurisé via *read-eval* nil."
+  (typecase val
+    (number val)
+    (string (if (zerop (length val)) nil
+                (let ((*read-eval* nil)) ;; Sécurité
+                  (ignore-errors 
+                    (let ((n (read-from-string val)))
+                      (if (numberp n) n nil))))))
+    (t nil)))
+
+(defun %coerce-boolean (val)
+  "Convertit 'true', 'on', '1' en T. Le reste en NIL."
+  (typecase val
+    (boolean val)
+    (string (or (string-equal val "true")
+                (string-equal val "t")
+                (string-equal val "on")  ;; Checkbox HTML standard
+                (string-equal val "1")
+                (string-equal val "yes")))
+    (t nil)))
+
+(defun %coerce-value (val type)
+  "Orchestre la conversion selon le type attendu.
+   Retourne (VALUES value success?)"
+  (cond
+    ;; Si c'est vide/null, on laisse passer (v-required s'en chargera)
+    ((null val) (values nil t))
+    ((and (stringp val) (zerop (length val))) (values nil t))
+
+    ((eq type :integer)
+     (let ((res (%coerce-integer val)))
+       (if res (values res t) (values nil nil)))) ;; Nil ici = Échec de parsing
+
+    ((eq type :float)
+     (let ((res (%coerce-float val)))
+       (if res (values res t) (values nil nil))))
+
+    ((eq type :boolean)
+     (values (%coerce-boolean val) t)) ;; Boolean ne peut techniquement pas échouer (tout faux est faux)
+
+    ;; Les autres types (string, email, date...) restent des strings pour l'instant
+    (t (values val t))))
+
+(defun validate-entity-payload (entity-sym payload &key (partial nil))
+  "Valide une ALIST et COERCE les types. Modifie le payload en place !
+   Retourne (VALUES ERROR-ALIST HAS-ERROR?)"
+  (let ((fields (entity-fields entity-sym))
+        (errors (make-hash-table :test 'equal))
+        (has-error nil))
+    
     (dolist (f fields)
-      (let* ((slot (getf f :slot))
-             (col  (getf f :col))
-             (label (or (getf f :label) (symbol-name slot)))
-             (required? (getf f :required?))
-             (validator (getf f :validator))
-             (val (%slot-value entity slot)))
-        (when (and required? (null val))
-          (push (format nil "~a (~a) requis" label col) errors))
-        (when (and val validator (not (%run-validator validator val entity f)))
-          (push (format nil "Validation échouée pour ~a (~a)" label col) errors))))
-    (print "****** VALIDATION ENTITY OK")
-    (when errors
-      (error 'entity-validation-error :entity entity :errors (nreverse errors))))
-  (after-validate entity)
-  entity)
+      (let* ((col-kw (getf f :col))
+             (col-str (string-downcase (symbol-name col-kw)))
+             (type (getf f :type))
+             (cell (or (assoc col-kw payload :test #'eq)
+                       (assoc col-str payload :test #'equalp))))
+        
+        (multiple-value-bind (raw-val present?) 
+            (if cell (values (cdr cell) t) (values nil nil))
+          
+          (when (or (not partial) present?)
+            ;; 1. COERCITION
+            (multiple-value-bind (coerced-val success?) 
+                (%coerce-value raw-val type)
+              
+              (if (not success?)
+                  (progn
+                    (setf has-error t)
+                    (setf (gethash col-str errors) (list "Format invalide (type incorrect).")))
+                  
+                  ;; 2. VALIDATION
+                  (progn
+                    (when cell (setf (cdr cell) coerced-val))
+                    (let ((field-errors (lumen.core.validation:validate-field coerced-val f)))
+                      (when field-errors
+                        (setf has-error t)
+                        (setf (gethash col-str errors) field-errors))))))))))
+    
+    ;; --- CORRECTION ICI ---
+    ;; On transforme la Hash-Table en Alist pour la compatibilité
+    (if has-error
+        (let ((error-alist '()))
+          (maphash (lambda (k v) 
+                     (push (cons k v) error-alist)) 
+                   errors)
+          (values error-alist t))
+        (values nil nil))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Hooks CRUD (par défaut no-op)
@@ -416,9 +492,14 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
     (t (not (null val)))))
 
 (defun %virtual-col-p (field-spec)
-  "Vrai si le champ ne correspond pas à une colonne physique dans la table."
-  (let ((type (getf field-spec :type)))
-    (or (eq type :computed)
+  "Vrai si le champ ne correspond pas à une colonne physique dans la table."   
+  (let ((type (getf field-spec :type))
+	(virtual-p (getf field-spec :virtual?)))
+    (print field-spec)
+    (print type)
+    (print virtual-p)
+    (or virtual-p
+	(eq type :computed)
         (eq type :one-to-many)
         (eq type :many-to-one)
         (eq type :many-to-many))))
@@ -433,7 +514,7 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
          (fields (getf md :fields))
 	 ) ; on n'insère pas lv si slot NIL → DEFAULT
     ;; validations (required/validators)
-    (validate-entity! entity)
+    ;;(validate-entity! entity)
 
     ;; timestamps
     (multiple-value-bind (created-col updated-col ts-fn) (%timestamp-spec-of md)
@@ -486,19 +567,17 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
 	    ;;(print sql)
             (multiple-value-bind (affected ret)
                 (apply #'lumen.data.db:exec sql (funcall params-f))
-	      (print "ZZZZZZZZZZZZZ")
-	      (print ret)
               ;; si RETURNING, ret est la 1ère ligne (alist) d’après exec
               (let* ((row (or (first ret)
                               (and (not (null returning))
                                    (apply #'lumen.data.db:query-1a sql (funcall params-f)))))
-		     (x (print "KKKKKKK"))
                      (new (if row (row->entity class row) entity)))
                 (clear-dirty new)
 		(snapshot-entity! new)
                 (after-insert entity new)
                 (values affected new)))))))))
 
+#|
 (defmethod entity-update! ((entity standard-object) &key (returning t) (force-all nil))
   (let* ((class (class-name (class-of entity)))
          (md    (entity-metadata class))
@@ -509,14 +588,8 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
          (ts    (%timestamps-of md))
          (ts-updated (and ts (getf ts :updated)))
          (ts-fn (or (and ts (getf ts :db-fn)) "CURRENT_TIMESTAMP")))
-
-    (print "IN ENTITY-UPDATE!")
-    (print md)
-    (print table)
-    (print ts)
-    (print ts-updated)
     
-    (validate-entity! entity)
+    ;;(validate-entity! entity)
     
     (let ((assigns '()) 
           where
@@ -614,6 +687,118 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
                 (snapshot-entity! new)
                 (after-update entity new)
                 (values affected new)))))))))
+|#
+(defmethod entity-update! ((entity standard-object) &key (returning t) (force-all nil))
+  (let* ((class (class-name (class-of entity)))
+         (md    (entity-metadata class))
+         (table (%ident (getf md :table)))
+         (pk    (or (getf md :primary-key) :id))
+         (fields (getf md :fields))
+         (lv-col (getf md :lock-version)) 
+         (ts     (%timestamps-of md))
+         (ts-updated (and ts (getf ts :updated)))
+         (ts-fn (or (and ts (getf ts :db-fn)) "CURRENT_TIMESTAMP")))
+    
+    ;;(validate-entity! entity)
+    
+    (let ((assigns '()) 
+          where
+          ;; Si force-all = T, on prend tout.
+          ;; Sinon (défaut), on ne prend QUE les champs modifiés (dirty).
+          (candidate-slots (if force-all 
+                               (mapcar (lambda (f) (getf f :slot)) fields)
+                               (dirty-slots entity))))
+      
+      (multiple-value-bind (emit params-f) (%make-param-emitter)
+        ;; 1. Construction du WHERE (PK + Lock Version)
+        (let ((pk-slot (getf (or (%field-by-col fields pk)
+                                 (error "PK introuvable")) :slot))
+              (pk-ty   (getf (or (%field-by-col fields pk)) :type))
+              (lv-slot (and lv-col (getf (or (%field-by-col fields lv-col)) :slot)))
+              (lv-ty   (and lv-col (getf (or (%field-by-col fields lv-col)) :type))))
+          
+          (let ((pk-val (%slot-value entity pk-slot))
+                (lv-val (and lv-slot (%slot-value entity lv-slot))))
+            
+            (unless pk-val (error "PK manquante pour UPDATE"))
+            (setf where (format nil "~a = ~a" (%ident pk) (funcall emit (coerce-out pk-val pk-ty))))
+            
+            (when lv-col
+              (unless lv-val (error "Optimistic locking: slot ~a est NIL" lv-col))
+              (setf where (format nil "~a AND ~a = ~a" where (%ident lv-col) (funcall emit (coerce-out lv-val lv-ty)))))))
+
+        ;; 2. Construction du SET
+        (dolist (f fields)
+          (let* ((col  (getf f :col))
+                 (slot (getf f :slot))
+                 (ty   (getf f :type))
+                 (val  (%slot-value entity slot))
+                 (is-pk (eq col pk))
+                 (is-lv (and lv-col (eq col lv-col)))
+                 (is-up (and ts-updated (eq col ts-updated)))
+                 ;; Est-ce qu'on doit mettre à jour ce champ ?
+                 (selected (member slot candidate-slots :test #'eq))
+                 (is-virtual (%virtual-col-p f)))
+            
+            (unless is-virtual
+              (cond
+                ((or is-pk) nil) ;; On ne touche jamais la PK
+                
+                ;; Lock Version : Incrément forcé (SQL)
+                (is-lv 
+                 (push (format nil "~a = ~a + 1" (%ident col) (%ident col)) assigns))
+                
+                ;; Updated At : Forcé
+                (is-up
+                 (if (null val)
+                     (push (format nil "~a = ~a" (%ident col) ts-fn) assigns)
+                     (push (format nil "~a = ~a" (%ident col) (funcall emit (coerce-out val ty))) assigns)))
+                
+                ;; Champs standards : Uniquement si sélectionnés (Dirty ou Force-All)
+                (selected
+                 (push (format nil "~a = ~a" (%ident col) (funcall emit (coerce-out val ty))) assigns))))))
+        
+        ;; Cas spécial : Si rien n'est dirty, mais qu'on a un updated_at, on force le "touch"
+        (when (and (null assigns) ts-updated)
+             (push (format nil "~a = ~a" (%ident ts-updated) ts-fn) assigns))
+
+        ;; Si toujours rien à faire (pas de dirty, pas de timestamp, pas de force-all), on sort tout de suite
+        (unless assigns
+          (return-from entity-update! (values 0 entity)))
+        
+        ;; 3. Exécution SQL
+        (let* ((assigns* (nreverse assigns))
+               (returning-sql
+                (cond
+                  ((eq returning t) 
+                   ;; --- CORRECTION ICI ---
+                   ;; On filtre les champs pour retirer les colonnes virtuelles
+                   (let ((real-fields (remove-if #'%virtual-col-p fields)))
+                     (format nil " RETURNING ~{~a~^, ~}" 
+                             (mapcar #'%ident (mapcar (lambda (f) (getf f :col)) real-fields)))))
+                  ((and (listp returning) returning)
+                   (format nil " RETURNING ~{~a~^, ~}" (mapcar #'%ident returning)))
+                  (t "")))
+               (sql (format nil "update ~a set ~a where ~a~a"
+                            table (%comma-join assigns*) where returning-sql)))
+          
+          (before-update entity)
+          
+          (multiple-value-bind (affected ret)
+              (apply #'lumen.data.db:exec sql (funcall params-f))
+            
+            ;; Check Optimistic Locking
+            (when (and lv-col (= (or affected 0) 0))
+              (error 'concurrent-update-error :entity entity :where where))
+            
+            ;; Hydratation du retour
+            (let ((row (or (first ret) 
+                           (and returning (apply #'lumen.data.db:query-1a sql (funcall params-f))))))
+              (let ((new (if row (row->entity class row) entity)))
+                (clear-dirty new)
+                (snapshot-entity! new)
+                (after-update entity new)
+                (values affected new)))))))))
 
 (defmethod entity-delete! ((entity standard-object))
   (let* ((class (class-name (class-of entity)))
@@ -662,7 +847,7 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
         (%snapshot-entity obj))
   obj)
 
-(defmacro defentity (name &key table fields primary-key defaults
+(defmacro defentity (name &key table ui fields primary-key defaults
                             timestamps lock-version)
   "Déclare une entité CLOS + enregistre metadata pour CRUD/validation/UI.
 FIELDS est une liste de formes:
@@ -686,7 +871,7 @@ FIELDS est une liste de formes:
            (mapcar
             (lambda (f)
               (destructuring-bind
-                  (&key col type required? validator default
+                  (&key col type required? virtual? validator default
                      label input-type placeholder help choices
                      min max step pattern attrs
                      readonly? disabled? hidden?
@@ -698,7 +883,7 @@ FIELDS est une liste de formes:
                        (slot-name (or slot
                                       (intern (string-upcase (symbol-name colkw)) pkg))))
                   (list :col colkw :slot slot-name :type type
-                        :required? required? :validator validator :default default
+                        :required? required? :virtual? virtual? :validator validator :default default
                         :label label :input-type input-type :placeholder placeholder
                         :help help :choices choices :min min :max max :step step
                         :pattern pattern :attrs attrs :readonly? readonly?
@@ -784,6 +969,7 @@ FIELDS est une liste de formes:
              (list :table ,tbl
                    :primary-key ,(%kw pk)
                    :fields ',norm-fields
+		   :ui ',ui
                    :defaults ',(or defaults
                                    (loop for f in norm-fields
                                          for def = (getf f :default)
@@ -984,6 +1170,24 @@ Appelle :decode du codec."
 (defvar *ts-decode* #'identity)
 (def-type-codec :timestamptz :encode *ts-encode* :decode *ts-decode*)
 
+;; Helper de conversion Universal Time -> String ISO Date
+(defun universal-to-date-string (ut)
+  (multiple-value-bind (s m h dd mm yy) (decode-universal-time ut)
+    (declare (ignore s m h))
+    (format nil "~4,'0D-~2,'0D-~2,'0D" yy mm dd)))
+
+(def-type-codec :date
+  ;; ENCODE : Lisp -> DB
+  ;; On laisse passer les strings "YYYY-MM-DD", le driver SQL gérera le cast.
+  :encode #'identity
+  
+  ;; DECODE : DB -> Lisp
+  :decode (lambda (val)
+            (cond
+              ;; Si c'est un entier (Universal Time), on formate
+              ((integerp val) (universal-to-date-string val))
+              ;; Si c'est déjà une string (certains drivers/configs), on laisse
+              (t val))))
 ;; Arrays: utiliser la forme de type '(:array :text) ou '(:array :uuid) etc.
 ;; Rien à enregistrer: coerce-(in|out) gère les types composés via array-type-p.
 
@@ -1017,4 +1221,22 @@ Appelle :decode du codec."
         (lambda (s) (etypecase s
                       (string (local-time:parse-timestring s))
                       (t s))))
-  (def-type-codec :timestamptz :encode *ts-encode* :decode *ts-decode*))
+  (def-type-codec :timestamptz :encode *ts-encode* :decode *ts-decode*)
+
+  ;; Surcharge pour :date
+  (def-type-codec :date
+    :encode (lambda (val)
+              (typecase val
+                ;; Si c'est un objet local-time, on formate pour la DB
+                (local-time:timestamp 
+                 (local-time:format-timestring nil val :format '((:year 4) #\- (:month 2) #\- (:day 2))))
+                (t val)))
+    :decode (lambda (val)
+              (cond
+                ;; Universal Time (Integer) -> Local-Time Object
+                ((integerp val)
+                 (local-time:universal-to-timestamp val))
+                ;; String ISO -> Local-Time Object
+                ((stringp val)
+                 (local-time:parse-timestring val))
+                (t val)))))

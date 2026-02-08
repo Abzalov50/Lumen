@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"e2441120f1c5cd60d476b2988f486a47ceaee0f0"
+"5ab2af9bb4c3c3397fe166aea351b53fd1be43c3"
 [nil nil nil nil (26790 8105 879271 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 976 . 977) (nil fontified nil 1 . 977) (1 . 977) (t . -1)) nil (26790 8105 879270 0) 0 nil])
 ([nil nil ((17 . 18)) nil (26790 8105 879270 0) 0 nil])
@@ -1228,7 +1228,7 @@ nil
 ([nil nil ((316 . 317)) nil (26996 52268 718546 0) 0 nil])
 ([nil nil ((316 . 327)) nil (26996 52268 718546 0) 0 nil])
 ([nil nil ((316 . 317)) nil (26996 52268 718545 0) 0 nil])
-([nil current ((#("
+([nil nil ((#("
 
 (defun body-parser (next)
   (lambda (req)
@@ -1243,4 +1243,29 @@ nil
             (lumen.core.http:ctx-set! req :json val)
             (lumen.core.http:ctx-set! req :body-consumed t)))))
     (funcall next req)))" 0 1 (fontified t) 1 2 (fontified t) 2 3 (fontified t) 3 8 (face font-lock-keyword-face fontified t) 8 9 (fontified t) 9 20 (face font-lock-function-name-face fontified t) 20 21 (fontified t) 21 28 (fontified t) 28 31 (fontified t) 31 37 (face font-lock-keyword-face fontified t) 37 49 (fontified t) 49 55 (face font-lock-keyword-face fontified t) 55 85 (fontified t) 85 99 (face font-lock-builtin-face fontified t) 99 108 (fontified t) 108 112 (face font-lock-keyword-face fontified t) 112 188 (fontified t) 188 202 (face font-lock-string-face fontified t) 202 213 (fontified t) 213 218 (face font-lock-builtin-face fontified t) 218 267 (fontified t) 267 283 (face font-lock-string-face fontified t) 283 292 (fontified t) 292 297 (face font-lock-builtin-face fontified t) 297 336 (fontified t) 336 340 (face font-lock-keyword-face fontified t) 340 364 (fontified t) 364 377 (face font-lock-builtin-face fontified t) 377 393 (fontified t) 393 397 (face font-lock-keyword-face fontified t) 397 449 (fontified t) 449 467 (face font-lock-string-face fontified t) 467 470 (fontified t) 470 491 (fontified t) 491 502 (fontified t) 502 505 (face font-lock-keyword-face fontified t) 505 569 (fontified t) 569 570 (fontified t) 570 605 (fontified t) 605 612 (fontified t) 612 617 (face font-lock-builtin-face fontified t) 617 623 (fontified t) 623 665 (fontified t) 665 666 (face font-lock-builtin-face fontified t) 666 679 (face font-lock-builtin-face fontified t) 679 687 (fontified t) 687 711 (fontified t)) . 2924) (undo-tree-id15 . -711)) nil (26996 52268 718541 0) 0 nil])
+([nil nil ((#("
+  (:import-from :lumen.core.http :respond-json :response :ctx-get :ctx-set! :req-body-stream)" 0 4 (fontified t) 4 16 (face font-lock-builtin-face fontified t) 16 17 (fontified t) 17 33 (face font-lock-builtin-face fontified t) 33 34 (fontified t) 34 47 (face font-lock-builtin-face fontified t) 47 48 (fontified t) 48 57 (face font-lock-builtin-face fontified t) 57 58 (fontified t) 58 66 (face font-lock-builtin-face fontified t) 66 67 (fontified t) 67 76 (face font-lock-builtin-face fontified t) 76 77 (fontified t) 77 93 (face font-lock-builtin-face fontified t) 93 94 (fontified t)) . 166) (undo-tree-id1 . -94) (t 26996 52268 0 0)) nil (27003 22415 167409 0) 0 nil])
+([nil nil ((#("
+#|
+(defun read-exact-bytes (stream len)
+  (let ((buf (make-array len :element-type '(unsigned-byte 8))))
+    (let ((n (read-sequence buf stream)))
+      (if (= n len) buf (subseq buf 0 n)))))
+|#
+" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 193 (face font-lock-comment-face fontified t) 193 195 (face font-lock-comment-delimiter-face fontified t) 195 196 (fontified t)) . 331) (undo-tree-id0 . -196)) nil (27003 22415 167404 0) 0 nil])
+([nil nil ((#("(defun parse-urlencoded-string (s)
+  \"Transforme \\\"a=1&b=2&b=3\\\" -> alist '( (\\\"a\\\" . \\\"1\\\") (\\\"b\\\" . \\\"2\\\") (\\\"b\\\" . \\\"3\\\") ).\"
+  (let ((pairs (uiop:split-string (or s \"\") :separator \"&\")))
+    (loop for p in pairs
+          for pos = (position #\\= p)
+          for k   = (url-decode-qs (subseq p 0 (or pos (length p))))
+          for v   = (url-decode-qs (and pos (subseq p (1+ pos))))
+          when (plusp (length k))
+          collect (cons k (or v \"\")))))
+
+(defun parse-urlencoded (stream length)
+  \"Lit LENGTH octets du STREAM et renvoie une alist (name . value).\"
+  (when (and stream length (> length 0))
+    (parse-urlencoded-string (bytes->string-utf8 (read-exact-bytes stream length)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 30 (face font-lock-function-name-face fontified t) 30 37 (fontified t) 37 128 (face font-lock-doc-face fontified t) 128 132 (fontified t) 132 135 (face font-lock-keyword-face fontified t) 135 169 (fontified t) 169 171 (face font-lock-string-face fontified t) 171 173 (fontified t) 173 183 (face font-lock-builtin-face fontified t) 183 184 (fontified t) 184 187 (face font-lock-string-face fontified t) 187 196 (fontified t) 196 200 (face font-lock-keyword-face fontified t) 200 305 (fontified t) 305 322 (fontified t) 322 454 (fontified t) 454 456 (face font-lock-string-face fontified t) 456 464 (fontified t) 464 469 (face font-lock-keyword-face fontified t) 469 470 (fontified t) 470 486 (face font-lock-function-name-face fontified t) 486 505 (fontified t) 505 571 (face font-lock-doc-face fontified t) 571 575 (fontified t) 575 579 (face font-lock-keyword-face fontified t) 579 698 (fontified t)) . -2716) (undo-tree-id0 . -278) (undo-tree-id1 . -649) (undo-tree-id2 . -648) (undo-tree-id3 . -643) (undo-tree-id4 . -661) (undo-tree-id5 . -698) (undo-tree-id6 . -613) (undo-tree-id7 . -698) (undo-tree-id8 . -698) 3414 (t 27003 22415 0 0)) nil (27004 30707 592646 0) 0 nil])
+([nil current ((nil rear-nonsticky nil 5416 . 5417) (nil fontified nil 2716 . 5417) (2716 . 5417)) nil (27004 30707 592577 0) 0 nil])
 nil

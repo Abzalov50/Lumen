@@ -2,11 +2,11 @@
 
 (defpackage :lumen.core.middleware
   (:use :cl :alexandria :lumen.core.body :lumen.core.http)
+  (:import-from :lumen.core.context :*current-app*)
   (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)
   (:import-from :lumen.utils :-> :->> :str-prefix-p :ensure-header :parse-http-date
 		:format-http-date)
   (:import-from :lumen.core.mime :guess-content-type)
-  (:import-from :lumen.core.session :session-id :session-data :session-get :session-set! :session-del! :verify-signed-sid :sign-sid :store-get :store-put! :store-del! :rand-bytes :*session-ttl* :*session-cookie* :*secure-cookie*)
   (:import-from :lumen.core.jwt :*jwt-secret* :jwt-encode :jwt-decode)
   (:import-from :lumen.core.ratelimit :allow?)
   (:import-from :lumen.core.http-range :respond-file)
@@ -19,14 +19,19 @@
 	   :request-id-middleware :error-middleware :form-parser-middleware
    :multipart-parser-middleware :router-middleware
    :etag-middleware :compression-middleware
-	   :last-modified-middleware :session-middleware :csrf-middleware
+	   :last-modified-middleware :business-error-middleware
    :auth-middleware :auth-required :roles-allowed
 	   :https-redirect-middleware :rate-limit-middleware :timeout-middleware
 	   :max-body-size-middleware :context-middleware :access-log-middleware
-   :parse-query-string-to-alist :trust-proxy-middleware :inspector-middleware
-   :trace-middleware))
+   :parse-query-string-to-alist :trust-proxy-middleware :current-request-middleware))
 
 (in-package :lumen.core.middleware)
+
+(defmiddleware current-request-middleware () (req next)
+  "Injecte la requête dans la variable dynamique *request*."
+  ;; C'est ce LET qui rend la variable Thread-Safe
+  (let ((lumen.core.http:*request* req))
+    (funcall next req)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 2. HELPERS (Logger Utils)
@@ -119,16 +124,9 @@
 ;;; ---------------------------------------------------------------------------
 ;;; 3. QUERY PARSER MIDDLEWARE
 ;;; ---------------------------------------------------------------------------
-
 (defun %url-decode (s)
-  (when s (with-output-to-string (out)
-            (loop for i from 0 below (length s) do
-              (let ((c (char s i)))
-                (cond ((char= c #\+) (write-char #\Space out))
-                      ((and (char= c #\%) (<= (+ i 2) (1- (length s))))
-                       (let ((h1 (digit-char-p (char s (1+ i)) 16)) (h2 (digit-char-p (char s (+ i 2)) 16)))
-                         (if (and h1 h2) (progn (write-char (code-char (+ (* h1 16) h2)) out) (incf i 2)) (write-char c out))))
-                      (t (write-char c out))))))))
+  (when s
+    (quri:url-decode s :encoding :utf-8)))
 
 (defun parse-query-string-to-alist (qs)
   (if (or (null qs) (zerop (length qs))) nil
@@ -475,7 +473,7 @@
 (defmiddleware request-id-middleware
     ((header-name :initarg :header-name :initform "X-Request-ID"))
     (req next)
-  
+  ;;(print "IN REQUEST-ID-MIDDLEWARE")
   (let* ((rid (or (lumen.core.http:ctx-get req :request-id) (make-request-id)))
          (resp (progn 
                  (lumen.core.http:ctx-set! req :request-id rid)
@@ -829,105 +827,7 @@
                 resp))
           resp))))
 
-;;; ---------------------------------------------------------------------------
-;;; 15. SESSION MIDDLEWARE (Cookie Signed)
-;;; ---------------------------------------------------------------------------
 
-(defmiddleware session-middleware
-    ((secret :initarg :secret :initform nil) ;; Requis
-     (ttl :initarg :ttl :initform (* 24 3600))
-     (cookie-name :initarg :cookie-name :initform "lumen_sid")
-     (http-only :initarg :http-only :initform t)
-     (secure :initarg :secure :initform nil)
-     (path :initarg :path :initform "/"))
-    (req next)
-  
-  (with-slots (secret ttl cookie-name http-only secure path) mw
-    (assert (and secret (plusp (length secret))) () "session-middleware: :secret is required.")
-    
-    ;; 1. Lecture
-    (let* ((raw (or (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=)) ""))
-           (sid (and (> (length raw) 0) (lumen.core.session:verify-signed-sid raw secret)))
-           (data (and sid (lumen.core.session:store-get sid))))
-      
-      (unless sid
-        (setf sid (lumen.core.session:make-session-id))
-        (setf data '()))
-      
-      ;; Injection Context
-      (lumen.core.http:ctx-set! req :session-id sid)
-      (lumen.core.http:ctx-set! req :session data)
-      
-      ;; 2. Exécution
-      (let ((resp (funcall next req)))
-        
-        ;; 3. Persistance
-        (let ((sid* (lumen.core.session:session-id req))
-              (dat* (lumen.core.session:session-data req)))
-          (lumen.core.session:store-put! sid* dat* ttl)
-          
-          ;; Cookie Refresh
-          (lumen.core.http:add-set-cookie 
-           resp 
-           (lumen.core.http:format-set-cookie 
-            cookie-name 
-            (lumen.core.session:sign-sid sid* secret)
-            :path path :http-only http-only :secure secure :max-age ttl)))
-        resp))))
-
-;;; ---------------------------------------------------------------------------
-;;; 16. CSRF MIDDLEWARE
-;;; ---------------------------------------------------------------------------
-
-(defun %random-token ()
-  (cl-base64:usb8-array-to-base64-string (lumen.core.session:rand-bytes 32) :uri t))
-
-(defmiddleware csrf-middleware
-    ((cookie-name :initarg :cookie-name :initform "csrf_token")
-     (header-name :initarg :header-name :initform "x-csrf-token")
-     (methods :initarg :methods :initform '("POST" "PUT" "PATCH" "DELETE"))
-     (path :initarg :path :initform "/")
-     (skip-if :initarg :skip-if :initform nil))
-    (req next)
-  
-  (with-slots (cookie-name header-name methods path skip-if) mw
-    (let* ((method (lumen.core.http:req-method req))
-           (mut? (member method methods :test #'string=))
-           ;; Récupération ou génération Token en Session
-           (tok (or (lumen.core.session:session-get req :csrf)
-                    (let ((tkn (%random-token)))
-                      (lumen.core.session:session-set! req :csrf tkn) 
-                      tkn))))
-      
-      (labels ((emit (r) 
-                 (lumen.core.http:add-set-cookie r (lumen.core.http:format-set-cookie cookie-name tok :path path :http-only nil))))
-        
-        (cond
-          ;; Skip Check
-          ((or (not mut?) (and skip-if (funcall skip-if req)))
-           (let ((resp (funcall next req)))
-             (emit resp)
-             resp))
-          
-          ;; Verify
-          (t
-           (let* ((hdr (lumen.core.http:req-headers req))
-                  (hdr-raw (cdr (assoc header-name hdr :test #'string-equal)))
-                  (hdr-tok (if (and hdr-raw (string= hdr-raw cookie-name))
-                               (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=))
-                               hdr-raw))
-                  (form (lumen.core.http:ctx-get req :form))
-                  (field-tok (cdr (assoc "csrf_token" form :test #'string=)))
-                  (ok (or (and hdr-tok (string= hdr-tok tok))
-                          (and field-tok (string= field-tok tok)))))
-             
-             (if ok
-                 (let ((resp (funcall next req)))
-                   (emit resp)
-                   resp)
-                 (let ((resp (lumen.core.http:respond-json '((:error . "CSRF invalid")) :status 403)))
-                   (emit resp)
-                   resp)))))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 17. AUTH JWT MIDDLEWARE (The Big One)
@@ -964,13 +864,11 @@
      (admin-roles :initarg :admin-roles :initform '("admin"))
      (bypass-admin :initarg :bypass-admin :initform t))
     (req next)
-  
   (with-slots (secret required-p roles-allow scopes-allow scopes-mode leeway allow-query admin-roles bypass-admin) mw
     (let* ((hdrs (lumen.core.http:req-headers req))
            (tok (or (%bearer-token hdrs)
                     (and allow-query (%query-token req '("access_token" "token")))
                     (cdr (assoc "access_token" (lumen.core.http:req-cookies req) :test #'string=)))))
-      
       ;; 1. Decode & Hydrate Context
       (when (and tok secret)
         (multiple-value-bind (payload ok) 
@@ -1127,20 +1025,27 @@
          (cv   (bt:make-condition-variable))
          (resp nil)
          (done nil)
-         ;; 1. CAPTURE : On prend le contexte du thread principal (HTTP Request)
-         (parent-ctx (lumen.core.trace:current-context)))
+         (parent-ctx (lumen.core.trace:current-context))
+         
+         ;; --- 1. CAPTURE DANS LE THREAD PARENT ---
+         ;; On sauvegarde la valeur actuelle de la variable dynamique
+         (current-req lumen.core.http:*request*)
+	 (current-app lumen.core.context::*current-app*))
     
     (bt:make-thread
      (lambda ()
-       ;; 2. PROPAGATION : On l'injecte dans ce nouveau thread anonyme
-       (lumen.core.trace:with-propagated-context parent-ctx
+       ;; --- 2. RESTAURATION DANS LE THREAD ENFANT ---
+       ;; On ré-injecte la valeur pour que tout le code imbriqué (htmx-request-p, etc.) la voie
+       (let ((lumen.core.http:*request* current-req)
+	     (lumen.core.context:*current-app* current-app))
          
-         ;; Le reste est inchangé, mais maintenant 'next' verra le contexte parent !
-         (let ((r (funcall next req)))
-           (bt:with-lock-held (lock)
-             (setf resp r done t)
-             (bt:condition-notify cv))))))
+         (lumen.core.trace:with-propagated-context parent-ctx
+           (let ((r (funcall next req)))
+             (bt:with-lock-held (lock)
+               (setf resp r done t)
+               (bt:condition-notify cv)))))))
     
+    ;; Le reste du code d'attente (bt:condition-wait) reste identique...
     (bt:with-lock-held (lock)
       (unless done
         (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
@@ -1384,82 +1289,22 @@
             
             (funcall next req))))))
 
-;;; ---------------------------------------------------------------------------
-;;; 26. INTROSPECTION
-;;; ---------------------------------------------------------------------------
-(defmiddleware inspector-middleware
-    ((path :initarg :path 
-           :initform "/_inspector" 
-           :accessor inspector-path))
-    (req next)
-  
-  (if (string= (lumen.core.http:req-path req) (slot-value mw 'path))
-      
-      ;; --- MODE INSPECTION ---
-      ;; Au lieu d'utiliser un slot :pipeline, on regarde *current-app*
-      (let* ((app lumen.core.app:*current-app*)
-             (mws (lumen.core.app:app-middleware app))
-             (routes (lumen.core.app:app-routes app)))
+(defmiddleware business-error-middleware () (req next)
+  "Middleware applicatif: capture les erreurs métier et renvoie JSON 400."
+  (handler-case
+      (funcall next req)
+    (error (c)
+      (format t "~&[MW] !! Erreur capturée: ~A~%" c)
+      (cond
+        ;; Erreur Métier -> 400 JSON
+        ((typep c 'lumen.core.error:application-error)
+         (let ((msg (princ-to-string c)))
+           `(400 
+             (:content-type "application/json")
+             (,(cl-json:encode-json-to-string 
+                `((:status . "error") 
+                  (:code . "BUSINESS_ERROR") 
+                  (:message . ,msg)))))))
         
-        (lumen.core.http:respond-json 
-         `((:app . ,(lumen.core.app:app-name app))
-           (:port . ,(lumen.core.app:app-port app))
-           ;; On introspecte la liste des middlewares de l'app courante
-           (:pipeline . ,(mapcar
-			  (lambda (m) 
-                            `((:name . ,(lumen.core.pipeline:mw-name m))
-                              (:type . ,(string (type-of m)))
-                              (:enabled . ,(lumen.core.pipeline:mw-enabled-p m))))
-                          mws))
-           ;; On peut même ajouter des infos sur les modules chargés !
-           (:modules . ,(lumen.core.app:app-modules app)))))
-      
-      ;; --- MODE PASSE-PLAT ---
-      (funcall next req)))
-
-(defmiddleware trace-middleware
-    ((threshold-ms :initarg :threshold-ms 
-                   :initform 500 
-                   :documentation "Log si plus lent que X ms")
-     (force-header :initarg :force-header 
-                   :initform "x-trace-debug"))
-    (req next)
-  
-  ;; 1. Nettoyage préventif (au cas où le thread est réutilisé)
-  (lumen.core.trace::%clear-thread-ctx)
-  
-  (lumen.core.trace:with-tracing ("HTTP Request" 
-                                  :path (lumen.core.http:req-path req)
-                                  :method (lumen.core.http:req-method req))
-    
-    (let ((resp (funcall next req)))
-      
-      ;; Récupération du contexte pour analyse
-      (let* ((ctx (lumen.core.trace::%get-thread-ctx))
-             (root (lumen.core.trace::ctx-root ctx))
-             (now (get-internal-real-time))
-             (start (if root (lumen.core.trace::trace-start root) now))
-             (dur (lumen.core.trace::%ms (- now start)))
-             (debug-requested-p 
-              (cdr (assoc (slot-value mw 'force-header) 
-                          (lumen.core.http:req-headers req) 
-                          :test #'string-equal))))
-        
-        ;; On force la fin de la racine pour l'affichage correct
-        (when root (setf (lumen.core.trace::trace-end root) now))
-
-        (when (or (>= (lumen.core.http:resp-status resp) 500)
-                  (> dur (slot-value mw 'threshold-ms))
-                  debug-requested-p)
-          
-          (format t "~&[TRACE] Triggered by: ~A (Duration: ~,2Fms)~%" 
-                  (cond ((>= (lumen.core.http:resp-status resp) 500) "Error 500")
-                        (debug-requested-p "Header Request")
-                        (t "Slow Request"))
-                  dur)
-          (lumen.core.trace:print-trace-waterfall))
-        
-        ;; Nettoyage final pour ne pas fuir de mémoire
-        (lumen.core.trace::%clear-thread-ctx))
-      
-      resp)))
+        ;; Autre -> Relancer (Error Middleware standard s'en chargera)
+        (t (error c))))))

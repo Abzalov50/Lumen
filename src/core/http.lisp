@@ -3,12 +3,15 @@
 (defpackage :lumen.core.http
   (:use :cl :alexandria)
   (:import-from :lumen.utils :%trim :url-decode-qs :alist-get :alist-set)
+  (:import-from :lumen.core.body :parse-json)
   (:export
+   :*request*
    :request :response :url-encode :make-content-disposition
-   :req-method :req-path :req-headers :req-query :req-cookies :req-params :req-body-stream :req-ctx :ctx-from-req :resp-status :resp-headers :resp-body
+   :req-method :req-path :req-headers :req-query :req-cookies :req-params
+   :req-body-stream :req-ctx :ctx-from-req :resp-status :resp-headers :resp-body
    :respond-text :respond-json :respond-404 :respond-401 :respond-500 :respond-422
    :respond-413 :respond-400 :respond-403 :respond-405 :normalize-json
-   :respond-html :respond-redirect
+   :respond-html :respond-redirect :respond-htmx-redirect
    ;; Contexte (Files, fields)
    :ctx-get :ctx-set!
    ;; Cookies
@@ -20,9 +23,15 @@
    ;; SSE et Websockets
    :respond-sse
    :halt :http-halt :halt-response
-   :res-set-header!))
+   
+   :res-set-header! :request-payload-unified))
  
 (in-package :lumen.core.http)
+
+(defvar *request* nil
+  "La requête HTTP en cours de traitement.
+   Valeur liée dynamiquement par `current-request-middleware`.
+   ATTENTION : Cette variable n'est valide que dans le thread de la requête.")
 
 (defclass request ()
   ((method :initarg :method :accessor req-method)
@@ -35,9 +44,10 @@
    (context :initarg :context :accessor req-ctx)))
 
 (defclass response ()
-  ((status :initarg :status :accessor resp-status)
-   (headers :initarg :headers :accessor resp-headers)
-   (body :initarg :body :accessor resp-body)))
+  ((status :initarg :status :accessor resp-status :initform 200)
+   (headers :initarg :headers :accessor resp-headers :initform nil)
+   (body :initarg :body :accessor resp-body :initform "")
+   (cookies :initarg :cookies :initform nil :accessor resp-cookies)))
 
 ;;; ------------------------------------------------------------
 ;;; Conditions
@@ -75,11 +85,6 @@
 ;;; ------------------------------------------------------------
 (defun %merge-headers (base extra)
   (append base extra))
-
-(defun respond-text (txt &key (status 200) (headers nil))
-  (make-instance 'response :status status
-			   :headers (append '(("Content-Type" . "text/plain; charset=utf-8")) headers)
-			   :body txt))
 
 (defun plist->alist (pl)
   (loop for (k v) on pl by #'cddr collect (cons k v)))
@@ -150,12 +155,24 @@
 ;;; ------------------------------------------------------------
 ;;; Réponses
 ;;; ------------------------------------------------------------
+(defun respond-text (txt &key (status 200) (headers nil))
+  (make-instance 'response :status status
+			   :headers (append '(("Content-Type" . "text/plain; charset=utf-8")) headers)
+			   :body txt))
+
 (defun respond-html (html &key (status 200) (headers nil))
   (make-instance 'response
                  :status status
                  :headers (append '(("Content-Type" . "text/html; charset=utf-8"))
                                   headers)
                  :body html))
+
+(defun respond-htmx-redirect (url)
+  "Force une redirection côté client via HTMX (changement complet de page)."
+  (make-instance 'response
+                 :status 200
+                 :headers `(("HX-Redirect" . ,url))
+                 :body ""))
 
 (defun respond-json (data &key (status 200) (headers nil))
   (let* ((normalized (normalize-json data))
@@ -474,3 +491,20 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
                                value 
                                :test #'string-equal)) ;; Insensible à la casse (HTTP standard)
   resp)
+
+(defun request-payload-unified (req)
+  "Récupère les données (Alist) quelle que soit la source (JSON Body ou Form Data)."
+  (let* ((h (req-headers req))
+         (len-str (cdr (assoc "content-length" h :test #'string-equal)))
+         (len (and len-str (parse-integer len-str :junk-allowed t))))
+    (or 
+     ;; 1. Essayer le Formulaire (application/x-www-form-urlencoded)
+     ;; Parsé par form-parser-middleware
+     (ctx-get req :form)
+   
+     ;; 2. Essayer le JSON
+     ;; Parsé par un body-parser-middleware
+     (ctx-get req :json)
+   
+     ;; 3. Fallback : Parser le JSON à la volée si pas fait
+     (ignore-errors (lumen.core.body:parse-json (req-body-stream req) len)))))
