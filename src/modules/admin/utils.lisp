@@ -1,7 +1,7 @@
 (defpackage :lumen.admin.utils
   (:use :common-lisp)
   (:import-from :lumen.data.dao :*entity-registry*)
-  (:export :resolve-entity-symbol :table-to-entity))
+  (:export :resolve-entity-symbol :table-to-entity :normalize-post-params))
 
 (in-package :lumen.admin.utils)
 
@@ -38,3 +38,27 @@
                (return-from table-to-entity ent-sym))))))
      
      (lumen.app.app:app-modules lumen.core.context:*current-app*))))
+
+(defun normalize-post-params (entity-sym params)
+  "Nettoie les paramètres POST avant envoi au Repo (Strings vides -> nil, Checkboxes, etc)."
+  (loop for (key . val) in params
+        collect 
+        (let* ((field-def (find key (lumen.data.dao:entity-fields entity-sym) 
+                                :key (lambda (f) (string-downcase (string (getf f :col)))) 
+                                :test #'string=))
+               (type (getf field-def :type)))
+          
+          (cons key 
+                (cond
+                  ;; String vide -> NIL (pour éviter les erreurs de parsing sur vide)
+                  ((and (stringp val) (zerop (length val))) nil)
+                  
+                  ;; JSON/JSONB : On parse la string pour en faire un objet Lisp
+                  ;; Le DAO se chargera de re-encoder cet objet proprement.
+                  ((and (or (eq type :json) (eq type :jsonb)) 
+                        (stringp val))
+                   (handler-case 
+                       (cl-json:decode-json-from-string val)
+                     (error () val))) ;; Fallback si l'user a écrit n'importe quoi
+                  
+                  (t val))))))

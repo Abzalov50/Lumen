@@ -19,12 +19,22 @@
   (:export :start! :stop! :with-tx :query-a :query-1a :exec
            :with-conn :ensure-connection :with-rollback
            :*connection-mode* :with-statement-timeout :run-in-transaction
-           :*default-statement-timeout-ms* :*slow-query-ms*))
+           :*default-statement-timeout-ms* :*slow-query-ms*
+	   :db-session-middleware :connection-per-request-middleware :with-db-app))
 
 (in-package :lumen.data.db)
 
+;; --- REGISTRE DES POOLS ---
+(defvar *pools-registry* (make-hash-table :test 'equal)
+  "Stocke les configurations et pools par nom d'application (ou :default).")
+
+;; On garde ces variables pour la compatibilité et le binding dynamique
+;; *db-pool* et *current-config* deviendront "Thread-Local" grâce au middleware
+;; Remontées dans lumen.core.context
+;;(defvar *db-pool* nil)
+;;(defvar *current-config* nil)
+
 (defvar *started* nil)
-(defvar *current-config* nil)
 (defvar *connection-mode* :pooled-native)
 (defvar *in-transaction* nil "Indique si le thread courant est déjà dans une transaction SQL.")
 ;; Variable globale pour suivre la profondeur d'imbrication
@@ -36,8 +46,6 @@
   (lock (bt:make-lock "db-pool-lock"))
   (semaphore nil)
   (config nil))
-
-(defvar *db-pool* nil)
 
 (defun %create-connection (cfg)
   (handler-case
@@ -53,34 +61,67 @@
       (format t "~&[DB] Fatal: Failed to create connection: ~A~%" c)
       (error c))))
 
+;; helper pour récupérer le couple pool/config
+(defun get-db-context (name)
+  (gethash name *pools-registry*))
+
 (defun init-pool! (config)
   (let ((size (or (getf config :pool-size) 10)))
-    (setf *db-pool* (make-pool 
-                     :semaphore (bt:make-semaphore :count size)
-                     :config config))))
+    (make-pool 
+     :semaphore (bt:make-semaphore :count size)
+     :config config)))
 
 (defun destroy-pool! ()
-  (when *db-pool*
-    (bt:with-lock-held ((pool-lock *db-pool*))
-      (dolist (c (pool-available-conns *db-pool*))
+  (when lumen.core.context:*db-pool*
+    (bt:with-lock-held ((pool-lock lumen.core.context:*db-pool*))
+      (dolist (c (pool-available-conns lumen.core.context:*db-pool*))
         (ignore-errors (postmodern:disconnect c))))
-    (setf *db-pool* nil)))
+    (setf lumen.core.context:*db-pool* nil)))
 
-(defun start! (&key (config (lumen.data.config:db-config)))
-  (when *started* (stop!))
-  (setf *current-config* config
-        *connection-mode* (or (getf config :db-connection-mode) :pooled-native))
-  (when (eq *connection-mode* :pooled-native)
-    (init-pool! config)
-    (format t "~&[DB] Pool started (size: ~A).~%" (getf config :pool-size 10)))
-  (setf *started* t))
+(defun start! (&key (config (lumen.data.config:db-config)) (name :default))
+  "Démarre une pool pour un contexte donné (NAME).
+   Si NAME est :default, on initialise aussi les variables globales."
+  
+  ;; 1. Arrêter si une pool existe déjà pour ce nom
+  (stop! :name name)
 
-(defun stop! ()
-  (when *started*
-    (when *db-pool* (destroy-pool!))
-    (setf *started* nil))
+  (let ((connection-mode (or (getf config :db-connection-mode) :pooled-native)))
+    
+    (if (eq connection-mode :pooled-native)
+        (let ((new-pool (init-pool! config)))
+          ;; On stocke dans le registre : (POOL . CONFIG)
+          (setf (gethash name *pools-registry*) (cons new-pool config))
+          (format t "~&[DB] Pool started for app ~S (size: ~A).~%" name (getf config :pool-size 10))
+          
+          ;; Si c'est le default, on set les globales pour rétro-compatibilité
+          (when (eq name :default)
+            (setf lumen.core.context:*db-pool* new-pool
+                  lumen.core.context:*current-db-config* config)))
+        
+        ;; Mode sans pool (juste config)
+        (progn
+          (setf (gethash name *pools-registry*) (cons nil config))
+          (when (eq name :default)
+             (setf lumen.core.context:*current-db-config* config)))))
+  
   t)
 
+(defun stop! (&key (name :default))
+  (let ((entry (gethash name *pools-registry*)))
+    (when entry
+      (let ((pool (car entry)))
+        (when pool
+          (bt:with-lock-held ((pool-lock pool))
+            (dolist (c (pool-available-conns pool))
+              (ignore-errors (postmodern:disconnect c))))))
+      (remhash name *pools-registry*)
+      (format t "~&[DB] Pool stopped for app ~S.~%" name)))
+  
+  ;; Nettoyage global si c'est default
+  (when (eq name :default)
+    (setf lumen.core.context:*db-pool* nil
+          lumen.core.context:*current-db-config* nil))
+  t)
 ;;; --- CONNECTION MANAGEMENT (Inchangé) ---
 (defvar *in-connection* nil)
 
@@ -102,11 +143,11 @@
     (bt:with-lock-held ((pool-lock pool))
       (push conn (pool-available-conns pool)))))
 
-(defun call-with-conn (thunk &key (cfg (or *current-config* (lumen.data.config:db-config))))
+(defun call-with-conn (thunk &key (cfg (or lumen.core.context:*current-db-config* (lumen.data.config:db-config))))
   (if *in-connection*
       (funcall thunk)
-      (if *db-pool*
-          (let ((pool *db-pool*))
+      (if lumen.core.context:*db-pool*
+          (let ((pool lumen.core.context:*db-pool*))
             (bt:wait-on-semaphore (pool-semaphore pool))
             (let ((conn nil))
               (unwind-protect
@@ -152,7 +193,7 @@
   (lumen.core.trace:with-tracing ("DB:Exec" 
                                   :sql (subseq sql 0 (min 100 (length sql)))
                                   :params-count (length params))
-    (format t "~&EXEC:SQL: ~A~%" sql)
+    (format t "~&[EXEC] SQL: ~A~%" sql)
   
     (let* ((kpos (position-if (lambda (x)
 				(and (keywordp x)
@@ -164,14 +205,14 @@
            (t0 (get-internal-real-time)))
 
       ;;(format t "~&EXEC:ARGS: ~A~%" args)
-      (format t "~&EXEC:OPTS: ~A~%" opts)
+      (format t "~&[EXEC] OPTS: ~A~%" opts)
+      ;;(format t "~&[EXEC] ARGS: ~A~%" args)
 
       ;; On utilise unwind-protect ou simplement rien pour laisser l'erreur passer
       (with-statement-timeout (timeout-ms)
 	(let* ((lower (string-downcase sql))
                (has-returning (search "returning" lower))
                affected ret)
-            
           (if has-returning
               ;; RETURNING
               (let* ((fn  (get-prepared-plan sql :format :alist))
@@ -275,7 +316,7 @@
       (block txn-block
         (labels ((retry-loop ()
                    ;; 1. Exécution
-                   (let ((result 
+                   (let ((result			   
                           (ensure-connection
                             (handler-case
                                 (progn
@@ -318,3 +359,45 @@
 
 (defmacro with-tx ((&key retries) &body body)
   `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))
+
+;;; Pour forcer une config spécifique à l'intérieur d'un controlleur (par exemple pour qu'une App A aille lire exceptionnellement dans la DB de l'App B)
+(defmacro with-db-app ((app-name) &body body)
+  "Permet d'exécuter un bloc de code avec le contexte DB d'une autre application."
+  `(let* ((ctx (get-db-context ,app-name))
+          (lumen.core.context:*db-pool* (car ctx))
+          (lumen.core.context:*current-db-config* (cdr ctx)))
+     ,@body))
+
+;;; Middleware qui lie dynamiquement *db-pool* et *current-config* au contexte de l'application spécifiée par APP-NAME.
+(lumen.core.pipeline:defmiddleware db-session-middleware
+    ((app-name :initarg :app-name :initform :default :reader mw-app-name))
+    (req next)
+  
+  (let* ((name (slot-value mw 'app-name))
+         ;; On récupère le couple (pool . config) depuis le registre
+         (context (get-db-context name)))
+    
+    ;; Sécurité : on vérifie que l'app a bien été démarrée via (start! :name ...)
+    (unless context
+      (error "Lumen DB: Aucune configuration trouvée pour l'application ~S. Avez-vous appelé (lumen.data.db:start! :name ~S ...) ?" name name))
+    
+    ;; --- LE CŒUR DU SYSTÈME : DYNAMIC BINDING ---
+    ;; On écrase temporairement les variables globales pour la durée de (funcall next req)
+    ;; Toutes les fonctions appelées plus bas (query-a, exec, repo-*, etc.) verront CES valeurs.
+    (let ((lumen.core.context:*db-pool* (car context))
+          (lumen.core.context:*current-db-config* (cdr context)))
+      
+      ;; On passe la main à la requête avec le bon contexte DB chargé
+      (funcall next req))))
+
+(lumen.core.pipeline:defmiddleware connection-per-request-middleware ()
+    (req next)
+  "Emprunte une connexion DB unique pour toute la durée du traitement de la requête HTTP."
+  ;; On s'assure qu'on est bien dans un contexte d'application DB (db-session-middleware a dû passer avant)
+  (if lumen.core.context:*db-pool*
+      ;; On utilise call-with-conn qui va checker la connexion, binder *in-connection*, 
+      ;; exécuter NEXT (tout le reste de l'app), puis rendre la connexion proprement grâce à unwind-protect.
+      (lumen.data.db::call-with-conn (lambda () (funcall next req)))
+      
+      ;; Si pas de DB (routes statiques par ex), on passe la main
+      (funcall next req)))

@@ -62,14 +62,14 @@
          (lumen.core.pipeline:execute-middleware-chain
           (list
            ;; 1. AUTH
-           (make-instance 'lumen.core.middleware:auth-middleware
+           (make-instance 'lumen.http.session:auth-middleware
                           :required-p ,(if required-effective t nil)
                           ,@(when roles        `(:roles-allow ,roles))
                           ,@(when scopes       `(:scopes-allow ,scopes))
                           ,@(when sc-mode      `(:scopes-mode ,sc-mode))
                           ,@(when admin-roles  `(:admin-roles ,admin-roles))
                           ,@(when admin-bypass? `(:bypass-admin ,admin-bypass?))
-                          ,@(when (not (null allow-query?)) `(:allow-query ,allow-query?))
+                          ;;,@(when (not (null allow-query?)) `(:allow-query ,allow-query?))
                           ,@(when qs-keys      `(:qs-keys ,qs-keys))
                           ,@(when secret       `(:secret ,secret))
                           ,@(when leeway       `(:leeway ,leeway)))
@@ -138,51 +138,6 @@
         nil))
 
   ;; --- EXPANSION ROUTES CUSTOM ---
-  #|
-(defun %expand-route (method subpath args body-and-opts prefix module-mws-sym &key host)
-  (multiple-value-bind (opts raw-code) (%split-body-opts body-and-opts)
-    (multiple-value-bind (decls code) (%extract-declarations raw-code)
-      (let* ((full-path (format nil "~A~A" prefix subpath))
-             (method-str (string-upcase (symbol-name method)))
-             (method-kw  (intern method-str :keyword))
-             
-             ;; --- FIX DÉFENSIF ULTIME ---
-             ;; On s'assure d'avoir le symbole pur 'req', même si args est ((req)) ou (req)
-             (req-sym (let ((raw (if (and args (listp args)) (first args) args)))
-                        (if (listp raw) (first raw) raw)))
-             ;; Si req-sym est nul (route sans param), on crée un symbole
-             (req-sym (or req-sym (intern "REQ" *package*)))
-
-             (is-api-route (or (getf opts :roles) (getf opts :scopes) (getf opts :tag)))
-             (traced-code 
-              `((lumen.core.trace:with-tracing ("Route Handler" :path ,full-path :method ,method-str)
-                  ,@code)))
-             
-             (final-body 
-              (if module-mws-sym
-                  `((lumen.core.pipeline:execute-middleware-chain 
-                     ,module-mws-sym 
-                     (lambda ,args 
-                       ,@decls
-                       ,@traced-code) 
-                     ;; ICI : On passe req-sym garanti symbole
-                     ,req-sym)) 
-                  `(,@decls
-                    ,@traced-code))))
-        
-        (if is-api-route
-            `(construct-guarded-route ,method-kw ,full-path ,args
-               (:roles ,(getf opts :roles) 
-                :scopes ,(getf opts :scopes)
-                :admin-bypass? ,(getf opts :admin-bypass? t)
-                :allow-query-token? t
-		:host ,host)
-               ,@final-body)
-            
-            `(lumen.core.router:construct-route (,method-kw ,full-path ,args
-	       :host ,host)
-               ,@final-body))))))
-  |#
   (defun %expand-route (method subpath args body-and-opts prefix module-mws-sym &key host)
     (multiple-value-bind (opts raw-code) (%split-body-opts body-and-opts)
       (multiple-value-bind (decls code) (%extract-declarations raw-code)

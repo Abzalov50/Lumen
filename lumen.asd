@@ -32,7 +32,7 @@
        
        (:file "router")      ;; Le routeur peut maintenant utiliser defmiddleware
        (:file "jwt")
-       (:file "auth")        ;; Auth peut utiliser defmiddleware
+       (:file "auth")       
        (:file "rate-limit")       
        (:file "shutdown")
        
@@ -65,13 +65,14 @@
      (:module "http"
       :depends-on ("data" "core")
       :components
-      ((:file "crud")
-       (:file "proxy")
-       (:file "session")
+      ((:file "session")
+       (:file "crud")
+       (:file "proxy")       
        ))
      (:module "extras"
       :components
       ((:file "forms")
+       (:file "jobs")
        (:file "router-extras")))
      (:module "app"
       :components
@@ -118,7 +119,7 @@
 		((:file "utils")
 		 (:file "registry")
 		 (:file "introspection")		 
-		 (:file "form")
+		 ;;(:file "form")
 		 (:file "grid")
 		 (:file "actions")
 		 (:file "view")
@@ -145,4 +146,4 @@
   :depends-on (alexandria usocket bordeaux-threads flexi-streams cl-ppcre cl-json
 			  local-time trivial-utf-8 fiveam salza2 ironclad cl-base64
 			  cl+ssl uuid postmodern str dexador spinneret parenscript
-			  quri))
+			  quri cl-smtp cl-dates parse-float))

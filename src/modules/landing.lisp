@@ -24,7 +24,7 @@
 
 (defun get-current-user-details (req)
   "Récupère les infos de l'utilisateur connecté via la session ou la DB."
-  (let* ((uid (lumen.modules.auth.service:current-user-id req))
+  (let* ((uid (lumen.modules.auth.service:current-uid req))
 	(tid (ctx-get req :tenant-id))
 	(ctx (list :tenant-id tid)))
     (when uid

@@ -68,12 +68,26 @@
     (string (or (ignore-errors (parse-integer x)) default))
     (t default)))
 
+#|
 (defun merge-db-plists (&rest plists)
   "Left→right merge; later non-NIL values override earlier."
   (let ((out '()))
     (dolist (pl plists (nreverse out))
       (loop for (k v) on pl by #'cddr do
-            (when v (setf (getf out k) v))))))
+        (when v (setf (getf out k) v))))))
+|#
+(defun merge-db-plists (&rest plists)
+  "Fusionne plusieurs plists. Les valeurs de droite écrasent celles de gauche."
+  (let ((out '()))
+    (dolist (pl plists)
+      (loop for (k v) on pl by #'cddr do
+            ;; setf getf met à jour la clé si elle existe, ou l'ajoute au début sinon.
+            ;; C'est une opération sûre qui maintient la structure de plist.
+            (when v (setf (getf out k) v))))
+    
+    ;; CORRECTION : On ne doit SURTOUT PAS inverser une plist plate,
+    ;; sinon les clés et les valeurs s'échangent !
+    out))
 
 ;;; ---------------------------------------------------------------------------
 ;;; parse-postgres-url

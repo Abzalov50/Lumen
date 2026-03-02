@@ -24,23 +24,36 @@
 
    ;; 2. ACTION DE LOGIN (POST HTMX)
    (POST "/login" (req)
-	 :summary "Traite l'authentification"
-	 (let* ((form (lumen.core.http:ctx-get req :form))
+	 :summary "Traite l'authentification Session"
+	 (let* ((form (ctx-get req :form))
 		(email (alist-get form "email"))
 		(pass  (alist-get form "password"))
-		;; Récupération Tenant Contextuel (via Middleware Resolve-Tenant)
-		(current-tid (lumen.core.http:ctx-get req :tenant-id)))
-	   (format t "~&[LOGIN USER] CURRENT TENANT ID: ~A~%" current-tid)
-	   ;; Authentification (Service)
+		(current-tid (ctx-get req :tenant-id)))
+
+	   (print (ctx-from-req req))
+	   (format t "~&[AUTH LOGIN] TID: ~A~%" current-tid)
+    
+	   ;; 1. On appelle la vérification SIMPLE (Pas de calcul JWT)
 	   (multiple-value-bind (user error-msg)
-               (lumen.modules.auth.service:authenticate-user email pass current-tid)
-         
-             (if user
-		 ;; SUCCÈS : On passe 'req' pour écrire en session
+               (lumen.modules.auth.service:verify-credentials email pass current-tid)
+
+	     (format t "~&[AUTH LOGIN] USER: ~A~%" user)
+	     (if user
+		 ;; 2. On crée la SESSION (Cookie) via respond-success
 		 (lumen.modules.auth.service:respond-success req user "/" :msg "Connexion réussie.")
-             
-		 ;; ÉCHEC
+          
+		 ;; Erreur
 		 (lumen.modules.auth.service:respond-error form error-msg)))))
+
+   (POST "/api/v1/login" (req)
+	 ;; Appel la version qui génère le token
+	 (let* ((form (ctx-get req :form))
+		(email (alist-get form "email"))
+		(pass  (alist-get form "password"))
+		(current-tid (ctx-get req :tenant-id)))
+	   (multiple-value-bind (user token)
+	       (authenticate-for-api email pass current-tid)
+	     (respond-json `((:token . ,token))))))
 
    ;; 3. LOGOUT
    (POST "/logout" (req)
@@ -108,16 +121,19 @@
 
 (defun register-member (tid form)
   "Crée un utilisateur simple dans le tenant courant."
-  (let ((email (alist-get form "email"))
-        (pass  (alist-get form "password")))
-    (lumen.data.repo.core:repo-create 
-     'user 
-     (list :tenant-id tid) ;; Contexte Tenant forcé
-     `((:email . ,email) 
-       (:password . ,pass)
-       (:firstname . ,(alist-get form "firstname"))
-       (:lastname . ,(alist-get form "lastname"))
-       (:role . "user"))))) ;; Rôle par défaut
+  (let* ((email (alist-get form "email"))
+         (pass  (alist-get form "password"))
+	 (user (lumen.data.repo.core:repo-create 
+		'user 
+		(list :tenant-id tid) ;; Contexte Tenant forcé
+		`((:email . ,email) 
+		  (:password . ,pass)
+		  (:firstname . ,(alist-get form "firstname"))
+		  (:lastname . ,(alist-get form "lastname"))
+		  (:role . "user")))))
+    (values user
+	    (lumen.modules.auth.service:issue-token-for user)
+	    nil)))
 
 (defun register-tenant-and-admin (form)
   "Crée toute la structure pour un nouveau client SaaS."

@@ -20,10 +20,11 @@
    :multipart-parser-middleware :router-middleware
    :etag-middleware :compression-middleware
 	   :last-modified-middleware :business-error-middleware
-   :auth-middleware :auth-required :roles-allowed
 	   :https-redirect-middleware :rate-limit-middleware :timeout-middleware
 	   :max-body-size-middleware :context-middleware :access-log-middleware
-   :parse-query-string-to-alist :trust-proxy-middleware :current-request-middleware))
+   :parse-query-string-to-alist :trust-proxy-middleware :current-request-middleware
+   :spy-middleware
+   ))
 
 (in-package :lumen.core.middleware)
 
@@ -32,6 +33,18 @@
   ;; C'est ce LET qui rend la variable Thread-Safe
   (let ((lumen.core.http:*request* req))
     (funcall next req)))
+
+(lumen.core.pipeline:defmiddleware spy-middleware
+    ((name :initarg :name :initform "Spy"))
+    (req next)
+  (format t "~&[SPY] 🟢 ENTRÉE : ~A~%" (slot-value mw 'name))
+  (force-output) ;; Force l'affichage immédiat dans le REPL
+  
+  (let ((res (funcall next req)))
+    
+    (format t "~&[SPY] 🔴 SORTIE : ~A~%" (slot-value mw 'name))
+    (force-output)
+    res))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 2. HELPERS (Logger Utils)
@@ -827,110 +840,6 @@
                 resp))
           resp))))
 
-
-
-;;; ---------------------------------------------------------------------------
-;;; 17. AUTH JWT MIDDLEWARE (The Big One)
-;;; ---------------------------------------------------------------------------
-
-(defun %bearer-token (hdrs)
-  (let ((raw (cdr (assoc "authorization" hdrs :test #'string-equal))))
-    (when raw
-      (let ((s (string-trim " " raw)))
-        (if (and (>= (length s) 7) (string-equal "Bearer " s :end2 7))
-            (subseq s 7) nil)))))
-
-(defun %query-token (req keys)
-  (let ((qp (lumen.core.http:req-query req)))
-    (loop for k in keys thereis (cdr (assoc k qp :test #'string-equal)))))
-
-(defun %normalize-scopes (v)
-  (handler-case
-      (let ((lst (cond ((null v) nil)
-                       ((listp v) v)
-                       ((stringp v) (cl-ppcre:split "\\s+" v)) ;; Space separated scopes
-                       (t (list (princ-to-string v))))))
-        (remove-duplicates (mapcar #'string lst) :test #'string=))
-    (error () nil)))
-
-(defmiddleware auth-middleware
-    ((secret :initarg :secret :initform nil)
-     (required-p :initarg :required-p :initform nil)
-     (roles-allow :initarg :roles-allow :initform nil)
-     (scopes-allow :initarg :scopes-allow :initform nil)
-     (scopes-mode :initarg :scopes-mode :initform :any) ;; :any | :all
-     (leeway :initarg :leeway :initform 60)
-     (allow-query :initarg :allow-query :initform t)
-     (admin-roles :initarg :admin-roles :initform '("admin"))
-     (bypass-admin :initarg :bypass-admin :initform t))
-    (req next)
-  (with-slots (secret required-p roles-allow scopes-allow scopes-mode leeway allow-query admin-roles bypass-admin) mw
-    (let* ((hdrs (lumen.core.http:req-headers req))
-           (tok (or (%bearer-token hdrs)
-                    (and allow-query (%query-token req '("access_token" "token")))
-                    (cdr (assoc "access_token" (lumen.core.http:req-cookies req) :test #'string=)))))
-      ;; 1. Decode & Hydrate Context
-      (when (and tok secret)
-        (multiple-value-bind (payload ok) 
-            (ignore-errors (lumen.core.jwt:jwt-decode tok :secret secret :verify t :leeway leeway))
-          (when ok
-            (lumen.core.http:ctx-set! req :jwt payload)
-            (lumen.core.http:ctx-set! req :user-id (cdr (assoc :sub payload))) ;; Standard claim
-            ;; Tenant hydration
-            (let ((tid (or (cdr (assoc :tenant-id payload)) (cdr (assoc :tenant payload)))))
-              (when tid (lumen.core.http:ctx-set! req :tenant-id tid))))))
-      
-      ;; 2. Authorization Logic
-      (let* ((jwt (lumen.core.http:ctx-get req :jwt))
-             (role (and jwt (cdr (assoc :role jwt))))
-             (scopes (%normalize-scopes (and jwt (cdr (assoc :scopes jwt)))))
-             (is-admin (and role (member role admin-roles :test #'string=)))
-             
-             (roles-ok (or (null roles-allow)
-                           (member role roles-allow :test #'string=)
-                           (and is-admin bypass-admin)))
-             
-             (scopes-ok (or (null scopes-allow)
-                            (if (eq scopes-mode :all)
-                                (every (lambda (s) (member s scopes :test #'string=)) scopes-allow)
-                                (some (lambda (s) (member s scopes :test #'string=)) scopes-allow))
-                            (and is-admin bypass-admin))))
-        
-        (cond
-          ;; Missing Token but Required
-          ((and required-p (null jwt))
-           (lumen.core.http:respond-json '((:error . "Unauthorized")) :status 401))
-          
-          ;; Forbidden (Role)
-          ((not roles-ok)
-           (lumen.core.http:respond-json '((:error . "Forbidden (Role)")) :status 403))
-          
-          ;; Forbidden (Scope)
-          ((not scopes-ok)
-           (lumen.core.http:respond-json '((:error . "Forbidden (Scope)")) :status 403))
-          
-          ;; Authorized
-          (t 
-           (when (and is-admin (or roles-allow scopes-allow))
-             (lumen.core.http:ctx-set! req :auth-bypass "admin"))
-           (funcall next req)))))))
-
-;;; ---------------------------------------------------------------------------
-;;; 18. AUTH FACTORIES (Aliases for compatibility)
-;;; ---------------------------------------------------------------------------
-
-(defun auth-required (&key (roles nil) (scopes nil))
-  "Factory pour créer un middleware Auth strict."
-  (make-instance 'auth-middleware 
-                 :required-p t 
-                 :roles-allow roles
-                 :scopes-allow scopes
-                 :secret lumen.core.jwt:*jwt-secret*))
-
-(defun roles-allowed (roles)
-  "Factory raccourci pour restreindre par rôle."
-  (auth-required :roles roles))
-
 ;;; ---------------------------------------------------------------------------
 ;;; 19. HTTPS REDIRECT MIDDLEWARE
 ;;; ---------------------------------------------------------------------------
@@ -1016,7 +925,7 @@
 ;;; ---------------------------------------------------------------------------
 ;;; 21. REQUEST TIMEOUT MIDDLEWARE
 ;;; ---------------------------------------------------------------------------
-
+#|
 (defmiddleware timeout-middleware
     ((ms :initarg :ms :initform 5000))
     (req next)
@@ -1030,14 +939,18 @@
          ;; --- 1. CAPTURE DANS LE THREAD PARENT ---
          ;; On sauvegarde la valeur actuelle de la variable dynamique
          (current-req lumen.core.http:*request*)
-	 (current-app lumen.core.context::*current-app*))
+	 (current-app lumen.core.context::*current-app*)
+	 (current-db-cfg lumen.core.context::*current-db-config*)
+	 (current-db-pool lumen.core.context::*db-pool*))
     
     (bt:make-thread
      (lambda ()
        ;; --- 2. RESTAURATION DANS LE THREAD ENFANT ---
        ;; On ré-injecte la valeur pour que tout le code imbriqué (htmx-request-p, etc.) la voie
        (let ((lumen.core.http:*request* current-req)
-	     (lumen.core.context:*current-app* current-app))
+	     (lumen.core.context:*current-app* current-app)
+	     (lumen.core.context::*current-db-config* current-db-cfg)
+	     (lumen.core.context::*db-pool* current-db-pool))
          
          (lumen.core.trace:with-propagated-context parent-ctx
            (let ((r (funcall next req)))
@@ -1051,6 +964,62 @@
         (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
           (return-from handle 
             (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)))))
+    resp))
+|#
+
+(defmiddleware timeout-middleware
+    ((ms :initarg :ms :initform 5000))
+    (req next)
+  
+  (let* ((lock (bt:make-lock "rt-lock"))
+         (cv   (bt:make-condition-variable))
+         (resp nil)
+         (done nil)
+         (parent-ctx (lumen.core.trace:current-context))
+         
+         ;; --- 1. CAPTURE ---
+         (current-req lumen.core.http:*request*)
+         (current-app lumen.core.context::*current-app*)
+         (current-db-cfg lumen.core.context::*current-db-config*)
+         (current-db-pool lumen.core.context::*db-pool*))
+    
+    (bt:make-thread
+     (lambda ()
+       ;; --- 2. RESTAURATION ---
+       (let ((lumen.core.http:*request* current-req)
+             (lumen.core.context:*current-app* current-app)
+             (lumen.core.context::*current-db-config* current-db-cfg)
+             (lumen.core.context::*db-pool* current-db-pool))
+         
+         (lumen.core.trace:with-propagated-context parent-ctx
+           (unwind-protect
+               ;; On intercepte explicitement les sorties "halt" ET les crashs Lisp
+               (handler-case
+                   (setf resp (funcall next req))
+                 
+                 ;; 1. Sorties contrôlées par le framework (redirections, etc.)
+                 (lumen.core.http:http-halt (c)
+                   (setf resp (lumen.core.http:halt-response c)))
+                 
+                 ;; 2. LE FILET DE SÉCURITÉ ABSOLU : Crashs natifs Lisp
+                 (error (e)
+                   (format t "~&[MW TIMEOUT] CRASH INTERCEPTÉ : ~A~%" e)
+                   ;; On force une réponse 500 propre au lieu d'un NIL destructeur
+                   (setf resp (lumen.core.http:respond-500 (format nil "Erreur interne: ~A" e)))))
+             
+             ;; FIN GARANTIE : Le thread parent sera TOUJOURS réveillé
+             (bt:with-lock-held (lock)
+               (setf done t)
+               (bt:condition-notify cv)))))))
+    
+    ;; --- 3. ATTENTE PARENT ---
+    (bt:with-lock-held (lock)
+      (unless done
+        (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
+          (return-from handle 
+            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)))))
+    
+    ;; On retourne l'objet response au framework parent
     resp))
 
 ;;; ---------------------------------------------------------------------------
@@ -1108,7 +1077,7 @@
       (when jwt
         (lumen.core.http:ctx-set! req :actor-id (or (cdr (assoc :sub jwt)) (cdr (assoc :user-id jwt))))
         (lumen.core.http:ctx-set! req :role (cdr (assoc :role jwt)))
-        (lumen.core.http:ctx-set! req :scopes (%normalize-scopes (cdr (assoc :scopes jwt))))
+        (lumen.core.http:ctx-set! req :scopes (lumen.core.http:normalize-scopes (cdr (assoc :scopes jwt))))
         
         (let ((tid (or (cdr (assoc :tenant-id jwt)) (cdr (assoc :tenant jwt)))))
           (when tid (lumen.core.http:ctx-set! req :tenant-id tid)))))

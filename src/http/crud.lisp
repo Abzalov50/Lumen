@@ -267,7 +267,7 @@
 
 (defun %jwt-required-or-response (req)
   "Retourne T si un JWT valide est présent, sinon la réponse 401."
-  (let ((mw (make-instance 'lumen.core.middleware:auth-middleware 
+  (let ((mw (make-instance 'lumen.http.session:auth-middleware 
                            :required-p t
                            ;; On laisse le secret se résoudre via la config globale si nil
                            :secret lumen.core.jwt:*jwt-secret*)))
@@ -286,7 +286,7 @@
       (t
        ;; Supposons que %crud-scope-for existe (ex: "users:read")
        (let* ((required-scopes (%crud-scope-for entity op))
-              (mw (make-instance 'lumen.core.middleware:auth-middleware
+              (mw (make-instance 'lumen.http.session:auth-middleware
                                  :required-p required-p
                                  :scopes-allow required-scopes
                                  :scopes-mode :all ;; On veut ce scope précis

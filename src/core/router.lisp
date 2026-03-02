@@ -269,11 +269,13 @@
                           (declare (ignore full-match))
                           (if regs (coerce regs 'list) nil)))) ;; Convertit le vecteur en liste
                    
-                   ;; 3. Mise à jour du contexte (Votre logique existante)
-                   (lumen.core.http:ctx-set! req :params 
-                     (extract-path-params (route-pattern matched) (route-param-names matched) path))
+                   ;; 3. Mise à jour du contexte
+                   (lumen.core.http:ctx-set!
+		    req :params 
+                    (extract-path-params (route-pattern matched)
+					 (route-param-names matched) path))
                    (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
-                   
+		   ;;(print (route-handler matched))
                    ;; 4. EXECUTION AVEC APPLY (Le Correctif)
                    ;; Si param-values est ("123"), cela appelle (handler req "123")
                    ;; Si param-values est NIL, cela appelle (handler req)

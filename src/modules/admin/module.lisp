@@ -66,7 +66,7 @@
 	 (let* ((entity-sym (lumen.admin.utils:resolve-entity-symbol entity-str))
 		(ctx (ctx-from-req req))
 		(form-data (getf ctx :fields))
-		(clean-data (lumen.admin.form:normalize-post-params entity-sym form-data)))
+		(clean-data (lumen.admin.utils:normalize-post-params entity-sym form-data)))
        
 	   (handler-case
                (progn
@@ -85,7 +85,6 @@
 	       (ctx (ctx-from-req req))
             ;; On récupère l'enregistrement
             (record (lumen.data.repo.core:repo-show entity-sym ctx id)))
-       
        (if record
            (lumen.core.http:respond-html
             (lumen.admin.view:render-admin-layout req 
@@ -98,7 +97,7 @@
 	 (let* ((entity-sym (lumen.admin.utils:resolve-entity-symbol entity-str))
 		(ctx (ctx-from-req req))
 		(form-data (getf ctx :fields))
-		(clean-data (lumen.admin.form:normalize-post-params entity-sym form-data))
+		(clean-data (lumen.admin.utils:normalize-post-params entity-sym form-data))
 		)
 	   (format t "~&[ADMIN ENT. EDIT] ENTITY: ~A | FORM DATA: ~A~%" entity-sym form-data)
 	   (format t "~&[ADMIN ENT. EDIT] CLEAN DATA: ~A~%" form-data)

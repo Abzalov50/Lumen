@@ -3,8 +3,9 @@
   (:export :authenticate-user :hash-password :verify-password   
    :login-user :logout-user :get-scopes-for-role
 	   :respond-success :respond-error
-	   :issue-token-for :current-user-id :is-authenticated-p
-	   :is-impersonating-p :impersonate-user :stop-impersonation))
+	   :issue-token-for :current-uid :current-user :is-authenticated-p :is-admin-p
+	   :is-impersonating-p :impersonate-user :stop-impersonation
+	   :verify-credentials :authenticate-for-api))
 
 (in-package :lumen.modules.auth.service)
 
@@ -25,26 +26,49 @@
 (defparameter *session-tenant-key* :tid) ;; Si on veut stocker le tenant aussi
 (defparameter *session-impersonator-key* "impersonator_id")
 
-(defun login-user (req user-id &optional tenant-id)
-  "Enregistre l'utilisateur dans la session courante."
-  ;; Le middleware se chargera de persister tout ça et d'envoyer le cookie
-  (session-set! req *session-user-key* user-id)
-  (when tenant-id
-    (session-set! req *session-tenant-key* tenant-id))
-  t)
-
 (defun logout-user (req)
   "Déconnecte l'utilisateur (nettoie les clés Auth de la session)."
   (session-del! req *session-user-key*)
   (session-del! req *session-tenant-key*)
+  (session-del! req "role")
+  (session-del! req "scopes")
   t)
 
-(defun current-user-id (req)
+(defun login-user (req user &optional tenant-id)
+  "Enregistre l'utilisateur et ses droits dans la session."
+  (let* ((uid (alist-get user :id))
+         (role (alist-get user :role))
+         ;; Recalcul des scopes comme dans authenticate-user
+         (role-scopes (get-scopes-for-role role))
+         (user-scopes (coerce (alist-get user :scopes) 'list))
+         (final-scopes (remove-duplicates (append role-scopes user-scopes) :test #'string=)))
+    
+    ;; On stocke tout ce dont le middleware a besoin pour décider
+    (session-set! req *session-user-key* uid)
+    (session-set! req "role" role)
+    (session-set! req "scopes" final-scopes) ;; Attention: s'assurer que le backend session supporte les listes
+    (when tenant-id
+      (session-set! req *session-tenant-key* tenant-id))
+    t))
+
+(defun current-uid (req)
   "Retourne l'ID de l'utilisateur connecté (ou NIL)."
-  (session-get req *session-user-key*))
+  (lumen.core.http:current-user-id req))
+
+(defun current-user (req)
+  "Retourne l'ID de l'utilisateur connecté (ou NIL)."
+  (let* ((ctx (ctx-from-req req))
+	 (uid (lumen.core.http:current-user-id req)))
+    (lumen.data.repo.core:repo-show 'lumen.modules.socle:user ctx uid)))
+	 
 
 (defun is-authenticated-p (req)
-  (not (null (current-user-id req))))
+  (format t "~&[AUTH USER] CURRENT UID: ~A~%" (current-user-id req))
+  (not (null (current-uid req))))
+
+(defun is-admin-p (req)
+  (format t "~&[AUTH SERVICE] USER ROLE: ~A~%" (lumen.core.http:current-role req))
+  (equal (lumen.core.http:current-role req) "admin"))
 
 (defun get-scopes-for-role (role)
   "Retourne la liste des scopes associés à un rôle (pour la génération de Token)."
@@ -58,6 +82,29 @@
     (if (and salt iters hash)
         (lumen.core.auth:verify-password raw-password salt iters hash)
         nil)))
+
+(defun verify-credentials (email password tenant-id)
+  "Vérifie les identifiants et retourne l'utilisateur (sans générer de token)."
+  (lumen.data.db:ensure-connection
+    (let* ((tenant (pomo:query "SELECT id FROM tenants WHERE id = $1" tenant-id :single))
+           (user   (and tenant 
+                        (pomo:query "SELECT * FROM users WHERE email = $1 AND tenant_id = $2 AND is_active = 'true'" 
+                                    email tenant-id :alist))))
+      
+      (cond
+        ((null tenant) (values nil "Organisation inconnue"))
+        ((null user)   (values nil "Utilisateur inconnu"))
+        ((%verify-password password user) (values user nil)) ;; Succès
+        (t (values nil "Mot de passe incorrect"))))))
+
+(defun authenticate-for-api (email password tenant-id)
+  "Utilisée pour les clients mobiles/externes : Retourne un TOKEN."
+  (multiple-value-bind (user err) (verify-credentials email password tenant-id)
+    (if user
+        ;; Si identifiants OK, on génère le token
+        (values user (issue-token-for user))
+        ;; Sinon erreur
+        (values nil err))))
 
 (defun authenticate-user (email password tenant-id)
   "Vérifie les crédentiels, calcule les scopes, et retourne le JWT token + User."
@@ -91,13 +138,14 @@
               ;; Note: Pour une App Web (HTMX), on utilise souvent juste un Access Token 
               ;; avec une durée de vie moyenne (ex: 2h) stocké en Cookie Secure.
               (let ((token (lumen.core.jwt:issue-access
-                            uid 
-                            :role role 
-                            :scopes final-scopes
-                            :tenant tenant-id
-                            :claims `((:firstname . ,(alist-get user :firstname))
-                                      (:lastname  . ,(alist-get user :lastname)))
-                            :ttl (* 3600 2)))) ;; 2 heures
+                             uid 
+                             :role role 
+                             :scopes final-scopes
+                             :tenant tenant-id
+                             :claims `((:firstname . ,(alist-get user :firstname))
+                                       (:lastname  . ,(alist-get user :lastname)))
+                             :ttl (* 3600 2))) ;; 2 heures)
+		    )
                 (format t "~&[AUTH USER] TOKEN: ~A~%" token)
                 (values user token)))
             
@@ -106,29 +154,26 @@
 
 (defun respond-success (req user target-url &key (msg "Opération réussie"))
   "Enregistre l'utilisateur en session et redirige via HTMX."
-  (print "OOOOOO")
   ;; 1. Session (Gérée par le middleware)
-  (login-user req (lumen.utils:alist-get user :id))
+  (let* ((tid (ctx-get req :tenant-id)))
+    (login-user req user tid)
 
-  (print "OOOOOO")
-  ;; 2. Réponse HTML vide
-  (let ((resp (respond-html "")))
+    ;; 2. Réponse HTML vide
+    (let ((resp (respond-html "")))
     
-    ;; 3. Toast
-    (setf (resp-headers resp)
-          (lumen.utils:ensure-header (resp-headers resp) "HX-Trigger" 
-           (cl-json:encode-json-to-string 
-            `((:show-message . ((:type . "success") (:message . ,msg)))))))
+      ;; 3. Toast
+      (setf (resp-headers resp)
+            (lumen.utils:ensure-header (resp-headers resp) "HX-Trigger" 
+				       (cl-json:encode-json-to-string 
+					`((:show-message . ((:type . "success") (:message . ,msg)))))))
 
-    ;; 4. Redirection
-    (setf (resp-headers resp)
-          (lumen.utils:ensure-header
-	   (resp-headers resp) 
-	   "HX-Redirect"
-	   target-url))
-    (print "OOOOOO")
-    (print (resp-headers resp))
-    resp))
+      ;; 4. Redirection
+      (setf (resp-headers resp)
+            (lumen.utils:ensure-header
+	     (resp-headers resp) 
+	     "HX-Redirect"
+	     target-url))
+      resp)))
 
 (defun respond-error (form-values error-msg &key (render-fn #'lumen.modules.auth.view:render-signup-form))
   "Génère une réponse HTMX d'erreur :
@@ -178,7 +223,7 @@
 (defun impersonate-user (req target-user-id)
   "Sauvegarde l'admin actuel et connecte le target."
   (format t "~&[IMPERSONATE USER] TARGET UID: ~A~%" target-user-id)
-  (let ((admin-id (current-user-id req)))
+  (let ((admin-id (current-uid req)))
     (format t "~&[IMPERSONATE USER] ADMIN ID: ~A~%" admin-id)
     ;; On stocke l'admin ID dans une clé spéciale
     (session-set! req *session-impersonator-key* admin-id)

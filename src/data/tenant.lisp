@@ -159,7 +159,7 @@
             (if tid
                 (values tid code)
                 (and allow-headers (fallback-from-headers)))
-          
+          (format t "~&[MW TENANT] TENANT ID: ~A~%" tid2)
           (cond
             ;; Cas Succès : Tenant Trouvé
             (tid2

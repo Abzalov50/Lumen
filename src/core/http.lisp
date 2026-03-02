@@ -11,7 +11,7 @@
    :req-body-stream :req-ctx :ctx-from-req :resp-status :resp-headers :resp-body
    :respond-text :respond-json :respond-404 :respond-401 :respond-500 :respond-422
    :respond-413 :respond-400 :respond-403 :respond-405 :normalize-json
-   :respond-html :respond-redirect :respond-htmx-redirect
+   :respond-html :respond-redirect :respond-htmx-redirect :respond-ok :redirect-to
    ;; Contexte (Files, fields)
    :ctx-get :ctx-set!
    ;; Cookies
@@ -19,12 +19,12 @@
    ;; HTTP Dates
    :set-last-modified! :cache-control
    ;; JWT, login et roles
-   :current-jwt :current-role :current-user-id :current-scopes :current-user-tenant-id
+   :current-jwt :current-role :current-user-id :current-scopes :current-tenant-id
    ;; SSE et Websockets
    :respond-sse
    :halt :http-halt :halt-response
    
-   :res-set-header! :request-payload-unified))
+   :res-set-header! :add-header :request-payload-unified :get-accepted-types :normalize-scopes))
  
 (in-package :lumen.core.http)
 
@@ -83,6 +83,15 @@
 ;;; ------------------------------------------------------------
 ;;; Helpers
 ;;; ------------------------------------------------------------
+(defun normalize-scopes (v)
+  (handler-case
+      (let ((lst (cond ((null v) nil)
+                       ((listp v) v)
+                       ((stringp v) (cl-ppcre:split "\\s+" v)) ;; Space separated scopes
+                       (t (list (princ-to-string v))))))
+        (remove-duplicates (mapcar #'string lst) :test #'string=))
+    (error () nil)))
+
 (defun %merge-headers (base extra)
   (append base extra))
 
@@ -161,18 +170,50 @@
 			   :body txt))
 
 (defun respond-html (html &key (status 200) (headers nil))
-  (make-instance 'response
-                 :status status
-                 :headers (append '(("Content-Type" . "text/html; charset=utf-8"))
-                                  headers)
-                 :body html))
+  "Crée une réponse HTML en fusionnant les headers fournis et ceux du contexte."
+  (let* ((req lumen.core.http:*request*)
+         (ctx (when (boundp 'req) (ctx-from-req req)))
+         (pending (getf ctx :pending-headers))
+         
+         ;; NETTOYAGE : On s'assure que chaque élément est bien une CONS (paire)
+         ;; Si un intrus comme "valider" est présent, il est ignoré.
+         (safe-pending (remove-if-not #'consp (if (listp pending) pending nil)))
+         
+         ;; FUSION : On concatène tout
+         (all-headers (append (if (listp headers) headers nil)
+                              safe-pending
+                              '(("Content-Type" . "text/html; charset=utf-8")))))
+    
+    ;; --- LE LOG DE DÉBOGAGE ---
+    (lumen.utils:log-msg "HTTP-RESPONSE" 
+                         :status status 
+                         :headers all-headers
+                         :corrupted-detected (not (eq (length pending) (length safe-pending))))
 
-(defun respond-htmx-redirect (url)
-  "Force une redirection côté client via HTMX (changement complet de page)."
-  (make-instance 'response
-                 :status 200
-                 :headers `(("HX-Redirect" . ,url))
-                 :body ""))
+    (make-instance 'response
+                   :status status
+                   :headers all-headers
+                   :body html)))
+
+(defun respond-ok (target-url &key (msg "Opération réussie"))
+  (let ((resp (lumen.core.http:respond-html "")))
+             
+    ;; 1. Redirection HTMX
+    (setf (lumen.core.http:resp-headers resp)
+          (lumen.utils:ensure-header 
+           (lumen.core.http:resp-headers resp) 
+           "HX-Redirect" 
+           target-url))
+             
+    ;; 2. Toast (Optionnel)
+    (setf (lumen.core.http:resp-headers resp)
+          (lumen.utils:ensure-header 
+           (lumen.core.http:resp-headers resp) 
+           "HX-Trigger" 
+           (cl-json:encode-json-to-string 
+            `((:show-message . ((:type . "success") (:message . ,msg)))))))
+             
+    resp))
 
 (defun respond-json (data &key (status 200) (headers nil))
   (let* ((normalized (normalize-json data))
@@ -251,6 +292,17 @@ Optionnel: header Location si fourni."
                  :headers (append (list (cons "location" location))
                                   headers)
                  :body ""))
+
+(defun respond-htmx-redirect (url)
+  "Force une redirection côté client via HTMX (changement complet de page)."
+  (make-instance 'response
+                 :status 200
+                 :headers `(("HX-Redirect" . ,url))
+                 :body ""))
+
+(defun redirect-to (location &key (status 302))
+  "Alias pratique pour une redirection standard HTTP."
+  (respond-redirect location :status status))
 
 (defun respond-204 (&key (headers nil))
   "204 No Content, sans corps (body vide)."
@@ -335,18 +387,22 @@ Optionnel: header Location si fourni."
     resp))
 
 (defun current-jwt (req) (ctx-get req :jwt))
-(defun current-user-tenant-id (req)
-  "Récupère le Tenant ID."
-  (ctx-get req :tenant-id))
+
 (defun current-user-id (req)
-  (let ((jwt (current-jwt req)))
-    (or (cdr (assoc :sub jwt)) (cdr (assoc "sub" jwt)))))
+  "Retourne l'ID utilisateur, qu'il vienne de la Session ou d'un Token."
+  (ctx-get req :user-id))
+
+(defun current-tenant-id (req)
+  "Retourne le Tenant ID courant."
+  (ctx-get req :tenant-id))
+
 (defun current-role (req)
-  (let ((jwt (current-jwt req)))
-    (or (cdr (assoc :role jwt)) (cdr (assoc "role" jwt)))))
+  "Retourne le Rôle (admin, user, etc.)."
+  (ctx-get req :user-role))
+
 (defun current-scopes (req)
-  (let ((jwt (current-jwt req)))
-    (or (cdr (assoc :scopes jwt)) (cdr (assoc "scopes" jwt)))))
+  "Retourne la liste des permissions/scopes."
+  (ctx-get req :user-scopes))
 
 ;;; SSE
 (defun %split-lines (s)
@@ -432,9 +488,9 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
                         (lumen.core.http:ctx-get req :tenant)))
          (actor-id  (or (lumen.core.http:ctx-get req :actor-id)
                         (lumen.core.http:current-user-id req)))
-         (role      (or (lumen.core.http:ctx-get req :role)
+         (role      (or (lumen.core.http:ctx-get req :user-role)
                         (lumen.core.http:current-role req)))
-         (scopes    (lumen.core.http:ctx-get req :scopes))
+         (scopes    (lumen.core.http:ctx-get req :user-scopes))
          (req-id    (lumen.core.http:ctx-get req :request-id))
          (ip        (lumen.core.http:ctx-get req :ip))
          (ua        (lumen.core.http:ctx-get req :ua))
@@ -492,6 +548,37 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
                                :test #'string-equal)) ;; Insensible à la casse (HTTP standard)
   resp)
 
+(defun add-header (name value)
+  "Ajoute un header au contexte. Force le format (name . value)."
+  (when (boundp 'lumen.core.http:*request*)
+    (let* ((req lumen.core.http:*request*)
+           ;; 1. On récupère proprement le contexte (alist)
+           (ctx (req-ctx req))
+           ;; 2. On récupère les headers en attente (alist)
+           (pending (lumen.utils:lookup ctx :pending-headers))
+           ;; 3. On nettoie 'pending' au cas où il serait corrompu
+           (clean-pending (if (and (listp pending) (every #'consp pending))
+                              pending
+                              nil))
+           
+           (existing (lumen.utils:alist-get clean-pending name :test #'string-equal))
+           (new-val (if (and existing (not (string= (format nil "~A" existing) "")))
+                        (format nil "~A, ~A" existing value)
+                        value))
+           ;; 4. On utilise ALIST-SET pour garantir une paire (name . new-val)
+           (updated-pending (lumen.utils:alist-set clean-pending name new-val)))
+      
+      ;; 5. On sauve l'ALIST PROPRE dans le contexte
+      (ctx-set! req :pending-headers updated-pending))))
+
+(defun finalize-response (req resp)
+  "Transfère les headers accumulés dans le contexte vers l'objet réponse final."
+  (let* ((ctx (ctx-from-req req))
+	 (pending (getf ctx :pending-headers)))
+    (dolist (h pending)
+      (res-set-header! resp (car h) (cdr h)))
+    resp))
+
 (defun request-payload-unified (req)
   "Récupère les données (Alist) quelle que soit la source (JSON Body ou Form Data)."
   (let* ((h (req-headers req))
@@ -508,3 +595,18 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
    
      ;; 3. Fallback : Parser le JSON à la volée si pas fait
      (ignore-errors (lumen.core.body:parse-json (req-body-stream req) len)))))
+
+(defun get-accepted-types (req)
+  "Retourne une liste des types MIME acceptés par le client (basé sur le header Accept).
+   Exemple: '(\"text/html\" \"application/xhtml+xml\" ...)"
+  (let* ((headers (req-headers req))
+         ;; Recherche insensible à la casse du header "Accept"
+         (accept-str (cdr (assoc "accept" headers :test #'string-equal))))
+    
+    (if accept-str
+        ;; On découpe la chaîne "text/html, application/json;q=0.9, */*"
+        (loop for item in (uiop:split-string accept-str :separator ",")
+              ;; On nettoie chaque item (on enlève les espaces et les paramètres ;q=...)
+              collect (string-trim " " (car (uiop:split-string item :separator ";"))))
+        ;; Si pas de header, on suppose tout
+        '("*/*"))))

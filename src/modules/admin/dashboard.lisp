@@ -1,5 +1,5 @@
 (defpackage :lumen.admin.dashboard
-  (:use :common-lisp :lumen.utils)
+  (:use :common-lisp :spinneret :lumen.utils)
   (:export :register-kpi :get-kpis :render-kpi-cards))
 
 (in-package :lumen.admin.dashboard)

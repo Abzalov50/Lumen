@@ -1,7 +1,7 @@
 (in-package :cl)
 
 (defpackage :lumen.app.app
-  (:use :cl)
+  (:use :cl :lumen.core.config)
   (:export :defapp :start-app :stop-app :app-config :app-routes
 	   :app-middleware :app-name :app-port :app-listeners :app-modules
    :get-app-conf :reload!))
@@ -64,6 +64,11 @@
      ;; 3. On retourne l'objet
      ,name))
 
+;; On définit un JOB système invisible pour l'utilisateur
+(lumen.core.scheduler:defjob :sys-gc-temp-files (ignore)
+  (declare (ignore ignore))
+  (lumen.extras.jobs::%system-cleanup-spool))
+
 ;;; --- COMPILATION DES ROUTES ---
 (defun %compile-routes (app)
   (let ((router (lumen.core.router:create-router))) 
@@ -76,6 +81,31 @@
   "Récupère une valeur de config de l'application courante."
   (let ((val (getf (app-config lumen.core.context:*current-app*) key)))
     (or val default)))
+
+(defun ensure-runtime-directories ()
+  "S'assure que les dossiers critiques du framework existent et sont accessibles."
+  (format t "~&[Lumen] Vérification du dossier temporaire : ~A~%" lumen.core.config:*tmp-dir*)
+  
+  ;; 1. Tentative de création
+  (handler-case 
+      (ensure-directories-exist *tmp-dir*)
+    (file-error (e)
+      (error "FATAL: Impossible de créer le dossier temporaire Lumen à '~A'. Vérifiez les permissions. Erreur: ~A" 
+             *tmp-dir* e)))
+
+  ;; 2. Vérification d'écriture (Test ultime)
+  ;; On essaie d'écrire un petit fichier pour être sûr qu'on a le droit.
+  (let ((test-file (merge-pathnames "write_test.tmp" *tmp-dir*)))
+    (handler-case
+        (progn
+          (with-open-file (out test-file :direction :output :if-exists :supersede)
+            (write-line "test" out))
+          (delete-file test-file))
+      (error (e)
+        (error "FATAL: Le dossier temporaire '~A' n'est pas accessible en écriture. Les uploads échoueront. Erreur: ~A" 
+               *tmp-dir* e))))
+  
+  (format t "~&[Lumen] Dossier temporaire OK.~%"))
 
 ;;; --- DEMARRAGE ---
 (defmethod start-app ((app lumen-app))
@@ -122,6 +152,19 @@
                        '(500 (:content-type "text/plain") ("No router initialized"))))
                  ;; La requête initiale
                  req))))))
+
+    ;; On prépare l'environnement avant de lancer le serveur HTTP
+    (ensure-runtime-directories)
+
+    ;; 2. Nettoyage immédiat au boot (fichiers présents avant le start)
+    ;; On peut le faire de manière synchrone ou threadée ici, sans risque d'âge
+    ;; car au boot, aucun upload n'est en cours.
+    (bt:make-thread (lambda () (lumen.extras.jobs::%system-cleanup-spool)) 
+                    :name "lumen-boot-gc")
+
+    ;; 3. Planification du GC Récurrent (Toutes les heures)
+    ;; Le développeur n'a rien à faire, c'est "built-in".
+    (lumen.core.scheduler:schedule-cron :sys-gc-temp-files (* 24 3600) nil)
       
     ;; 4. Démarrage du serveur
     (setf (app-listeners app)

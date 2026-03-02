@@ -49,7 +49,6 @@
 (defun guess-content-type (pathname-or-name)
   (content-type-for pathname-or-name))
 
-
 (defparameter *ext-by-type*
   (let ((ht (make-hash-table :test 'equal)))
     (maphash (lambda (ext ct)
@@ -74,3 +73,4 @@
                  ((lumen.core.mime:ext-for-content-type ct))  ; via mapping inverse
                  (t "bin"))))
     ext))
+

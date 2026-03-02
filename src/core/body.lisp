@@ -222,103 +222,142 @@
 
 ;; -- Parser multipart en octets ----------------------------------------------
 (defun parse-multipart (stream length content-type &key limit)
-  "Parse multipart/form-data (en mémoire). Retourne plist :fields (alist) / :files (list d’alists)."
-  (let* ((boundary (%find-boundary content-type)))
+  "Version Hybride : Spooling Disque -> Parsing RAM -> Extraction Disque.
+   Retourne : ((:fields . alist) (:files . list-of-alists))"
+  
+  (let ((boundary (%find-boundary content-type)))
     (when (null boundary) (return-from parse-multipart nil))
+
+    ;; 1. SPOOLING : On décharge le réseau vers un fichier temporaire
+    (let ((spool-file (merge-pathnames (format nil "req_~A.tmp" (lumen.utils:gen-uuid-string)) 
+                                       lumen.core.config:*tmp-dir*)))
+      
+      (unwind-protect
+           (progn
+             ;; A. Copie Flux Réseau -> Disque (LECTURE BORNÉE STRICTE)
+             (with-open-file (out spool-file :direction :output 
+                                             :element-type '(unsigned-byte 8) 
+                                             :if-exists :supersede)
+               (let ((remaining length)
+                     ;; Buffer de 8Ko pour la performance
+                     (buffer (make-array 8192 :element-type '(unsigned-byte 8))))
+                 (loop while (> remaining 0) do
+                   (let* ((chunk-size (min remaining 8192))
+                          ;; On lit au maximum chunk-size octets
+                          (read-count (read-sequence buffer stream :end chunk-size)))
+                     (when (zerop read-count) 
+                       (return)) ;; EOF prématuré (connexion coupée)
+                     (write-sequence buffer out :end read-count)
+                     (decf remaining read-count)))))
+             
+             ;; B. Parsing (On charge le fichier spool en RAM pour parser)
+             (with-open-file (in spool-file :direction :input :element-type '(unsigned-byte 8))
+               (let ((file-len (file-length in)))
+                 (if (> file-len (or limit (* 50 1024 1024)))
+                     (error "Multipart body too large for RAM parsing")
+                     
+                     (let ((raw (make-array file-len :element-type '(unsigned-byte 8))))
+                       (read-sequence raw in)
+                       (%parse-multipart-bytes raw boundary))))))
+        
+        ;; C. Nettoyage du fichier spool
+        (ignore-errors (delete-file spool-file))))))
+
+(defun %parse-multipart-bytes (raw boundary)
+  "Logique originale adaptée pour écrire les fichiers sur le disque."
+  (let* ((sep-bytes (%ascii-bytes (format nil "--~a" boundary)))
+         (pos 0)
+         (parts '()))
     
-    (let* ((raw (read-exact-bytes stream length :limit limit))
-           (sep-bytes (%ascii-bytes (format nil "--~a" boundary)))
-           (pos 0)
-           parts)
+    ;; 1. Trouver le premier séparateur
+    (let ((first (%bytes-index-of raw sep-bytes 0)))
+      (when (null first) (return-from %parse-multipart-bytes nil))
+      (setf pos (+ first (length sep-bytes))))
+    
+    (loop
+      ;; A. Sauter le CRLF
+      (when (and (<= (+ pos 2) (length raw))
+                 (= (aref raw pos) 13) (= (aref raw (1+ pos)) 10))
+        (incf pos 2))
       
-      ;; 1. Trouver le premier séparateur
-      (let ((first (%bytes-index-of raw sep-bytes 0)))
-        (when (null first) (return-from parse-multipart nil))
-        (setf pos (+ first (length sep-bytes))))
+      ;; B. Fin de flux (--boundary--)
+      (when (and (<= (+ pos 2) (length raw))
+                 (= (aref raw pos) #x2D) (= (aref raw (1+ pos)) #x2D))
+        (return))
       
-      (loop
-        ;; A. Sauter le CRLF après le boundary
-        (when (and (<= (+ pos 2) (length raw))
-                   (= (aref raw pos) 13) (= (aref raw (1+ pos)) 10))
-          (incf pos 2))
+      ;; C. Headers
+      (let* ((hdrs-end (%bytes-index-of raw #(#x0D #x0A #x0D #x0A) pos)))
+        (when (null hdrs-end) (return))
         
-        ;; B. Fin de flux (--boundary--)
-        (when (and (<= (+ pos 2) (length raw))
-                   (= (aref raw pos) #x2D) (= (aref raw (1+ pos)) #x2D))
-          (return))
-        
-        ;; C. Délimitation du bloc Headers
-        (let* ((hdrs-end (%bytes-index-of raw #(#x0D #x0A #x0D #x0A) pos)))
-          (when (null hdrs-end) (return))
+        (let* ((bstart (+ hdrs-end 4))
+               (needle (concatenate 'vector #(#x0D #x0A) sep-bytes))
+               (next (%bytes-index-of raw needle bstart)))
           
-          (let* ((bstart (+ hdrs-end 4))
-                 (needle (concatenate 'vector #(#x0D #x0A) sep-bytes))
-                 (next (%bytes-index-of raw needle bstart)))
+          (when (null next) (setf next (length raw)))
+          
+          (let* ((header-bytes (subseq raw pos hdrs-end))
+                 (header-str (map 'string #'code-char header-bytes))
+                 
+                 ;; Extraction métadonnées
+                 (fname (extract-param header-str "filename"))
+                 (name  (or (extract-param header-str "name") ""))
+                 (ctype (or (extract-header header-str "Content-Type") 
+                            "text/plain")))
             
-            (when (null next) (setf next (length raw)))
-            
-            ;; --- EXTRACTION ROBUSTE ---
-            ;; 1. On prend le bloc header brut et on le convertit en String ASCII
-            ;;    On s'affranchit totalement de %parse-headers
-            (let* ((header-bytes (subseq raw pos hdrs-end))
-                   (header-str (map 'string #'code-char header-bytes)) ;; ASCII conversion simple
-                   (body (subseq raw bstart next))
-                   
-                   ;; 2. Extracteur "chirurgical" : cherche `key="val"` n'importe où dans le header string
-                   (extract-quoted 
-                    (lambda (key)
-                      (let* ((pattern (format nil "~A=\"" key)) ;; ex: name="
-                             (p0 (search pattern header-str :test #'string-equal)))
-                        (when p0
-                          (let* ((start (+ p0 (length pattern)))
-                                 (end (position #\" header-str :start start)))
-                            (when end
-                              (subseq header-str start end)))))))
-                   
-                   ;; 3. Extracteur simple pour Content-Type (pas de guillemets)
-                   (extract-ct 
-                    (lambda ()
-                      (let ((p0 (search "Content-Type:" header-str :test #'string-equal)))
-                        (if p0
-                            (let* ((start (+ p0 13)) ;; length of "Content-Type:"
-                                   (end (position #\Return header-str :start start))) ;; s'arrête au \r
-                              (string-trim " " (subseq header-str start (or end (length header-str)))))
-                            nil))))
-                   
-                   ;; 4. Récupération des valeurs
-                   (fname (funcall extract-quoted "filename"))
-                   (name  (or (funcall extract-quoted "name") "")) ;; Fallback vide
-                   (ctype (or (funcall extract-ct) 
-                              (and fname (lumen.core.mime:guess-content-type fname))
-                              "text/plain")))
-              
-              ;; (format *error-output* "[DEBUG] Found Name: '~A' Fname: '~A'~%" name fname)
-              
-              (if fname
-                  ;; FICHIER
+            (if fname
+                ;; --- CAS FICHIER : ÉCRITURE DISQUE ---
+                (let* ((upload-path (merge-pathnames (format nil "upload_~A_~A" (lumen.utils:gen-uuid-string) fname)
+                                                     lumen.core.config:*tmp-dir*))
+                       (part-len (- next bstart)))
+                  
+                  ;; On écrit la slice du buffer directement dans le fichier final
+                  (with-open-file (out upload-path :direction :output 
+                                                   :element-type '(unsigned-byte 8) 
+                                                   :if-exists :supersede)
+                    (write-sequence raw out :start bstart :end next))
+                  
                   (push `((:name . ,name)
                           (:filename . ,fname)
                           (:content-type . ,ctype)
-                          (:bytes . ,(%strip-trailing-crlf body)))
-                        parts)
-                  
-                  ;; CHAMP TEXTE
-                  (let* ((charset "utf-8") ;; On assume UTF-8 pour les champs texte
-                         (txt (%decode-text-field (%strip-trailing-crlf body) charset)))
-                    (push (cons name txt) parts))))
+                          (:path . ,upload-path) ;; <--- On retourne le CHEMIN
+                          (:size . ,part-len))
+                        parts))
+                
+                ;; --- CAS TEXTE : MÉMOIRE ---
+                (let* ((val-bytes (subseq raw bstart next))
+                       (val-str (babel:octets-to-string val-bytes :encoding :utf-8)))
+                  (push (cons name val-str) parts)))
             
             ;; Avance POS
             (let ((after (+ next 2 (length sep-bytes))))
               (if (>= after (length raw))
                   (return)
-                  (setf pos after))))))
-      
-      ;; 3. Tri final
-      (let ((fields '()) (files '()))
-        (dolist (p (nreverse parts))
-          (if (and (listp p) (consp (car p)) (keywordp (caar p)))
-              (push p files)
-              (push p fields)))
-        
-        `((:fields . ,(nreverse fields))
-          (:files  . ,(nreverse files)))))))
+                  (setf pos after)))))))
+    
+    ;; Tri final
+    (let ((fields '()) (files '()))
+      (dolist (p (nreverse parts))
+        (if (listp (cdr p))
+            (push p files)
+            (push p fields)))
+      `((:fields . ,fields) (:files . ,files)))))
+
+;; --- Helpers de parsing (Simplifiés) ---
+
+(defun extract-param (header-str key)
+  "Cherche key=\"val\""
+  (let* ((pattern (format nil "~A=\"" key))
+         (p0 (search pattern header-str :test #'string-equal)))
+    (when p0
+      (let* ((start (+ p0 (length pattern)))
+             (end (position #\" header-str :start start)))
+        (when end (subseq header-str start end))))))
+
+(defun extract-header (header-str key)
+  "Cherche Key: Val"
+  (let ((p0 (search (format nil "~A:" key) header-str :test #'string-equal)))
+    (if p0
+        (let* ((start (+ p0 1 (length key)))
+               (end (position #\Return header-str :start start)))
+          (string-trim " " (subseq header-str start (or end (length header-str)))))
+        nil)))

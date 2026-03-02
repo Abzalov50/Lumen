@@ -1,10 +1,58 @@
 (defpackage :lumen.admin.view
   (:use :spinneret :common-lisp :lumen.view.html :lumen.utils)
+  
   (:export :render-admin-layout :render-dashboard :render-data-grid
 	   :render-entity-form))
 
 (in-package :lumen.admin.view)
 
+(defun render-entity-form (entity-sym record error-msg)
+  "Affiche le formulaire Admin via le composant générique lumen.view.form."
+  
+  (let* ((entity-name (string-downcase entity-sym))
+         (is-edit (not (null record)))
+         ;; URLs
+         (list-url   (format nil "/admin/list/~A" entity-name))
+         (action-url (if is-edit 
+                         (format nil "/admin/edit/~A/~A" entity-name (alist-get record :id))
+                         (format nil "/admin/create/~A" entity-name)))
+         (delete-url (when is-edit 
+                       (format nil "/admin/delete/~A/~A" entity-name (alist-get record :id)))))
+    
+    (with-html-string
+      (:div :class "container-fluid"
+            
+            ;; En-tête de page Admin
+            (:div :class "d-flex align-items-center mb-4"
+                  (:a :href list-url 
+                      :class "btn btn-outline-secondary me-3"
+                      (:i :class "bi bi-arrow-left"))
+                  (:h2 :class "h4 mb-0" 
+                       (if is-edit 
+                           (format nil "Modifier ~A" (string-capitalize entity-name))
+                           (format nil "Créer ~A" (string-capitalize entity-name)))))
+        
+            ;; Message d'erreur global (si retourné par le controller)
+            (when error-msg
+              (:div :class "alert alert-danger mb-4" 
+                    (:i :class "bi bi-exclamation-triangle-fill me-2") error-msg))
+        
+            ;; Appel du Formulaire Générique
+            (:raw 
+             (lumen.view.form:render-entity-form 
+              entity-sym
+              :values record          ;; Les données (ou nil pour create)
+              :action action-url      ;; URL de soumission
+              :method :POST           ;; Toujours POST pour l'instant (HTMX gère le reste)
+              :submit-text (if is-edit "Mettre à jour" "Créer")
+              :cancel-url list-url    ;; Bouton annuler
+              :delete-url delete-url  ;; Bouton supprimer (affiché seulement si non nil)
+              
+              ;; Options HTMX
+              :hx-swap "none"         ;; Le serveur fera une redirection HX-Redirect
+              ))))))
+
+#|
 (defun render-entity-form (entity-sym record error-msg)
   "Affiche le formulaire Création/Édition complet."
   (let* ((fields (lumen.admin.form:get-form-fields entity-sym record))
@@ -56,6 +104,7 @@
 				     ;; Bouton Save
 				     (:button :type "submit" :class "btn btn-primary px-4"
 					      (:i :class "bi bi-check-lg me-2") "Enregistrer")))))))))
+|#
 
 (defun render-data-grid (entity-sym items total page per-page sort-col sort-dir search)
   "Génère le tableau HTML + Pagination + Actions de masse (Batch)."
@@ -257,10 +306,14 @@
                   (getf item :label)))))))))
 
 (defun render-admin-layout (req &key title content)
-  (let* ((user (lumen.modules.auth.service:current-user-id req)) ;; Pseudo-code
+  (print "IN ADMIN LAYOUT")
+  (let* ((user (lumen.modules.auth.service:current-uid req)) ;; Pseudo-code
          (menu (lumen.admin.introspection:collect-admin-menu))
          (url  (lumen.core.http:req-path req)))
     
+    (print user)
+    (print content)
+    (print "**********")
     (with-html-string
       (:doctype)
       (:html

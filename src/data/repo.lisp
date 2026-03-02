@@ -122,7 +122,7 @@
 ;;; ---------------------------------------------------------------------------
 (defun %build-joins (joins)
   "Génère la clause JOIN.
-   Input: '((:left :table :users :on \"users.id = tasks.user_id\" :as \"u\"))
+   Input: '((:type :left :table :users :on \"users.id = tasks.user_id\" :as \"u\"))
    Output: \"LEFT JOIN users AS u ON users.id = tasks.user_id\""
   (if joins
       (with-output-to-string (s)
@@ -163,7 +163,6 @@
                ((string-equal op-str "like") 'like)
                ((string-equal op-str "ilike") 'ilike)
                (t '=))))
-    (print "OK")
     (multiple-value-bind (emit-f params-f) (%make-param-emitter)
       (labels
           ((rec (f)
@@ -178,14 +177,14 @@
                 (rec (cons 'and f)))
 
                ;; 3. Liste d'ALIST
-               ((and (consp f) (consp (car f)) (stringp (caar f)))
+               ((and (consp f) (consp (car f)) (or (symbolp (caar f)) (stringp (caar f))))
                 (rec (cons 'and f)))
 
                ;; 4. Forme OP standard
                ((and (consp f) (symbolp (car f)))
                 (let ((op (car f)))
                   (ecase op
-                    ((= > < >= <= !=)
+                    ((= > < >= <= != <>)
                      (destructuring-bind (field value) (cdr f)
                        (let ((lhs (%column-sql field))
                              (ph  (funcall emit-f value)))
@@ -195,7 +194,8 @@
                            (<  (format nil "~a < ~a" lhs ph))
                            (>= (format nil "~a >= ~a" lhs ph))
                            (<= (format nil "~a <= ~a" lhs ph))
-                           (!= (format nil "~a <> ~a" lhs ph)))))) ;; Force SQL <>
+                           (!= (format nil "~a <> ~a" lhs ph))
+			   (<> (format nil "~a <> ~a" lhs ph)))))) ;; Force SQL <>
                     ((like ilike)
                      (destructuring-bind (field value) (cdr f)
                        (let ((lhs (%column-sql field))
@@ -314,7 +314,7 @@
                   (kw        (intern (string-upcase col-only) :keyword)))
              
              (member kw wl :test #'eql))))
-
+      
       (let ((parts
              (loop for spec in (or order '())
                    for (col dir) = spec
@@ -371,8 +371,6 @@
   "Retourne (list d'alists) avec support des JOINs."
   (multiple-value-bind (where-sql where-params) (%build-where filters fts-config)
     (let* ((select-sql (%build-select select))
-	   (x (print "OKKK"))
-	   (x (print select-sql))
            (join-sql   (%build-joins joins))
            (order-sql  (%build-order order (or order-whitelist *default-order-whitelist*)))
            (table-name (%table-sql table))
@@ -390,28 +388,43 @@
                     (format s " order by ~a" order-sql))
                   
                   (when limit  (format s " limit ~d" (max 0 (truncate limit))))
-                  (when offset (format s " offset ~d" (max 0 (truncate offset)))))))
+                  (when offset (format s " offset ~d" (max 0 (truncate offset))))))
+	   (where-params-out (mapcar #'(lambda (x) (if (or (null x) (and (stringp x) (zerop (length x)))) (lumen.data.dao::->sql-null "_") x)) where-params))
+	   )
       
       ;; Debug
-      (format t "~&[SELECT*] SQL: ~A~%[SELECT*] PARAMS: ~A~%" sql where-params)
+      (format t "~&[SELECT*] SQL: ~A~%[SELECT*] PARAMS: ~A~%" sql where-params-out)
       
       (multiple-value-bind (rows _n)
-          (apply #'lumen.data.db:query-a sql where-params)
+          (apply #'lumen.data.db:query-a sql where-params-out)
         (declare (ignore _n))
         rows))))
 
-(defun count* (table &key filters (fts-config nil))
-  "Retourne le nombre total correspondant aux filtres."
+(defun count* (table &key filters joins (fts-config nil))
+  "Compte le nombre total d'enregistrements correspondant aux filtres."
   (multiple-value-bind (where-sql where-params) (%build-where filters fts-config)
-    (let* ((sql (with-output-to-string (s)
-                  (format s "select count(*) as cnt from ~a" (%table-sql table))
+    (let* ((join-sql (%build-joins joins))
+           (table-name (%table-sql table))
+           (sql (with-output-to-string (s)
+                  (format s "select count(*) from ~a" table-name)
+                  ;; JOIN avant WHERE
+                  (when (and join-sql (> (length join-sql) 0))
+                    (format s " ~a" join-sql))
                   (when (and where-sql (> (length where-sql) 0))
-                    (format s " where ~a" where-sql)))))
-      (multiple-value-bind (rows _n)
-          (apply #'query-a sql where-params)
-        (declare (ignore _n))
-        (let ((row (first rows)))
-          (or (and row (parse-integer (princ-to-string (cdr (assoc :cnt row))))) 0))))))
+                    (format s " where ~a" where-sql))))
+           ;; Gestion des NULLs pour le driver (comme dans select*)
+           (params-out (mapcar (lambda (x) 
+                                 (if (or (null x) (and (stringp x) (zerop (length x)))) 
+                                     (lumen.data.dao::->sql-null "_") 
+                                     x)) 
+                               where-params)))
+      
+      ;; Exécution
+      (let ((res (apply #'lumen.data.db:query-a sql params-out)))
+        ;; Récupère la valeur de la première colonne de la première ligne
+        (if res
+            (parse-integer (format nil "~A" (cdar (first res))) :junk-allowed t)
+            0)))))
 
 (defun select-page* (table &key filters order select page page-size
                            (order-whitelist '()) (fts-config nil))
@@ -466,19 +479,17 @@ Arguments:
            (cond
              ((eq update-columns :none) :none)
              ((null update-columns)
-              ;; toutes les colonnes insérées hors colonnes de conflit
               (remove-if (lambda (ckw) (member ckw conflict-set :test #'eq))
                          (%kw-set cols-raw)))
-             (t
-              (%kw-set update-columns))))
+             (t (%kw-set update-columns))))
          (do-update-p (not (eq update-list :none))))
 
     (multiple-value-bind (emit params-f) (%make-param-emitter)
       (let* ((placeholders (mapcar (lambda (v) (funcall emit v)) vals-raw))
              (insert-cols-sql (%comma-join cols))
-             (values-sql     (%comma-join placeholders))
-             (conflict-sql   (format nil "(~{~a~^, ~})" conflict-cols))
-             ;; contruire SET parts sans NIL
+             (values-sql      (%comma-join placeholders))
+             (conflict-sql    (format nil "(~{~a~^, ~})" conflict-cols))
+             
              (set-parts
                (when do-update-p
                  (let* ((upd-cols-sql
@@ -491,24 +502,37 @@ Arguments:
                                      (not (member (%kw touch-updated-col) update-list :test #'eq)))
                             (format nil "~a = ~a" (%ident touch-updated-col) touch-db-fn))))
                    (remove "" (append upd-cols-sql (list touch-part)) :test #'string=))))
+             
              (on-conflict-sql
                (if do-update-p
                    (let ((set-sql (%join-non-nil set-parts)))
                      (when (string= set-sql "")
                        (error "upsert*: aucune colonne à mettre à jour dans DO UPDATE"))
-                     (format nil "on conflict ~a do update set ~a" conflict-sql set-sql))
-                   (format nil "on conflict ~a do nothing" conflict-sql)))
+                     (format nil " ON CONFLICT ~a DO UPDATE SET ~a" conflict-sql set-sql))
+                   (format nil " ON CONFLICT ~a DO NOTHING" conflict-sql)))
+
+             ;; --- CORRECTION DE LA CLAUSE RETURNING ---
              (returning-sql
                (cond
-                 ((eq returning t) " returning *")
-                 ((and (listp returning) (every #'identity returning))
-                  (format nil " returning ~{~a~^, ~}"
-                          (mapcar #'%ident returning)))
+                 ;; 1. Pas de retour demandé -> chaîne vide
                  ((null returning) "")
-                 (t " returning *")))
+                 ;; 2. Retour demandé global -> " RETURNING *"
+                 ((eq returning t) " RETURNING *")
+                 ;; 3. Liste vide -> chaîne vide (sécurité)
+                 ((and (listp returning) (null returning)) "")
+                 ;; 4. Liste de colonnes -> " RETURNING col1, col2"
+                 ((listp returning)
+                  (format nil " RETURNING ~{~a~^, ~}" (mapcar #'%ident returning)))
+                 ;; 5. Fallback -> chaîne vide (par sécurité, plutôt que de générer du SQL invalide)
+                 (t "")))
+             
              (sql (format nil
-                          "insert into ~a (~a) values (~a) ~a~a"
+                          "INSERT INTO ~a (~a) VALUES (~a)~a~a"
                           table-sql insert-cols-sql values-sql on-conflict-sql returning-sql)))
+        
+        ;; Debug
+        (format t "~&[UPSERT SQL] ~A~%" sql)
+        
         (apply #'lumen.data.db:exec sql (funcall params-f))))))
 
 ;;; ---------------------------------------------------------------------------
@@ -581,19 +605,25 @@ Mono-colonne: même logique sans tuple."
          (key-cols (%normalize-key key)))
     (multiple-value-bind (order-cols dir) (%order-columns-and-dir order)
       (unless (equal key-cols order-cols)
-        (error "select-page-keyset*: :key (~{~a~^, ~}) doit correspondre exactement aux colonnes d':order (~{~a~^, ~})"
-               key-cols order-cols))
+        (error "select-page-keyset*: :key doit correspondre à :order"))
+      
       (multiple-value-bind (emit-f params-f) (%make-param-emitter)
         (multiple-value-bind (where-sql-base where-params)
             (%build-where filters fts-config)
           (dolist (p where-params) (funcall emit-f p))
+          
           (multiple-value-bind (ks-where pushed?) (%keyset-where key-cols dir after emit-f)
             (declare (ignore pushed?))
             (let* ((select-sql (%build-select :*))
                    (order-sql  (%build-order order (or order-whitelist *default-order-whitelist*)))
-		   (join-sql   (%build-joins joins))
+                   (join-sql   (%build-joins joins)) ;; On construit le JOIN
                    (sql (with-output-to-string (s)
                           (format s "select ~a from ~a" select-sql (%table-sql table))
+                          
+                          ;; --- CORRECTION : JOIN AVANT WHERE ---
+                          (when (and join-sql (> (length join-sql) 0))
+                            (format s " ~a" join-sql))
+                          
                           (cond
                             ((and where-sql-base ks-where (plusp (length where-sql-base)) (plusp (length ks-where)))
                              (format s " where (~a) and (~a)" where-sql-base ks-where))
@@ -601,24 +631,18 @@ Mono-colonne: même logique sans tuple."
                              (format s " where ~a" where-sql-base))
                             ((and ks-where (plusp (length ks-where)))
                              (format s " where ~a" ks-where)))
-			  ;; Injection des JOINS
-			  (when (and join-sql (> (length join-sql) 0))
-			    (format s "~a" join-sql))
+                          
                           (when (and order-sql (plusp (length order-sql)))
                             (format s " order by ~a" order-sql))
                           (format s " limit ~d" lim))))
+              
               (multiple-value-bind (rows _n)
-                  (apply #'query-a sql (funcall params-f))
+                  (apply #'lumen.data.db:query-a sql (funcall params-f))
                 (declare (ignore _n))
                 (let* ((last (car (last rows)))
-                       ;; extraction robuste du curseur (hyphen/underscore)
                        (next-cursor (when last
-                                      (let ((vals (mapcar (lambda (c)
-                                                            (%alist-val-ci last c))
-                                                          key-cols)))
-                                        (if (= 1 (length vals))
-                                            (first vals)
-                                            vals)))))
+                                      (let ((vals (mapcar (lambda (c) (%alist-val-ci last c)) key-cols)))
+                                        (if (= 1 (length vals)) (first vals) vals)))))
                   (list :items rows :next-cursor next-cursor :limit lim))))))))))
 
 ;;; ---------------------------------------------------------------------------

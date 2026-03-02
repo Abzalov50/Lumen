@@ -16,69 +16,14 @@
 (defmacro defprotected (method path-arg (req) &body body)
   "Route protégée (JWT requis). Bypass admin actif par défaut."
   `(lumen.core.router:defroute ,method ,path-arg (,req)
-     (with-guards (,req (lumen.core.middleware:auth-required))
+     (with-guards (,req (lumen.http.session:auth-required))
        ,@body)))
 
 (defmacro defroles (method path-arg (req) roles &body body)
   "Route protégée + rôle(s) requis. Bypass admin actif par défaut."
   `(lumen.core.router:defroute ,method ,path-arg (,req)
-     (with-guards (,req (lumen.core.middleware:roles-allowed ,roles))
+     (with-guards (,req (lumen.http.session:roles-allowed ,roles))
        ,@body)))
-
-;; macro DSL “tout en un” avec options
-#|
-(defmacro defguarded (method path-arg (req)
-                      (&key required roles scopes scopes-mode
-                            ;; rate limit
-                            rate-cap rate-refill route-key
-                            ;; options auth-jwt avancées
-                            admin-bypass-roles? admin-bypass-scopes? admin-roles
-                            allow-query-token? qs-keys
-                            secret leeway-sec)
-                      &body body)
-  "Route protégée paramétrable par JWT (rôles, scopes, bypass admin, etc.)."
-  (let* ((rk (gensym "ROUTEKEY"))
-         ;; required effectif : si rôles ou scopes présents, on force le JWT requis
-         (required-effective (or required (not (null roles)) (not (null scopes)))))
-    `(lumen.core.router:defroute ,method ,path-arg (,req)
-       (let* ((,rk (or ,route-key
-                       (multiple-value-bind (host-spec real-path)
-                           (%parse-route-args ,path-arg)
-                         (declare (ignore host-spec))
-                         (format nil "~A ~A" ,(string-upcase (string method)) real-path)))))
-         
-         ;; --- CORRECTION ICI : ON DÉCLARE LA VARIABLE IGNORABLE ---
-         (declare (ignorable ,rk)) 
-         
-         (with-guards
-           (,req
-            ;; -------- Auth unique et configurée ----------
-            (lumen.core.middleware:auth-middleware
-             :required-p ,(if required-effective t nil)
-             ,@(when roles       `(:roles-allow ,roles))
-             ,@(when scopes      `(:scopes-allow ,scopes))
-             ,@(when scopes-mode `(:scopes-mode ,scopes-mode))
-             ;; bypass admin, liste des rôles admin
-             ,@(when admin-roles            `(:admin-roles ,admin-roles))
-             ,@(when (not (null admin-bypass-roles?))
-                 `(:admin-bypass-roles-p ,admin-bypass-roles?))
-             ,@(when (not (null admin-bypass-scopes?))
-                 `(:admin-bypass-scopes-p ,admin-bypass-scopes?))
-             ;; QS token pour SSE, etc.
-             ,@(when (not (null allow-query-token?))
-                 `(:allow-query-token-p ,allow-query-token?))
-             ,@(when qs-keys `(:qs-keys ,qs-keys))
-             ;; crypto / horloge
-             ,@(when secret      `(:secret ,secret :secret-supplied-p t))
-             ,@(when leeway-sec `(:leeway-sec ,leeway-sec)))
-            ;; -------- Rate limit éventuel ----------
-            ,@(when rate-cap
-                `((lumen.core.middleware:rate-limit-middleware
-                   :capacity ,rate-cap
-                   :refill-per-sec ,(or rate-refill 1)
-                   :route-key ,rk)))) ;; Ici rk est utilisé si rate-cap est présent
-           ,@body)))))
-|#
 
 (defmacro defguarded (method path-arg (req)
                       (&key required roles scopes scopes-mode
@@ -107,7 +52,7 @@
          (lumen.core.pipeline:execute-middleware-chain
           (list
            ;; 1. AUTHENTIFICATION
-           (make-instance 'lumen.core.middleware:auth-middleware
+           (make-instance 'lumen.http.session:auth-middleware
                           :required-p ,(if required-effective t nil)
                           ,@(when roles        `(:roles-allow ,roles))
                           ,@(when scopes       `(:scopes-allow ,scopes))

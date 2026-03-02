@@ -102,7 +102,8 @@
                   (let ((role (lumen.core.http:current-role req)))
                     (if (equal op :index) t (equal role "admin")))))))
 
-(defparameter *user-sensitive-fields* '(:pw_hash :pw-hash :pw_salt :pw-salt :pw_iters :pw-iters :password))
+(defparameter *user-sensitive-fields*
+  '(:pw_hash :pw-hash :pw_salt :pw-salt :pw_iters :pw-iters :password))
 
 (defun %sanitize-user (user-alist)
   "Retire les champs sensibles d'une alist utilisateur."

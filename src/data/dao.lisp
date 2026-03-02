@@ -177,7 +177,7 @@ invalide: ~S" x))
    on garde la valeur d'origine (qui n'était pas NIL)."
   (if (fboundp 'coerce-in)
       (let ((cv (ignore-errors (funcall 'coerce-in value ty))))
-        (if (and (null cv) (not (null value))) value cv))
+        (if (and (null cv) (not (sql-null-p value)) (not (and (eq ty :jsonb) (equal value "[]")))) value cv))
       value))
 
 ;;; ---------------- Dirty tracking ----------------
@@ -421,7 +421,7 @@ avec TIRETS (comme le format Postmodern :alists). Exemple:
     (string
      (%col->alist-key (intern (string-upcase col) :keyword)))))
 
-(defun entity->row-alist (entity &key (include-nulls nil))
+(defun entity->row-alist (entity &key (include-nulls t))
   "Convertit une instance CLOS d’entité en alist au format « row » (clés colonnes).
    Les clés sont normalisées au style Postmodern (:CREATED-AT, :LOCK-VERSION, ...).
 Identité (val = val).
@@ -495,9 +495,6 @@ Accepte :timestamps donné nu, ou pré-quoté ('(...))."
   "Vrai si le champ ne correspond pas à une colonne physique dans la table."   
   (let ((type (getf field-spec :type))
 	(virtual-p (getf field-spec :virtual?)))
-    (print field-spec)
-    (print type)
-    (print virtual-p)
     (or virtual-p
 	(eq type :computed)
         (eq type :one-to-many)
@@ -1072,7 +1069,11 @@ Appelle :encode du codec"
   "Lisp -> SQL param (encode: pour insert/update). Force NIL vers le sentinelle NULL.
 Transforme les structures Lisp en format compatible Driver DB (String, Vector, etc.).
 Appelle :encode du codec"
-  (cond
+  ;;(print "IN COERCE OUT")
+  ;;(print (list :val val :type type))
+  ;;(print (getf (find-type-codec type) :encode))
+  ;;(print "*******************")
+  (cond    
     ;; 1) Type inconnu
     ((null type)
      (if (sql-null-p val) (->sql-null val) val))
@@ -1169,6 +1170,7 @@ Appelle :decode du codec."
 (defvar *ts-encode* #'identity)
 (defvar *ts-decode* #'identity)
 (def-type-codec :timestamptz :encode *ts-encode* :decode *ts-decode*)
+(def-type-codec :timestamp :encode *ts-encode* :decode *ts-decode*)
 
 ;; Helper de conversion Universal Time -> String ISO Date
 (defun universal-to-date-string (ut)
@@ -1203,14 +1205,29 @@ Appelle :decode du codec."
 
 ;; UUID via com.github.sharplispers.uuid
 #+uuid
-(progn
-  (def-type-codec :uuid
-    :encode (lambda (x) (etypecase x
-                          (string x)
-                          (uuid:uuid (uuid:print-bytes nil x))))
-    :decode (lambda (x) (etypecase x
-                          (string x)
-                          (uuid:uuid x))))) ; si le driver renvoie déjà un objet
+(def-type-codec :uuid
+  :encode (lambda (x)
+            (cond
+              ;; 1. Si c'est NIL ou une chaîne vide -> on envoie NULL à la DB
+              ((or (null x) 
+                   (and (stringp x) (= (length x) 0)))
+               :null)
+              
+              ;; 2. Si c'est une string non vide, on l'envoie telle quelle
+              ((stringp x) x)
+              
+              ;; 3. Si c'est un objet uuid, on le convertit en string
+              ((typep x 'uuid:uuid) (uuid:print-bytes nil x))
+              
+              ;; Cas par défaut (erreur)
+              (t (error "Impossible d'encoder ~A en UUID" x))))
+  
+  :decode (lambda (x) 
+            (etypecase x
+              (string x)
+              (uuid:uuid x)
+              ;; Au cas où la DB renverrait :null (bien que souvent géré avant le codec)
+              (null nil)))) ; si le driver renvoie déjà un objet
 
 ;; local-time pour timestamptz
 #+local-time

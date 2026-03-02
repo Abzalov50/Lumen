@@ -2,7 +2,7 @@
   (:use :cl :spinneret :lumen.data.db :lumen.utils)
   (:import-from :lumen.data.dao :entity-fields)
   (:export :render-entity-table :render-entity-details-modal
-	   :make-action-col :render-datagrid))
+	   :make-action-col :render-datagrid :col))
 
 (in-package :lumen.view.table)
 
@@ -242,7 +242,6 @@
 ;;; ============================================================================
 ;;; 2. ELEMENTS D'INTERFACE (Header, Filters, Actions)
 ;;; ============================================================================
-
 (defun %render-sortable-header (field current-sort current-dir base-url)
   "Génère un TH cliquable pour le tri."
   (let* ((col (string-downcase (getf field :col)))
@@ -262,6 +261,19 @@
              :hx-include "closest form"           ;; Inclut les filtres actuels !
              label
              (:i :class (format nil "bi ~A" icon)))))))
+
+(defun render-row (row columns base-url)
+  "Génère le HTML d'un TR complet."
+  (spinneret:with-html
+    (:tr
+     (dolist (c columns)
+       (let ((key (getf c :key)) (cls (getf c :class)))
+         (:td :class cls
+              (if (eq key :__actions__)
+                  (render-row-actions row base-url (getf c :actions))
+                  (:raw (render-cell (getf c :format) 
+                                     (if (eq key :__custom-actions__) "%%DUMMY%%" (lumen.utils:lookup row key))
+                                     row)))))))))
 
 (defun render-row-actions (row base-url actions)
   (let* ((id (lumen.utils:lookup row :id))
@@ -298,74 +310,62 @@
                        :hx-target "closest tr"
                        :hx-swap "outerHTML swap:1s"
                        (:i :class "bi bi-trash")))))))
-#|
-(defun render-row-actions (row base-url actions)
-  "Génère les boutons d'action (View/Edit/Delete) pour une ligne donnée."
-  (let* ((id (lumen.utils:lookup row :id)) ;; On récupère l'ID (robuste)
-         ;; Construction des URLs propres (gestion du slash final ou non)
-         (url-show   (format nil "~A/~A" base-url id))
-         (url-edit   (format nil "~A/~A/edit" base-url id))
-         (url-delete (format nil "~A/~A" base-url id)))
-    
-    (with-html
-      (:div :class "btn-group btn-group-sm"
-        
-            ;; VIEW (si demandé)
-            (when (member :show actions)
-	      (:a :href url-show 
-		  :class "btn btn-outline-secondary"
-		  ;; C'est ici que HTMX sait où injecter la réponse de %handle-htmx-show
-		  :hx-get url-show 
-		  :hx-target "#modal-container"
-		  :hx-select "*"
-		  ;;:hx-boost "false"
-		  :hx-swap "innerHTML"
-		  :title "Voir"
-		  (:i :class "bi bi-eye")))
 
-            ;; EDIT (si demandé)
-            (when (member :edit actions)
-              (:a :href url-edit
-		  :class "btn btn-outline-primary"
-		  :title "Modifier"
-		  (:i :class "bi bi-pencil")))
+(defun render-header-col (col current-sort current-dir base-url target-id)
+  (let* ((key (getf col :key))
+         (label (getf col :label))
+         (sortable (getf col :sortable))
+         (class (getf col :class))
+         (key-str (format nil "~A" (or key "")))
+         (sort-str (format nil "~A" (or current-sort "")))
+         (is-sorted (and key current-sort (string-equal key-str sort-str)))
+         (is-asc (string-equal (string current-dir) "ASC"))
+         (new-dir (if (and is-sorted is-asc) "DESC" "ASC")))
 
-            ;; DELETE (si demandé)
-            (when (member :delete actions)
-              (:button :class "btn btn-outline-danger"
-                       :title "Supprimer"
-                       :hx-delete url-delete
-                       :hx-confirm "Voulez-vous vraiment supprimer cet élément ?"
-                       ;; Suppression UX : On cible la ligne du tableau (closest tr)
-                       :hx-target "closest tr"
-		       :hx-select "*"
-                       :hx-swap "outerHTML swap:1s"
-                       (:i :class "bi bi-trash")))))))
-|#
+    (spinneret:with-html
+      (:th :scope "col" :class class
+           (if sortable
+               (:a :href "#" 
+                   :class "text-decoration-none text-dark d-flex align-items-center gap-1"
+                   :hx-get (format nil "~A?sort=~A&dir=~A" base-url key new-dir)
+                   :hx-target (format nil "#~A" target-id)
+                   ;; OVERRIDE DU BODY !
+                   :hx-select (format nil "#~A" target-id) 
+                   ;; ON REMPLACE TOUT LE BLOC
+                   :hx-swap "outerHTML" 
+                   :hx-include "closest form"
+                   
+                   label
+                   (cond 
+                     ((and is-sorted is-asc)  (:i :class "bi bi-sort-down-alt text-primary"))
+                     ((and is-sorted (not is-asc)) (:i :class "bi bi-sort-up text-primary"))
+                     (t (:i :class "bi bi-arrow-down-up text-muted opacity-25 small"))))
+               label)))))
 
-(defun render-pagination (pg source-url target-id)
+(defun render-pagination (pg source-url target-id &optional (form-selector "closest form"))
   (let ((page (getf pg :page 1))
-        (total (getf pg :total-pages 1)))
+        (total (getf pg :total-pages 1))
+        (sep (if (find #\? source-url) "&" "?")))
     
     (when (> total 1)
-      (with-html
-	(:div :class "card-footer bg-white d-flex justify-content-between align-items-center py-2"
+      (spinneret:with-html
+        (:div :class "card-footer bg-white d-flex justify-content-between align-items-center py-2"
               (:small :class "text-muted" (format nil "Page ~D / ~D" page total))
-        
               (:nav
                (:ul :class "pagination pagination-sm mb-0"
-		    ;; On génère les liens Prev/Next
-		    ;; Note: hx-include prendra les inputs hidden du formulaire parent (q, sort, dir)
-		    (flet ((render-link (target-page label disabled?)
-			     (:li :class (format nil "page-item ~A" (if disabled? "disabled" ""))
-				  (:button :class "page-link"
-					   :hx-get (format nil "~A?page=~D" source-url target-page)
-					   :hx-target (format nil "#~A" target-id)
-					   :hx-include "closest form" ;; La clé est ici
-					   label))))
-             
-		      (render-link (1- page) "Précédent" (<= page 1))
-		      (render-link (1+ page) "Suivant" (>= page total))))))))))
+                    (flet ((render-link (target-page label disabled?)
+                             (:li :class (format nil "page-item ~A" (if disabled? "disabled" ""))
+                                  (:button :class "page-link"
+                                           :hx-get (format nil "~A~Apage=~D" source-url sep target-page)
+                                           :hx-target (format nil "#~A" target-id)
+                                           ;; OVERRIDE DU BODY !
+                                           :hx-select (format nil "#~A" target-id)
+                                           ;; ON REMPLACE TOUT LE BLOC
+                                           :hx-swap "outerHTML"
+                                           :hx-include form-selector
+                                           label))))
+                      (render-link (1- page) "Précédent" (<= page 1))
+                      (render-link (1+ page) "Suivant" (>= page total))))))))))
 
 (defgeneric render-cell (format value row)
   ;; OBS 3: Gestion des NULLs globaux
@@ -407,6 +407,47 @@
 ;;; 3. COMPOSANT PRINCIPAL : TABLE
 ;;; ============================================================================
 (defun render-datagrid (items columns &key (id "datagrid") (source-url "") 
+                                           (mode :default) 
+                                           (current-sort nil) (current-dir "DESC") 
+                                           (pagination nil) (empty-message "Aucune donnée."))
+  
+  (let ((tbody-id (format nil "~A-body" id))         ;; ID calculé pour le corps
+        (pagination-id (format nil "~A-pagination" id))) ;; ID calculé pour le footer
+    
+    (spinneret:with-html
+      (:div :id id :class "card shadow-sm"
+            (:div :class "table-responsive"
+                  (:table :class "table table-hover table-striped align-middle mb-0"
+                          ;; THEAD
+                          (:thead :class "table-light"
+                                  (:tr
+                                   (dolist (c columns)
+                                     (render-header-col c current-sort current-dir source-url tbody-id))))
+                          
+                          ;; TBODY (Cible des mises à jour)
+                          (:tbody :id tbody-id
+                                  :hx-get (if (eq mode :remote) source-url "")
+                                  :hx-trigger (if (eq mode :remote) "load" "")
+                                  :hx-target "this"
+                                  :hx-include "closest form"
+                                  (if (eq mode :remote)
+                                      ;; Loader initial
+                                      (:tr (:td :colspan (length columns) :class "text-center py-5"
+                                                (:div :class "spinner-border text-primary")))
+                                      ;; Rendu direct
+                                      (if (null items)
+                                          (:tr (:td :colspan (length columns) :class "text-center py-5 text-muted" empty-message))
+                                          (dolist (row items)
+                                            (render-row row columns source-url)))))))
+            
+            ;; FOOTER (Pagination)
+            (:div :id pagination-id
+                  (when (and pagination (not (eq mode :remote)))
+                    ;; On passe tbody-id pour que les boutons sachent quoi mettre à jour
+                    (render-pagination pagination source-url tbody-id)))))))
+
+#|
+(defun render-datagrid (items columns &key (id "datagrid") (source-url "") 
                                            (current-sort nil) (current-dir "DESC") 
                                         (pagination nil) (empty-message "Aucune donnée."))
   (with-html
@@ -422,7 +463,6 @@
                      (label (getf c :label)) 
                      (sortable (getf c :sortable)) 
                      (cls (getf c :class)))
-                 (print c)
                  (:th :scope "col" :class cls
                       (if sortable
                           ;; OBS 7: Logique de Tri Robuste (String-Equal)
@@ -456,16 +496,18 @@
                            (if (eq key :__actions__)
                                (render-row-actions row source-url (getf c :actions))
                                (:raw (render-cell (getf c :format) 
-                                                  (lumen.utils:lookup row key) 
+                                                  (if (eq key :__custom-actions__)
+						      "%%DUMMY%%"
+						      (lumen.utils:lookup row key))
                                                   row))))))))))))
       
       ;; FOOTER
       (when pagination (render-pagination pagination source-url id)))))
+|#
 
 ;;; ============================================================================
 ;;; 4. COMPOSANT MODALE (VIEW / SHOW)
 ;;; ============================================================================
-
 (defun render-entity-details-modal (entity-sym item &key (title "Détails"))
   "Génère le HTML d'une modale Bootstrap 5 ouverte."
   (let ((fields (entity-fields entity-sym)))

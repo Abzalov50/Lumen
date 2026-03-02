@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"5ab2af9bb4c3c3397fe166aea351b53fd1be43c3"
+"dfa2f1b524bdca949ba5e6dc5606c182e52ddadc"
 [nil nil nil nil (26790 8105 879271 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 976 . 977) (nil fontified nil 1 . 977) (1 . 977) (t . -1)) nil (26790 8105 879270 0) 0 nil])
 ([nil nil ((17 . 18)) nil (26790 8105 879270 0) 0 nil])
@@ -1267,5 +1267,155 @@ nil
   \"Lit LENGTH octets du STREAM et renvoie une alist (name . value).\"
   (when (and stream length (> length 0))
     (parse-urlencoded-string (bytes->string-utf8 (read-exact-bytes stream length)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 30 (face font-lock-function-name-face fontified t) 30 37 (fontified t) 37 128 (face font-lock-doc-face fontified t) 128 132 (fontified t) 132 135 (face font-lock-keyword-face fontified t) 135 169 (fontified t) 169 171 (face font-lock-string-face fontified t) 171 173 (fontified t) 173 183 (face font-lock-builtin-face fontified t) 183 184 (fontified t) 184 187 (face font-lock-string-face fontified t) 187 196 (fontified t) 196 200 (face font-lock-keyword-face fontified t) 200 305 (fontified t) 305 322 (fontified t) 322 454 (fontified t) 454 456 (face font-lock-string-face fontified t) 456 464 (fontified t) 464 469 (face font-lock-keyword-face fontified t) 469 470 (fontified t) 470 486 (face font-lock-function-name-face fontified t) 486 505 (fontified t) 505 571 (face font-lock-doc-face fontified t) 571 575 (fontified t) 575 579 (face font-lock-keyword-face fontified t) 579 698 (fontified t)) . -2716) (undo-tree-id0 . -278) (undo-tree-id1 . -649) (undo-tree-id2 . -648) (undo-tree-id3 . -643) (undo-tree-id4 . -661) (undo-tree-id5 . -698) (undo-tree-id6 . -613) (undo-tree-id7 . -698) (undo-tree-id8 . -698) 3414 (t 27003 22415 0 0)) nil (27004 30707 592646 0) 0 nil])
-([nil current ((nil rear-nonsticky nil 5416 . 5417) (nil fontified nil 2716 . 5417) (2716 . 5417)) nil (27004 30707 592577 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5416 . 5417) (nil fontified nil 2716 . 5417) (2716 . 5417)) nil (27004 30707 592577 0) 0 nil])
+([nil nil ((14417 . 14418) (t 27004 30707 0 0)) nil (27026 53220 613390 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 20474 . 20475) (nil fontified nil 14418 . 20475) (14418 . 20475)) nil (27026 53220 613389 0) 0 nil])
+([nil nil ((9651 . 9652)) nil (27026 53220 613389 0) 0 nil])
+([nil nil ((9652 . 9654)) nil (27026 53220 613388 0) 0 nil])
+([nil nil ((14420 . 14422)) nil (27026 53220 613388 0) 0 nil])
+([nil nil ((14422 . 14423)) nil (27026 53220 613386 0) 0 nil])
+([nil nil ((20481 . 20482)) nil (27026 53220 613383 0) 0 nil])
+([nil nil ((#("count" 0 5 (face font-lock-builtin-face fontified t)) . -15526) (undo-tree-id44 . -5) (undo-tree-id45 . -5) (undo-tree-id46 . -5) (undo-tree-id47 . -5) (undo-tree-id48 . -5) (undo-tree-id49 . -5) (undo-tree-id50 . -5) (undo-tree-id51 . -5) (undo-tree-id52 . -2) (undo-tree-id53 . -2) (undo-tree-id54 . -2) (undo-tree-id55 . -2) (undo-tree-id56 . -2) (undo-tree-id57 . -5) (undo-tree-id58 . -5) (undo-tree-id59 . -5) (undo-tree-id60 . -5) (undo-tree-id61 . -5) (undo-tree-id62 . -5) (undo-tree-id63 . -5) (undo-tree-id64 . -5) 15531 (t 27026 53220 0 0)) nil (27026 53617 265727 0) 0 nil])
+([nil nil ((15526 . 15534)) nil (27026 53617 265716 0) 0 nil])
+([nil nil ((15525 . 15537) (#(":buffer-s" 0 9 (face font-lock-builtin-face fontified t)) . -15525) (undo-tree-id0 . -1) (undo-tree-id1 . -9) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -2) (undo-tree-id29 . -2) (undo-tree-id30 . -3) (undo-tree-id31 . -3) (undo-tree-id32 . -4) (undo-tree-id33 . -4) (undo-tree-id34 . -5) (undo-tree-id35 . -5) (undo-tree-id36 . -6) (undo-tree-id37 . -6) (undo-tree-id38 . -7) (undo-tree-id39 . -7) (undo-tree-id40 . -8) (undo-tree-id41 . -8) (undo-tree-id42 . -9) (undo-tree-id43 . -9) 15534) nil (27026 53617 265712 0) 0 nil])
+([nil nil ((#("(defun parse-multipart (stream length content-type &key limit)
+  \"Parse multipart/form-data (en mémoire). Retourne plist :fields (alist) / :files (list d’alists).\"
+  (let* ((boundary (%find-boundary content-type)))
+    (when (null boundary) (return-from parse-multipart nil))
+    
+    (let* ((raw (read-exact-bytes stream length :limit limit))
+           (sep-bytes (%ascii-bytes (format nil \"--~a\" boundary)))
+           (pos 0)
+           parts)
+      
+      ;; 1. Trouver le premier séparateur
+      (let ((first (%bytes-index-of raw sep-bytes 0)))
+        (when (null first) (return-from parse-multipart nil))
+        (setf pos (+ first (length sep-bytes))))
+      
+      (loop
+        ;; A. Sauter le CRLF après le boundary
+        (when (and (<= (+ pos 2) (length raw))
+                   (= (aref raw pos) 13) (= (aref raw (1+ pos)) 10))
+          (incf pos 2))
+        
+        ;; B. Fin de flux (--boundary--)
+        (when (and (<= (+ pos 2) (length raw))
+                   (= (aref raw pos) #x2D) (= (aref raw (1+ pos)) #x2D))
+          (return))
+        
+        ;; C. Délimitation du bloc Headers
+        (let* ((hdrs-end (%bytes-index-of raw #(#x0D #x0A #x0D #x0A) pos)))
+          (when (null hdrs-end) (return))
+          
+          (let* ((bstart (+ hdrs-end 4))
+                 (needle (concatenate 'vector #(#x0D #x0A) sep-bytes))
+                 (next (%bytes-index-of raw needle bstart)))
+            
+            (when (null next) (setf next (length raw)))
+            
+            ;; --- EXTRACTION ROBUSTE ---
+            ;; 1. On prend le bloc header brut et on le convertit en String ASCII
+            ;;    On s'affranchit totalement de %parse-headers
+            (let* ((header-bytes (subseq raw pos hdrs-end))
+                   (header-str (map 'string #'code-char header-bytes)) ;; ASCII conversion simple
+                   (body (subseq raw bstart next))
+                   
+                   ;; 2. Extracteur \"chirurgical\" : cherche `key=\"val\"` n'importe où dans le header string
+                   (extract-quoted 
+                    (lambda (key)
+                      (let* ((pattern (format nil \"~A=\\\"\" key)) ;; ex: name=\"
+                             (p0 (search pattern header-str :test #'string-equal)))
+                        (when p0
+                          (let* ((start (+ p0 (length pattern)))
+                                 (end (position #\\\" header-str :start start)))
+                            (when end
+                              (subseq header-str start end)))))))
+                   
+                   ;; 3. Extracteur simple pour Content-Type (pas de guillemets)
+                   (extract-ct 
+                    (lambda ()
+                      (let ((p0 (search \"Content-Type:\" header-str :test #'string-equal)))
+                        (if p0
+                            (let* ((start (+ p0 13)) ;; length of \"Content-Type:\"
+                                   (end (position #\\Return header-str :start start))) ;; s'arrête au \\r
+                              (string-trim \" \" (subseq header-str start (or end (length header-str)))))
+                            nil))))
+                   
+                   ;; 4. Récupération des valeurs
+                   (fname (funcall extract-quoted \"filename\"))
+                   (name  (or (funcall extract-quoted \"name\") \"\")) ;; Fallback vide
+                   (ctype (or (funcall extract-ct) 
+                              (and fname (lumen.core.mime:guess-content-type fname))
+                              \"text/plain\")))
+              
+              ;; (format *error-output* \"[DEBUG] Found Name: '~A' Fname: '~A'~%\" name fname)
+              
+              (if fname
+                  ;; FICHIER
+                  (push `((:name . ,name)
+                          (:filename . ,fname)
+                          (:content-type . ,ctype)
+                          (:bytes . ,(%strip-trailing-crlf body)))
+                        parts)
+                  
+                  ;; CHAMP TEXTE
+                  (let* ((charset \"utf-8\") ;; On assume UTF-8 pour les champs texte
+                         (txt (%decode-text-field (%strip-trailing-crlf body) charset)))
+                    (push (cons name txt) parts))))
+            
+            ;; Avance POS
+            (let ((after (+ next 2 (length sep-bytes))))
+              (if (>= after (length raw))
+                  (return)
+                  (setf pos after))))))
+      
+      ;; 3. Tri final
+      (let ((fields '()) (files '()))
+        (dolist (p (nreverse parts))
+          (if (and (listp p) (consp (car p)) (keywordp (caar p)))
+              (push p files)
+              (push p fields)))
+        
+        `((:fields . ,(nreverse fields))
+          (:files  . ,(nreverse files)))))))" 0 1011 (face font-lock-comment-face fontified t) 1011 1039 (face font-lock-comment-face fontified t) 1039 2539 (face font-lock-comment-face fontified t) 2539 2551 (face font-lock-comment-face fontified t) 2551 4051 (face font-lock-comment-face fontified t) 4051 4093 (face font-lock-comment-face fontified t) 4093 4764 (face font-lock-comment-face fontified t)) . -9655) (undo-tree-id33 . -4764) (undo-tree-id34 . -3644) 14419 (t 27026 53617 0 0)) nil (27037 26236 174487 0) 0 nil])
+([nil nil ((#("
+
+|#
+" 0 1 (face font-lock-comment-face fontified t) 1 2 (face font-lock-comment-face fontified t) 2 4 (face font-lock-comment-delimiter-face fontified t) 4 5 (fontified t)) . 9654) (undo-tree-id31 . -1) (undo-tree-id32 . -5)) nil (27037 26236 174484 0) 0 nil])
+([nil nil ((#("
+" 0 1 (face font-lock-comment-face fontified t)) . -9651) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (#("#" 0 1 (fontified t)) . -9652) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (#("|" 0 1 (face font-lock-comment-delimiter-face fontified t)) . -9653) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) 9654) nil (27037 26236 174482 0) 0 nil])
+([nil nil ((#("(let ((boundary (%find-boundary content-type)))
+    (when (null boundary) (return-from parse-multipart nil))
+
+    ;; 1. SPOOLING : On décharge le réseau vers un fichier temporaire
+    (let ((spool-file (merge-pathnames (format nil \"req_~A.tmp\" (lumen.utils:gen-uuid-string)) 
+                                       lumen.core.config:*tmp-dir*)))
+      
+      ;; On sécurise la suppression du fichier spool quoi qu'il arrive
+      (unwind-protect
+           (progn
+             ;; A. Copie Flux Réseau -> Disque
+             (with-open-file (out spool-file :direction :output 
+                                             :element-type '(unsigned-byte 8) 
+                                             :if-exists :supersede)
+               (uiop:copy-stream-to-stream stream out 
+                                           :element-type '(unsigned-byte 8) 
+                                           :buffer-size length))
+             
+             ;; B. Parsing (On charge le fichier spool en RAM pour parser)
+             (with-open-file (in spool-file :direction :input :element-type '(unsigned-byte 8))
+               (let ((file-len (file-length in)))
+                 (if (> file-len (or limit (* 50 1024 1024))) ;; Limite hard (ex: 50MB max pour le parsing RAM)
+                     (error \"Multipart body too large for RAM parsing\")
+                     
+                     (let ((raw (make-array file-len :element-type '(unsigned-byte 8))))
+                       (read-sequence raw in)
+                       ;; Appel de la logique de parsing modifiée
+                       (%parse-multipart-bytes raw boundary))))))
+        
+        ;; C. Nettoyage du fichier spool (toujours)
+        (ignore-errors (delete-file spool-file)))))" 0 1 (fontified t) 1 4 (face font-lock-keyword-face fontified t) 4 53 (fontified t) 53 57 (face font-lock-keyword-face fontified t) 57 75 (fontified t) 75 86 (face font-lock-keyword-face fontified t) 86 114 (fontified t) 114 117 (face font-lock-comment-delimiter-face fontified t) 117 180 (face font-lock-comment-face fontified t) 180 185 (fontified t) 185 188 (face font-lock-keyword-face fontified t) 188 231 (fontified t) 231 243 (face font-lock-string-face fontified t) 243 359 (fontified t) 359 362 (face font-lock-comment-delimiter-face fontified t) 362 424 (face font-lock-comment-face fontified t) 424 431 (fontified t) 431 445 (face font-lock-keyword-face fontified t) 445 458 (fontified t) 458 463 (face font-lock-keyword-face fontified t) 463 477 (fontified t) 477 480 (face font-lock-comment-delimiter-face fontified t) 480 511 (face font-lock-comment-face fontified t) 511 525 (fontified t) 525 539 (face font-lock-keyword-face fontified t) 539 556 (fontified t) 556 566 (face font-lock-builtin-face fontified t) 566 567 (fontified t) 567 574 (face font-lock-builtin-face fontified t) 574 621 (fontified t) 621 634 (face font-lock-builtin-face fontified t) 634 655 (fontified t) 655 700 (fontified t) 700 710 (face font-lock-builtin-face fontified t) 710 711 (fontified t) 711 721 (face font-lock-builtin-face fontified t) 721 821 (fontified t) 821 834 (face font-lock-builtin-face fontified t) 834 898 (fontified t) 898 910 (face font-lock-builtin-face fontified t) 910 947 (fontified t) 947 950 (face font-lock-comment-delimiter-face fontified t) 950 1009 (face font-lock-comment-face fontified t) 1009 1023 (fontified t) 1023 1037 (face font-lock-keyword-face fontified t) 1037 1053 (fontified t) 1053 1063 (face font-lock-builtin-face fontified t) 1063 1064 (fontified t) 1064 1070 (face font-lock-builtin-face fontified t) 1070 1071 (fontified t) 1071 1084 (face font-lock-builtin-face fontified t) 1084 1121 (fontified t) 1121 1124 (face font-lock-keyword-face fontified t) 1124 1173 (fontified t) 1173 1175 (face font-lock-keyword-face fontified t) 1175 1217 (fontified t) 1217 1220 (face font-lock-comment-delimiter-face fontified t) 1220 1267 (face font-lock-comment-face fontified t) 1267 1289 (fontified t) 1289 1293 (face font-lock-warning-face fontified t) 1293 1294 (face font-lock-warning-face fontified t) 1294 1295 (fontified t) 1295 1297 (face font-lock-string-face fontified t) 1297 1337 (face font-lock-string-face fontified t) 1337 1339 (fontified t) 1339 1383 (fontified t) 1383 1386 (face font-lock-keyword-face fontified t) 1386 1414 (fontified t) 1414 1427 (face font-lock-builtin-face fontified t) 1427 1519 (fontified t) 1519 1522 (face font-lock-comment-delimiter-face fontified t) 1522 1562 (face font-lock-comment-face fontified t) 1562 1645 (fontified t) 1645 1648 (face font-lock-comment-delimiter-face fontified t) 1648 1689 (face font-lock-comment-face fontified t) 1689 1698 (fontified t) 1698 1711 (face font-lock-keyword-face fontified t) 1711 1740 (fontified t)) . -9855) (undo-tree-id7 . -1740) (undo-tree-id8 . -1689) (undo-tree-id9 . -1689) (undo-tree-id10 . -1689) (undo-tree-id11 . -1689) (undo-tree-id12 . -1689) (undo-tree-id13 . -1740) (undo-tree-id14 . -1740) (undo-tree-id15 . -1689) (undo-tree-id16 . -1740) (undo-tree-id17 . -1740) (undo-tree-id18 . -1740) (undo-tree-id19 . -1740) (undo-tree-id20 . -1740) (undo-tree-id21 . -1740) 11595) nil (27037 26236 174461 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 11898 . 11899) (nil fontified nil 9855 . 11899) (9855 . 11899)) nil (27037 26236 174448 0) 0 nil])
+([nil current ((#(")" 0 1 (fontified t)) . -11899) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) 11900) nil (27037 26236 174444 0) 0 nil])
 nil

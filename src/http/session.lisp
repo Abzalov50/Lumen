@@ -11,7 +11,8 @@
   (:export :session-id :session-data :session-get :session-set! :session-del!
    :verify-signed-sid :make-session-id :store-get :store-put! :store-del!
 	   :sign-sid :rand-bytes :*session-ttl* :*session-cookie* :*secure-cookie*
-   :*session-store* :session-gc :session-middleware :csrf-middleware))
+   :*session-store* :session-gc :session-middleware :csrf-middleware
+   :auth-middleware :auth-required :roles-allowed))
 
 (in-package :lumen.http.session)
 
@@ -96,7 +97,8 @@
   "Récupère une valeur de session de manière insensible à la casse et au type (String/Symbol)."
   (let* ((target-key (string key)) ;; On convertit ce qu'on cherche en string
          (data (session-data req)))
-    
+    ;;(print target-key)
+    ;;(print data)
     (cdr (assoc target-key data 
                 :test (lambda (target candidate)
                         ;; STRING-EQUAL est insensible à la casse (UID == uid)
@@ -113,6 +115,7 @@
                         :test #'equal))
          ;; On ajoute la nouvelle paire (String . Valeur)
          (new (acons k value clean)))
+    ;;(format t "~&[SESSION-SET!] OLD: ~A~%NEW: ~A~%" old new)
     
     (lumen.core.http:ctx-set! req :session new)
     new))
@@ -252,3 +255,212 @@
                  (let ((resp (lumen.core.http:respond-json '((:error . "CSRF invalid")) :status 403)))
                    (emit resp)
                    resp)))))))))
+
+;;; ---------------------------------------------------------------------------
+;;; 17. AUTH JWT MIDDLEWARE (The Big One)
+;;; ---------------------------------------------------------------------------
+(defun %bearer-token (hdrs)
+  (let ((raw (cdr (assoc "authorization" hdrs :test #'string-equal))))
+    (when raw
+      (let ((s (string-trim " " raw)))
+        (if (and (>= (length s) 7) (string-equal "Bearer " s :end2 7))
+            (subseq s 7) nil)))))
+
+(defun %query-token (req keys)
+  (let ((qp (lumen.core.http:req-query req)))
+    (loop for k in keys thereis (cdr (assoc k qp :test #'string-equal)))))
+
+#|
+(defmiddleware auth-middleware
+    ((secret :initarg :secret :initform nil)
+     (required-p :initarg :required-p :initform nil)
+     (roles-allow :initarg :roles-allow :initform nil)
+     (scopes-allow :initarg :scopes-allow :initform nil)
+     (scopes-mode :initarg :scopes-mode :initform :any) ;; :any | :all
+     (leeway :initarg :leeway :initform 60)
+     (allow-query :initarg :allow-query :initform t)
+     (admin-roles :initarg :admin-roles :initform '("admin"))
+     (bypass-admin :initarg :bypass-admin :initform t))
+    (req next)
+  (with-slots (secret required-p roles-allow scopes-allow scopes-mode leeway allow-query admin-roles bypass-admin) mw
+    (let* ((hdrs (lumen.core.http:req-headers req))
+           (tok (or (%bearer-token hdrs)
+                    (and allow-query (%query-token req '("access_token" "token")))
+                    (cdr (assoc "access_token" (lumen.core.http:req-cookies req) :test #'string=)))))
+      ;; 1. Decode & Hydrate Context
+      (when (and tok secret)
+        (multiple-value-bind (payload ok) 
+            (ignore-errors (lumen.core.jwt:jwt-decode tok :secret secret :verify t :leeway leeway))
+          (when ok
+            (lumen.core.http:ctx-set! req :jwt payload)
+            (lumen.core.http:ctx-set! req :user-id (cdr (assoc :sub payload))) ;; Standard claim
+            ;; Tenant hydration
+            (let ((tid (or (cdr (assoc :tenant-id payload)) (cdr (assoc :tenant payload)))))
+              (when tid (lumen.core.http:ctx-set! req :tenant-id tid))))))
+      
+      ;; 2. Authorization Logic
+      (let* ((jwt (lumen.core.http:ctx-get req :jwt))
+             (role (and jwt (cdr (assoc :role jwt))))
+             (scopes (%normalize-scopes (and jwt (cdr (assoc :scopes jwt)))))
+             (is-admin (and role (member role admin-roles :test #'string=)))
+             
+             (roles-ok (or (null roles-allow)
+                           (member role roles-allow :test #'string=)
+                           (and is-admin bypass-admin)))
+             
+             (scopes-ok (or (null scopes-allow)
+                            (if (eq scopes-mode :all)
+                                (every (lambda (s) (member s scopes :test #'string=)) scopes-allow)
+                                (some (lambda (s) (member s scopes :test #'string=)) scopes-allow))
+                            (and is-admin bypass-admin))))
+        
+        (cond
+          ;; Missing Token but Required
+          ((and required-p (null jwt))
+           (lumen.core.http:respond-json '((:error . "Unauthorized")) :status 401))
+          
+          ;; Forbidden (Role)
+          ((not roles-ok)
+           (lumen.core.http:respond-json '((:error . "Forbidden (Role)")) :status 403))
+          
+          ;; Forbidden (Scope)
+          ((not scopes-ok)
+           (lumen.core.http:respond-json '((:error . "Forbidden (Scope)")) :status 403))
+          
+          ;; Authorized
+          (t 
+           (when (and is-admin (or roles-allow scopes-allow))
+             (lumen.core.http:ctx-set! req :auth-bypass "admin"))
+           (funcall next req)))))))
+|#
+
+(defmiddleware auth-middleware
+    ((secret :initarg :secret :initform nil)
+     (required-p :initarg :required-p :initform nil)
+     (roles-allow :initarg :roles-allow :initform nil)
+     (scopes-allow :initarg :scopes-allow :initform nil)
+     (scopes-mode :initarg :scopes-mode :initform :any)
+     (leeway :initarg :leeway :initform 60)
+     (admin-roles :initarg :admin-roles :initform '("admin"))
+     (bypass-admin :initarg :bypass-admin :initform t)
+     (public-paths :initarg :public-paths
+		   :initform '("/auth/" "/assets/" "/public/" "/favicon.ico")))
+    (req next)
+
+  (block auth-middleware
+    (with-slots (secret required-p roles-allow scopes-allow scopes-mode leeway admin-roles bypass-admin public-paths) mw
+
+      ;; ---------------------------------------------------------
+      ;; 0. WHITELIST CHECK (Arrêt immédiat si route publique)
+      ;; ---------------------------------------------------------
+      (let ((path (lumen.core.http:req-path req)))
+	(when (some (lambda (prefix) 
+                      ;; On vérifie si l'URL commence par un des préfixes publics
+                      (and (>= (length path) (length prefix))
+                           (string= prefix (subseq path 0 (length prefix)))))
+                    public-paths)
+          ;; C'est une route publique, on laisse passer sans auth
+          (return-from auth-middleware (funcall next req))))
+    
+      ;; ---------------------------------------------------------
+      ;; 1. STRATÉGIE D'HYDRATATION DU CONTEXTE (Session vs JWT)
+      ;; ---------------------------------------------------------
+      (let* ((session-uid (session-get req "user-id"))
+            (jwt-token   (or (%bearer-token (lumen.core.http:req-headers req))
+                             (%query-token req '("access_token" "token"))))
+	     (scopes-raw (session-get req "scopes"))
+	     (scopes (if (and scopes-raw (stringp scopes-raw)
+			      (str:starts-with? "[" scopes-raw))
+			     (json:decode-json-from-string scopes-raw)
+			     scopes-raw)))
+
+	(cond
+          ;; CAS A : Authentifié via SESSION
+          (session-uid
+           (lumen.core.http:ctx-set! req :user-id session-uid)
+	   (lumen.core.http:ctx-set! req :user-role (session-get req "role"))
+	   (lumen.core.http:ctx-set! req :user-scopes scopes)
+	   (lumen.core.http:ctx-set! req :tenant-id (or (ctx-get req :tenant-id)
+							(session-get req :tid))))
+
+          ;; CAS B : Authentifié via JWT (API externe, Mobile)
+          ((and jwt-token secret)
+           (multiple-value-bind (payload ok) 
+               (ignore-errors (lumen.core.jwt:jwt-decode jwt-token :secret secret :verify t :leeway leeway))
+             (when ok
+               (lumen.core.http:ctx-set! req :user-id (cdr (assoc :sub payload)))
+               (lumen.core.http:ctx-set! req :user-role (cdr (assoc :role payload)))
+               (lumen.core.http:ctx-set! req :user-scopes (cdr (assoc :scopes payload)))
+               ;; Tenant
+               (let ((tid (or (cdr (assoc :tenant-id payload)) (cdr (assoc :tenant payload)))))
+		 (when tid (lumen.core.http:ctx-set! req :tenant-id tid))))))))
+
+      ;; ---------------------------------------------------------
+      ;; 2. LOGIQUE D'AUTORISATION (Inchangée)
+      ;; ---------------------------------------------------------
+      (let* ((uid (lumen.core.http:ctx-get req :user-id))
+	     (role (lumen.core.http:ctx-get req :user-role))
+	     (scopes (lumen.core.http:normalize-scopes (lumen.core.http:ctx-get req :user-scopes)))
+	     (is-admin (and role (member role admin-roles :test #'string=)))
+           
+	     (roles-ok (or (null roles-allow)
+			   (member role roles-allow :test #'string=)
+			   (and is-admin bypass-admin)))
+           
+	     (scopes-ok (or (null scopes-allow)
+			    (if (eq scopes-mode :all)
+				(every (lambda (s) (member s scopes :test #'string=)) scopes-allow)
+				(some (lambda (s) (member s scopes :test #'string=)) scopes-allow))
+			    (and is-admin bypass-admin))))
+	(lumen.utils:log-msg "AUTH MW" :uid uid :role role :scopes scopes
+				       :scopes-ok scopes-ok :roles-ok roles-ok)
+	(cond
+	  ;; Non connecté alors que requis
+	  ((and required-p (null uid))
+	   ;; Pour une app Web, on redirige souvent vers /login au lieu de renvoyer du JSON 401
+	   ;; Mais gardons le comportement standard pour l'instant
+	   ;; Est-ce une requête HTMX ?
+           (let ((is-htmx (assoc "hx-request" (lumen.core.http:req-headers req) :test #'string-equal)))
+           
+             (cond
+               ;; A. Requête HTMX -> On force le rechargement client vers Login
+               (is-htmx
+		(lumen.core.http:respond-htmx-redirect "/auth/login"))
+             
+               ;; B. Requête Navigateur Standard (HTML) -> Redirection 302 classique
+               ((member "text/html" (lumen.core.http:get-accepted-types req) :test #'search)
+		(lumen.core.http:redirect-to "/auth/login"))
+             
+               ;; C. API JSON (App mobile, etc.) -> Erreur 401
+               (t
+		(lumen.core.http:respond-json '((:error . "Unauthorized")) :status 401)))))
+        
+	  ;; Connecté mais Rôle insuffisant
+	  ((not roles-ok)
+	   (lumen.core.http:respond-json '((:error . "Forbidden (Role)")) :status 403))
+        
+	  ;; Connecté mais Scope insuffisant
+	  ((not scopes-ok)
+	   (lumen.core.http:respond-json '((:error . "Forbidden (Scope)")) :status 403))
+        
+	  ;; Autorisé
+	  (t 
+	   (when (and is-admin (or roles-allow scopes-allow))
+             (lumen.core.http:ctx-set! req :auth-bypass "admin"))
+	   (funcall next req)))))))
+
+;;; ---------------------------------------------------------------------------
+;;; 18. AUTH FACTORIES (Aliases for compatibility)
+;;; ---------------------------------------------------------------------------
+
+(defun auth-required (&key (roles nil) (scopes nil))
+  "Factory pour créer un middleware Auth strict."
+  (make-instance 'auth-middleware 
+                 :required-p t 
+                 :roles-allow roles
+                 :scopes-allow scopes
+                 :secret lumen.core.jwt:*jwt-secret*))
+
+(defun roles-allowed (roles)
+  "Factory raccourci pour restreindre par rôle."
+  (auth-required :roles roles))

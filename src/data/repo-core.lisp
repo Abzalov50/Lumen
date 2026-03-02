@@ -84,6 +84,57 @@
         ((has-col-p :tenant_id) :tenant_id)         ; fallback si :tenant_id existe réellement
         (t nil)))))                                   ; sinon pas de colonne tenant
 
+(defun %make-label-key (col-key)
+  "Transforme :priority en :priority-label"
+  (intern (format nil "~A-LABEL" (lumen.utils:to-kebab-case (symbol-name col-key))) :keyword))
+
+(defun %resolve-choice-label (val choices)
+  "Trouve le libellé dans une alist de choix ((1 . 'Label') ...)"
+  (let ((match (assoc val choices :test (lambda (v c) 
+                                          ;; Comparaison robuste (string vs int vs symbol)
+                                          (string-equal (princ-to-string v) 
+                                                        (princ-to-string c))))))
+    (if match (cdr match) val)))
+
+(defun %resolve-reference-label (val ref-table ref-col tid)
+  "Exécute une requête SQL légère pour récupérer le label de la FK."
+  (when val
+    ;; Attention : Ceci génère une requête par champ (N+1).
+    ;; Pour des listes massives, il faudrait idéalement faire des JOINS, 
+    ;; mais pour un usage standard, c'est acceptable et très flexible.
+    (let ((sql (format nil "SELECT ~A FROM ~A WHERE id = $1 AND tenant_id = $2 LIMIT 1" 
+                       (lumen.utils:to-snake-case (string ref-col))
+                       ref-table)))
+      (lumen.data.db:ensure-connection
+        (pomo:query sql val tid :single)))))
+
+(defun enrich-row-metadata (entity-sym row tid)
+  "Prend une alist (row) et ajoute les champs -LABEL basés sur la déf de l'entité."
+  (let ((fields (lumen.data.dao:entity-fields entity-sym)))
+    (dolist (f fields)
+      (let* ((col-key (getf f :col))          ;; :priority
+             (val     (lumen.utils:lookup row col-key)) ;; 2
+             (choices (getf f :choices))      ;; ((1 . "Haute")...)
+             (ref     (getf f :references))   ;; "users"
+	     (hidden? (getf f :hidden?))
+             (ref-col (getf f :ref-col)))     ;; "pseudo"
+        
+        ;; CAS 1 : CHOICES (Enums)
+        (when (and (not hidden?) choices val)
+          (setf row (acons (%make-label-key col-key)
+                           (%resolve-choice-label val choices)
+                           row)))
+        
+        ;; CAS 2 : REFERENCES (FK)
+        ;; On ne fait la requête que si on a une valeur, une table ref et une colonne cible
+        (when (and (not hidden?) ref ref-col val)
+          (let ((label (%resolve-reference-label val ref ref-col tid)))
+            (when label
+              (setf row (acons (%make-label-key col-key)
+                               label
+                               row)))))))
+    row))
+
 ;;; ------------------------------------------------------------
 ;;; Sanitation tenant_id
 ;;;   - ctx :tenant-id prioritaire (UUID attendu)
@@ -227,7 +278,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
            (declare (ignore _))
            (error "Database Error: ~A" msg)))
         
-        (t result))
+        (t result))      
       result))
 
 (defun %rows->serialized-entities (entity rows)
@@ -237,7 +288,6 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 		     (let* (;; 1. On hydrate l'objet pour avoir le formatage standard (dates, etc.)
 			    (obj (lumen.data.dao:row->entity entity row))
 			    (standard-data (lumen.data.dao:entity->row-alist obj)))
-              
 		       ;; 2. On réinjecte les données "orphelines" (celles présentes dans le SQL 
 		       ;;    mais absentes de l'entité, comme :project-id-resolved)
 		       (loop for (k . v) in row
@@ -332,6 +382,133 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 ;; Implémentations CRUD
 (defmethod repo-index ((entity symbol) ctx
                        &key filters order select page page-size limit offset
+                          after before key joins)
+  
+  (let* ((md        (entity-metadata entity))
+         (table     (getf md :table))
+         (allowed   (entity-allowed-cols entity :include-pk? t :include-tenant? t))
+         (tid       (getf ctx :tenant-id))
+         (tcol      (%entity-tenant-col entity md))
+         (tcol-qualified (when tcol 
+                           (format nil "~A.~A" 
+                                   (lumen.data.repo.query::%ident table) 
+                                   (lumen.data.repo.query::%ident tcol))))
+         
+         ;; --- Préparation FTS (Identique à votre code) ---
+         (fields     (entity-fields entity))
+         (table-name (lumen.data.repo.query::%ident table))
+         (search-val (cdr (assoc "q" filters :test #'string=)))
+         (raw-list   (remove "q" filters :test #'string= :key #'car))
+         ;; --- LOGIQUE FILTRES (Identique à votre code) ---
+         (processed-filters
+           (let ((acc-hash (make-hash-table :test 'equal))
+                 (preserved-clauses '())
+		 (resulted-clauses nil))
+             (loop for item in raw-list do
+	       (let ((val (cdr item)))
+		 ;; --- CORRECTION : ON FILTRE LES VALEURS VIDES ---
+		 (when (and val (not (and (stringp val) (= 0 (length val)))))
+		   (cond
+                     ((and (consp item) (not (listp (cdr item))) (not (and (> (length (car item)) 2) (string= (subseq (car item) 0 2) "q["))))
+                      (push (cdr item) (gethash (car item) acc-hash)))
+                     ((listp item)
+                      (let* ((col-sym (if (consp (cdr item)) (second item) nil))
+                             (col-str (string-downcase (format nil "~A" col-sym))))
+			(unless (or (search "tenant_id" col-str) (search "tenant-id" col-str))
+			  (push item preserved-clauses))))))
+		 (let ((generated-clauses
+			 (loop for k being the hash-keys of acc-hash using (hash-value vals)
+                               for clean-k = (string-downcase k)
+                               for v-list = (nreverse vals)
+                               unless (or (search "tenant_id" clean-k) (search "tenant-id" clean-k))
+				 collect 
+				 (cond
+				   ((and (> (length clean-k) 4) (string= (subseq clean-k (- (length clean-k) 4)) "_gte"))
+				    (let ((col-name (subseq clean-k 0 (- (length clean-k) 4))))
+				      `(>= ,(intern (string-upcase col-name) :keyword) ,(first v-list))))
+				   ((and (> (length clean-k) 4) (string= (subseq clean-k (- (length clean-k) 4)) "_lte"))
+				    (let ((col-name (subseq clean-k 0 (- (length clean-k) 4))))
+				      `(<= ,(intern (string-upcase col-name) :keyword) ,(first v-list))))
+				   (t
+				    (let ((col-kw (intern (string-upcase clean-k) :keyword)))
+				      (print col-kw)
+				      (print (first v-list))
+				      (if (> (length v-list) 1) `(in ,col-kw ,v-list) `(= ,col-kw ,(first v-list)))))))))
+		   (setf resulted-clauses (append preserved-clauses generated-clauses)))))
+		   resulted-clauses))
+         (processed-filters (remove nil processed-filters))
+         (filters-with-tenant 
+          (if (and tcol-qualified tid)
+              (cons `(= ,(intern (string-upcase tcol-qualified) :keyword) ,tid) processed-filters)
+              processed-filters))
+         (final-filters 
+           (if (and search-val (> (length search-val) 0))
+               (cons `(search :q ,search-val) filters-with-tenant)
+               filters-with-tenant))
+
+         (text-cols  (loop for f in fields
+                           when (member (getf f :type) '(:string :text :email))
+                           collect (format nil "~A.~A" table-name (lumen.data.repo.query::%ident (getf f :col)))))
+         
+         (fts-config (list :fields text-cols)))
+
+    ;; --- EXECUTION PRINCIPALE ---
+    (format t "~&[REPO INDEX] FINAL FILTERS: ~A~%" final-filters)
+    
+    (cond
+      ;; MODE KEYSET (si after/before/key présent)
+      ((or after before key)
+       (let ((res (select-page-keyset* table
+                                       :filters final-filters
+                                       :order   order
+                                       :key     key
+                                       :after   after
+                                       :limit   (or limit 20)
+                                       :joins   joins
+                                       :order-whitelist allowed
+                                       :fts-config fts-config)))
+         ;; Sérialisation des items
+         (setf (getf res :items) 
+               (mapcar (lambda (row) (enrich-row-metadata entity row tid))
+                       (%rows->serialized-entities entity (getf res :items))))
+         res))
+
+      ;; MODE OFFSET / PAGE (Défaut)
+      (t
+       (let* ((p-size (or page-size limit 20))
+              (curr-page (or page 1))
+              (calc-offset (or offset (* (max 0 (1- curr-page)) p-size)))
+              
+              ;; 1. COUNT (Pour la pagination)
+              (total-count (count* table 
+                                   :filters final-filters 
+                                   :joins joins 
+                                   :fts-config fts-config))
+              
+              ;; 2. DATA
+              (rows (select* table
+                             :filters final-filters
+                             :order   order
+                             :select  (or select :*)
+                             :joins   joins
+                             :limit   p-size
+                             :offset  calc-offset
+                             :order-whitelist allowed
+                             :fts-config fts-config))
+              
+              ;; 3. SERIALIZATION
+              (items (mapcar (lambda (row) (enrich-row-metadata entity row tid))
+                             (%rows->serialized-entities entity rows))))
+         
+         ;; RETOUR FORMATÉ POUR HTMX VIEW
+         (list :items items
+               :count total-count
+               :per-page p-size
+               :current-page curr-page
+               :last-page (ceiling total-count p-size)))))))
+#|
+(defmethod repo-index ((entity symbol) ctx
+                       &key filters order select page page-size limit offset
                          after before key joins)
   
   (let* ((md       (entity-metadata entity))
@@ -366,7 +543,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
               (cond
                 ;; CAS A : PAIRE CLÉ/VALEUR ("status" . "todo")
                 ;; On vérifie que le CDR n'est PAS une liste (donc c'est une paire pointée)
-                ((and (consp item) (not (listp (cdr item))))
+                ((and (consp item) (not (listp (cdr item))) (not (and (> (length (car item)) 2) (string= (subseq (car item) 0 2) "q["))))
                  (push (cdr item) (gethash (car item) acc-hash)))
                 
                 ;; CAS B : CLAUSE SXQL EXISTANTE (= :col val)
@@ -454,7 +631,7 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
 			:order   order
 			:select  (or select :*)
 			:joins   joins
-			:limit   (or (and page-size (* 1 page-size)) limit 20)
+			:limit   (or (and page-size (* 1 page-size)) limit)
 			:offset  (or offset (and page page-size (* (max 0 (1- page)) page-size)))
 			:order-whitelist allowed
 			;; --- IMPORTANT : On passe la config FTS ---
@@ -462,10 +639,16 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
       (format t "~&[REPO INDEX] SQL RESULT: ~A~%" rows)
       (if (and (listp rows) (keywordp (car rows)) (getf rows :items))
           (let ((items (getf rows :items)))
-            (setf (getf rows :items) (%rows->serialized-entities entity items))
+            (setf (getf rows :items) (let ((base (%rows->serialized-entities entity items)))
+				       (mapcar #'(lambda (row)
+			(enrich-row-metadata entity row tid))
+		    base))))
             rows)
-          (%rows->serialized-entities entity rows)))))
-
+          (let ((base (%rows->serialized-entities entity rows)))
+	    (mapcar #'(lambda (row)
+			(enrich-row-metadata entity row tid))
+		    base)))))
+|#
 ;; SHOW (lecture par PK, filtrée tenant si présent)
 (defmethod repo-show ((entity symbol) ctx id)
   (let* ((md   (entity-metadata entity))
@@ -481,8 +664,10 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
     ;; Plus de ensure-connection ici non plus
     (let ((row (first (select* tbl :filters filters :limit 1))))
       (when row
-        ;; Transformation via l'objet pour cohérence
-        (entity->row-alist (row->entity entity row))))))
+        ;; 1. Conversion Objet -> Alist de base
+        (let ((base-alist (entity->row-alist (row->entity entity row))))
+	  ;; 2. Enrichissement avec les Labels
+            (enrich-row-metadata entity base-alist tid))))))
 
 (defmethod repo-create ((entity symbol) ctx payload)
   (format t "~&[Lumen] In REPO CREATE (~A)~%" entity)
@@ -556,11 +741,8 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
    2) puis garantit les invariants Lumen (idempotents)."
   (let* ((out (call-next-method))                ; ← primaires (app + socle)
          (p0 (%normalize-payload-keys out))      ; clés normalisées (kw/strings)
-	 
          (p1 (%remove-protected-fields p0))      ; retire :id, :created_at, etc.
-	 
          (tid (%resolve-tenant-id ctx p1)))      ; trouve le tenant depuis ctx/payload
-    
     (unless tid
       (error 'lumen.data.errors:db-error
              :message "missing or invalid tenant-id"))
@@ -654,9 +836,13 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
            (run-in-transaction 
             (lambda ()
               (repo-authorize op entity ctx :payload payload)
+	      (print "AUTHORIZE OK")
               (let ((p1 (repo-normalize op entity ctx payload)))
+		(print "NORMALISATION OK")
                 (repo-validate op entity ctx p1)
+		(print "VALIDATE OK")
                 (repo-before    op entity ctx :payload p1)
+		(print "BEFORE OK")
                 (let ((r (call-next-method entity ctx p1)))
                   (let ((r (repo-after op entity ctx r :payload p1)))
 		  r)))))))
@@ -670,8 +856,11 @@ N’ajoute la colonne tenant que si elle existe effectivement sur l’entité."
             (lambda ()
               (repo-authorize op entity ctx :id id :payload payload)
               (let ((p1 (repo-normalize op entity ctx payload)))
+		(print "NORMALISATION OK")
                 (repo-validate op entity ctx p1)
+		(print "VALIDATE OK")
                 (repo-before    op entity ctx :id id :payload p1)
+		(print "BEFORE OK")
                 ;; call-next-method est capturé par la closure (lexical scope)
                 ;; C'est safe car run-in-transaction ne fait pas de magie macro.
                 (let ((r (call-next-method entity ctx id p1)))

@@ -2,30 +2,38 @@
 
 (defpackage :lumen.utils
   (:use :cl :alexandria)
-  (:export :copy-plist :-> :->> :probe-directory :col-get :alist-fuzzy-get
-	   ;; strings
-           :str-prefix-p :str-suffix-p :str-contains-p
+  (:export :copy-plist :-> :->> :probe-directory :col-get :alist-fuzzy-get :shuffle-list
+   :format-money :send-mail
+   ;; strings
+   :str-prefix-p :str-suffix-p :str-contains-p
 	   :ensure-trailing :ensure-leading
-   :ends-with-slash-p :starts-with-slash-p :%trim
+	   :ends-with-slash-p :starts-with-slash-p :%trim
    :join-lines :slugify
-	   ;; Query string
-	   :url-decode-qs
-	   ;; alists
-   :alist-get :alist-get-all :alist-set :ensure-header :plist-put
-	   :remove-from-alist
+   ;; Query string
+   :url-decode-qs
+   ;; alists
+	   :alist-get :alist-get-all :alist-set :ensure-header :plist-put
+   :remove-from-alist :subst-null-with-nil :clean-alists
+   ;; Lists
+	   ;;:ensure-list	   
 	   ;; HTTP Dates
-   :parse-http-date :format-http-date :current-db-time-string
+   :parse-http-date :format-http-date :current-db-time-string :date-now
    ;; Crypto
    :hmac-sha256 :gen-uuid-string
    :subsetp-list :to-snake-case :keyword-to-kebab :to-kebab-case :lookup
-   :secure-uuid-equal
+	   :secure-uuid-equal
 
-   ;; Dates
+	   ;; Dates
    :%val->date-input :%val->date-display :to-timestamp :format-timestamp
-   :format-now-fr :ts-filename
+   :format-now-fr :ts-filename :timestamp-diff :nb-workdays
 
    ;; Files
-   :gen-safe-filename :get-extension))
+   :gen-safe-filename :get-extension
+	   
+   :now-year :now-month :now-day :pad-left
+
+   ;; Logging
+   :*log-level* :*silent-workflows* :*log-colors-p* :log-msg :with-logged-exec))
 
 (in-package :lumen.utils)
 
@@ -467,3 +475,170 @@ Retourne la nouvelle plist."
                        (string= norm-item target))))
                alist
                :key #'car)))
+
+(defun now-year () (local-time:timestamp-year (local-time:now)))
+(defun now-month () (local-time:timestamp-month (local-time:now)))
+(defun now-day () (local-time:timestamp-day-of-week (local-time:now)))
+(defun date-now () (local-time:format-timestring nil (local-time:now)))
+
+(defun pad-left (val len char)
+  "Formatage '04' ou '007'."
+  (let ((s (princ-to-string val)))
+    (if (< (length s) len)
+        (format nil "~V,V,'~A~A" len len char s) ;; Utilise format pour le padding
+        (format nil "~V,'0d" len (parse-integer s :junk-allowed t))))) 
+        ;; Ou plus simple en Lisp standard:
+        ;; (format nil "~2,'0d" val) pour 2 chiffres
+
+(defun send-mail (&key from display-name
+		    to subject message attachments cc bcc)
+  (cl-smtp:send-email "localhost" from to subject ""
+		      :html-message message
+		      :display-name display-name
+		      :attachments attachments
+		      :cc cc
+		      :bcc bcc
+		      :extra-headers '(("Content-Type" "text/html; charset=UTF-8")))
+  )
+
+(defun shuffle-list (list)
+  "Mélange aléatoirement les éléments d'une liste (Algorithme de Fisher-Yates)."
+  (let ((vec (coerce list 'vector)))
+    (loop for i from (length vec) downto 2
+          do (rotatef (aref vec (1- i))
+                      (aref vec (random i))))
+    (coerce vec 'list)))
+
+(defun format-money (amount &optional (suffix ""))
+  "Formate un montant avec des espaces comme séparateurs de milliers. 
+   Ex: (format-money 1500000 \" FCFA\") -> '1 500 000 FCFA'"
+  (if (not (numberp amount))
+      (format nil "0~A" suffix)
+      (let* ((rounded (round amount))
+             ;; ~:D formate avec des virgules (ex: 1,500,000)
+             (formatted (format nil "~:D" rounded))
+             ;; On substitue la virgule par un espace
+             (spaced (substitute #\Space #\, formatted)))
+        (format nil "~A~A" spaced suffix))))
+
+(defun timestamp-diff (time-a time-b unit)
+   (let* ((diff-in-sec (local-time:timestamp-difference time-a time-b))
+	  )
+     (cond ((eq unit :day)
+	    (ceiling diff-in-sec (* 24 60 60)))
+	   ((eq unit :hour)
+	    (ceiling diff-in-sec (* 60 60)))
+	   ((eq unit :min)
+	    (ceiling diff-in-sec 60)))
+     ))
+
+(defun nb-workdays (time-a time-b &key (base-year (now-year)))
+  (let* ((yy-a (local-time:timestamp-year time-a))
+	 (mm-a (local-time:timestamp-month time-a))
+	 (dd-a (local-time:timestamp-day time-a))
+	 (yy-b (local-time:timestamp-year time-b))
+	 (mm-b (local-time:timestamp-month time-b))
+	 (dd-b (local-time:timestamp-day time-b))
+	 (cal (cl-dates:make-calendar :civ :base-year base-year))
+	 )
+    (cl-dates:diff-workdays (cl-dates:ymd->date yy-a mm-a dd-a)
+			    (cl-dates:ymd->date yy-b mm-b dd-b)
+			    cal))
+    )
+
+(defparameter *log-level* :debug 
+  "Niveau de log actuel : :debug, :info, :warn, :error")
+(defvar *silent-workflows* nil)
+(defparameter *log-colors-p* t "Mettre à NIL si les codes [32m s'affichent dans le REPL.")
+
+(defun log-msg (context &rest args &key (level :info) &allow-other-keys)
+  "Logge un message structuré. 
+   Exemple : (log-msg \"EXEC DB\" :level :debug :uid \"123\" :sql \"SELECT...\")"
+  
+  ;; 1. Filtrage par niveau
+  (let ((levels '(:debug 0 :info 1 :warn 2 :error 3)))
+    (when (>= (getf levels level 0) (getf levels *log-level* 0))
+      (fresh-line *standard-output*)
+      
+      ;; 1. Gestion des couleurs avec le caractère d'échappement correct (#\Esc)
+      (let* ((esc (code-char 27))
+             (color-code (case level
+                           (:error "31")   ; Rouge
+                           (:warn  "33")   ; Jaune
+                           (:debug "36")   ; Cyan
+                           (t      "32"))) ; Vert
+             (blue-code "34"))
+
+        ;; Affichage de l'en-tête
+        (if *log-colors-p*
+            (format t "~C[~Am[~A] ~A~C[0m" esc color-code level context esc)
+            (format t "[~A] ~A" level context))
+
+        ;; 2. Itération sur les arguments
+        (loop for (key val) on args by #'cddr
+              unless (eq key :level)
+              do (let ((key-name (string-upcase (string-trim ":" (symbol-name key)))))
+                   (if *log-colors-p*
+                       (format t "~&  ~C[~Am- ~A:~C[0m" esc blue-code key-name esc)
+                       (format t "~&  - ~A:" key-name))
+                   
+                   (cond
+                     ((and (eq key :sql) (stringp val))
+                      (format t "~%~{      ~A~%~}" (uiop:split-string val :separator '(#\Newline))))
+                     ((listp val) (format t " ~S" val))
+                     (t (format t " ~A" val))))))
+      
+      (fresh-line *standard-output*)
+      (force-output))))
+
+(defmacro with-logged-exec ((context &rest log-args) &body body)
+  `(let ((start (get-internal-real-time)))
+     (handler-case
+         (multiple-value-prog1 (progn ,@body)
+           (let* ((elapsed (/ (- (get-internal-real-time) start) 
+                             internal-time-units-per-second))
+		 (elapsed-str (format nil "~,3fs" elapsed)))
+	     (apply #'log-msg ,context (append (list :duration elapsed-str :status "OK") 
+                                  (list ,@log-args)))
+             ))
+     
+       (error (e)
+         (let ((elapsed (/ (- (get-internal-real-time) start) 
+                           internal-time-units-per-second)))
+           ;; Log de l'échec en niveau ERROR
+           (apply #'log-msg ,context 
+                  :level :error 
+                  :duration (format nil "~,3fs" elapsed)
+                  :status "FAILED"
+                  :error-msg (format nil "~A" e)
+                  ,@log-args)
+           ;; On relance l'erreur pour le ROLLBACK de la transaction
+     (error e)))
+       )
+     ))
+
+#|
+(defun ensure-list (item)
+  "Garantit que l'élément retourné est une liste. Pratique pour les formulaires HTML où un seul élément n'est pas parsé comme un array."
+  (if (listp item)
+      item
+      (list item)))
+|#
+
+(defun clean-alists (data)
+  "Parcourt une liste d'alists et remplace les valeurs :NULL par NIL."
+  (mapcar (lambda (alist)
+            (mapcar (lambda (pair)
+                      (if (eq (cdr pair) :null)
+                          (cons (car pair) nil)
+                          pair))
+                    alist))
+          data))
+
+(defun subst-null-with-nil (tree)
+  "Remplace récursivement toutes les occurrences de :NULL par NIL dans n'importe quelle structure."
+  (cond ((eq tree :null) nil)
+        ((atom tree) tree)
+        (t (cons (subst-null-with-nil (car tree))
+                 (subst-null-with-nil (cdr tree))))))
+

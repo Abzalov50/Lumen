@@ -7,12 +7,16 @@
    :cfg                       ; (cfg :get key &key default) | (cfg :set! key val) | (cfg :load-env path &key override)
    :cfg-get :cfg-get-int :cfg-get-bool :cfg-get-duration :cfg-get-list
    :cfg-set! :cfg-load-env :cfg-profile
-   :*getenv-fn* :*profile*))
+   :*getenv-fn* :*profile* :*tmp-dir*))
 
 (in-package :lumen.core.config)
 
 ;; Hook d'environnement : par défaut, lit l'ENV réel
 (defparameter *getenv-fn* #'uiop:getenv)
+
+;; Valeur par défaut intelligente
+(defparameter *tmp-dir* (merge-pathnames "lumen_spool/" (uiop:temporary-directory))
+  "Dossier par défaut pour les fichiers temporaires (Uploads).")
 
 (defun %env (name)
   (funcall *getenv-fn* name))

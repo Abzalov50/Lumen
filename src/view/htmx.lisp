@@ -13,9 +13,18 @@
            ;; Méthodes génériques pour le theming
            :render-htmx-index
            :render-htmx-form
-           :render-htmx-show))
+   :render-htmx-show
+   :add-htmx-trigger))
 
 (in-package :lumen.view.htmx)
+
+(defun add-htmx-trigger (triggers &optional (req lumen.core.http:*request*))
+  "Ajoute un ou plusieurs événements au header HX-Trigger.
+   TRIGGERS peut être une string simple ou une alist/plist pour du JSON."
+  (let ((value (if (stringp triggers)
+                   triggers
+                   (cl-json:encode-json-to-string triggers))))
+    (lumen.core.http:add-header "HX-Trigger" value)))
 
 ;;; ===========================================================================
 ;;; 1. UI METADATA HELPERS
@@ -72,105 +81,333 @@
 ;;; 2. VIEW RENDERERS (Customisables via defmethod)
 ;;; ===========================================================================
 (defgeneric render-htmx-index (entity-sym items base-url columns
-			       &key count page total-pages sort dir q title
-				 current-filters)
-  (:documentation "Affiche la page liste. Gère intelligemment le mode Full Page vs HTMX Fragment.")
+                               &key req id count page total-pages sort dir q title
+				 current-filters layout mode search-url filter-fields
+				 persistence-id force-partial)
+  (:documentation "Affiche la page liste avec support natif HTMX (Swap OOB)."))
+
+;; 2. Implémentation de la Méthode
+(defmethod render-htmx-index (entity-sym items base-url columns
+                              &key req (id "entity-table") (count 0) (page 1) (total-pages 1)
+                                   (sort "created_at") (dir "desc") (q "") title
+                                   (current-filters nil) (layout t) (mode :default)
+                                   (search-url nil) (filter-fields nil) (persistence-id nil)
+                                   (force-partial nil))
+  
+  (let* ((headers (if req (lumen.core.http:req-headers req) nil))
+         (is-htmx (or force-partial (cdr (assoc "hx-request" headers :test #'string-equal))))
+         (target  (cdr (assoc "hx-target" headers :test #'string-equal)))
+         
+         (container-id (format nil "~A-container" id))
+         (tbody-id (format nil "~A-body" id))
+         (form-id (format nil "~A-form" id))
+         
+         (sort-str (string-downcase (or sort "created_at")))
+         (dir-str (string-upcase (or dir "desc")))
+         (data-endpoint (if (eq mode :remote) (or search-url (format nil "~A/rows" base-url)) base-url))
+         (current-data-url (format nil "~A?q=~A&sort=~A&dir=~A" data-endpoint q sort-str dir-str))
+         (all-fields (lumen.data.dao:entity-fields entity-sym))
+         (visible-filters (if filter-fields
+                              (remove-if-not (lambda (f) (member (getf f :col) filter-fields)) all-fields)
+                              (remove-if (lambda (f) (or (getf f :hidden?) (member (getf f :col) '(:id :password :secret) :test #'eq))) all-fields))))
+
+    (labels ((render-rows ()
+               (spinneret:with-html-string 
+                 (if items
+                     (dolist (row items)
+                       (lumen.view.table::render-row row columns base-url))
+                     (:tr (:td :colspan (length columns) :class "text-center py-5 text-muted" "Aucun élément trouvé.")))))
+             
+             (render-content-block ()
+               ;; On capture le contenu du tableau dans une string
+               (spinneret:with-html-string
+                 (:form :id form-id :class "mb-3" :method "GET" :action base-url
+                        (:input :type "hidden" :name "sort" :value sort-str)
+                        (:input :type "hidden" :name "dir" :value dir-str)
+                        (:div :class "row g-2 mb-2"
+                              (:div :class "col-md-4"
+                                    (:div :class "input-group"
+                                          (:span :class "input-group-text bg-white" (:i :class "bi bi-search"))
+                                          (:input :type "search" :name "q" :class "form-control" 
+                                                  :placeholder "Recherche..." :value q
+                                                  :hx-get data-endpoint :hx-trigger "keyup changed delay:500ms, search"
+                                                  :hx-target (format nil "#~A" tbody-id) :hx-swap "innerHTML"
+                                                  :hx-include (format nil "#~A" form-id))))
+                              (:div :class "col-auto ms-auto"
+                                    (:button :type "button" :class "btn btn-outline-secondary btn-sm"
+                                             :onclick (format nil "localStorage.removeItem('~A'); window.location.href='~A';" (or persistence-id "") base-url)
+                                             (:i :class "bi bi-x-lg me-1") "Effacer")))
+                        (when visible-filters
+                          (:details :class "border rounded px-3 py-2 bg-white shadow-sm mt-2"
+                                    :open (if (> (length current-filters) 0) "true" nil)
+                                    (:summary :class "small text-primary fw-bold cursor-pointer mb-2" :style "cursor: pointer; list-style: none;"
+                                              (:i :class "bi bi-funnel me-1") "Filtres avancés")
+                                    (:div :class "row g-3"
+                                          (dolist (field visible-filters)
+                                            (lumen.view.components::render-filter-widget 
+                                             field current-filters :hx-get data-endpoint :hx-target (format nil "#~A" tbody-id) 
+                                             :hx-include (format nil "#~A" form-id)))))))
+
+                 (:div :class "card shadow-sm"
+                       (:div :class "table-responsive"
+                             (:table :class "table table-hover align-middle mb-0"
+                                     (:thead :class "table-light"
+                                             (:tr (dolist (c columns)
+                                                    (lumen.view.table::render-header-col c sort-str dir-str data-endpoint container-id))))
+                                     (:tbody :id tbody-id
+                                             :hx-get (if (eq mode :remote) current-data-url "")
+                                             :hx-trigger (if (eq mode :remote) "load" "")
+                                             :hx-target "this" :hx-include (format nil "#~A" form-id)
+                                             (if (eq mode :remote)
+                                                 (:tr (:td :colspan (length columns) :class "text-center py-5"
+                                                           (:div :class "spinner-border text-primary")))
+                                                 (:raw (render-rows))))))
+                       (:div :id (format nil "~A-pagination" id)
+                             (unless (eq mode :remote)
+                               (lumen.view.table::render-pagination 
+                                (list :page page :total-pages total-pages :total-items count)
+                                data-endpoint container-id (format nil "#~A" form-id)))))
+                 
+                 (when persistence-id
+                   (:script (:raw (format nil "(function(){ try { const k='~A', f=document.getElementById('~A'); const s=JSON.parse(localStorage.getItem(k)); if(s) Object.keys(s).forEach(n=>{ const el=f.querySelector(`[name='${n}']`); if(el) el.value=s[n]; }); document.body.addEventListener('htmx:configRequest', e=>{ if(e.detail.elt.closest(`#${f.id}`)) localStorage.setItem(k, JSON.stringify({...JSON.parse(localStorage.getItem(k)||'{}'), ...e.detail.parameters})); }); } catch(e){} })();" persistence-id form-id)))))))
+
+      ;; --- RETOUR ---
+      (cond
+        ;; Cas A: Recherche -> Lignes seules
+        ((and is-htmx (string-equal target tbody-id))
+         (render-rows))
+
+        ;; Cas B & C: Pagination ou Page complète -> On renvoie TOUJOURS LE WRAPPER
+        (t
+         (let ((full-html 
+                 (spinneret:with-html-string 
+                   (:div :id container-id ;; LE WRAPPER EST TOUJOURS LÀ
+                         (:raw (render-content-block))))))
+           
+           (if (and layout (not is-htmx)) ;; Layout seulement si ce n'est pas du HTMX
+               (lumen.view.html:with-layout (:title (or title "Liste"))
+                 (:div :class "container-fluid py-4"
+                       (:div :class "d-flex justify-content-between align-items-center mb-4"
+                             (:h2 (:i :class "bi bi-table me-2") (or title "Liste"))
+                             (:a :class "btn btn-primary" :href (format nil "~A/new" base-url) (:i :class "bi bi-plus-lg") " Nouveau"))
+                       (:raw full-html)))
+               full-html)))))))
+#|
+(defgeneric render-htmx-index (entity-sym items base-url columns
+                               &key count page total-pages sort dir q title
+                               current-filters layout mode search-url filter-fields persistence-id)
+  (:documentation "Affiche la page liste. Si :layout nil, affiche seulement le composant table+filtres.")
   
   (:method (entity-sym items base-url columns
-	    &key (count 0) (page 1) (total-pages 1) 
-	      (sort :created_at) (dir :desc) (q "") title
-	      ;; On récupère l'alist des filtres actuels (passée par le controller)
-              (current-filters nil))
+                                &key (count 0) (page 1) (total-pages 1) 
+                                     (sort :created_at) (dir :desc) (q "") title
+                                     (current-filters nil)
+                                     (layout t)
+                                     (mode :default)     ;; :default | :remote
+                                     (search-url nil)   ;; URL pour les rows en mode remote
+                                     (filter-fields nil) ;; Liste des colonnes à filtrer
+                                     (persistence-id nil))
+  (let* ((page-title (or title (%ui-plural entity-sym)))
+         (sort-str (string-downcase sort))
+         (dir-str (string-upcase dir))
+         (fields (lumen.data.dao:entity-fields entity-sym))
+         ;; Filtrage intelligent des champs de recherche
+         (visible-filters 
+          (if filter-fields
+              (remove-if-not (lambda (f) (member (getf f :col) filter-fields)) fields)
+              (remove-if (lambda (f) 
+                           (or (getf f :hidden?) 
+                               (member (getf f :col) '(:id :tenant-id :password :secret) :test #'eq)))
+                         fields)))
+         (data-url (or search-url (format nil "~A/rows" base-url)))
+         (pid (or persistence-id (format nil "table-state-~A" (string-downcase entity-sym)))))
+
+    (flet ((render-dynamic-content ()
+             (spinneret:with-html
+               (:div :id "entity-table-container"
+                     ;; --- FORMULAIRE UNIFIÉ ---
+                     (:form :id "table-filters-form" :class "mb-3"
+                            :hx-get (if (eq mode :remote) data-url base-url)
+                            :hx-target (if (eq mode :remote) "#entity-table-container-body" "#entity-table-container")
+                            :hx-swap (if (eq mode :remote) "innerHTML" "outerHTML")
+                            :hx-trigger "submit, change delay:300ms"
+                            
+                            ;; État persistant (Hidden)
+                            (:input :type "hidden" :name "sort" :value sort-str)
+                            (:input :type "hidden" :name "dir" :value dir-str)
+                            (:input :type "hidden" :name "page" :value page)
+
+                            (:div :class "row g-2 mb-2"
+                                  (:div :class "col-md-4"
+                                        (:div :class "input-group"
+                                              (:span :class "input-group-text bg-white" (:i :class "bi bi-search"))
+                                              (:input :type "search" :name "q" :class "form-control" 
+                                                      :placeholder "Recherche globale..." :value q)))
+                                  
+                                  ;; BOUTON RESET
+                                  (:div :class "col-auto ms-auto"
+                                        (:button :type "button" :class "btn btn-outline-secondary btn-sm"
+                                                 :onclick "const f=this.form; f.reset(); f.querySelectorAll('input[type=hidden]').forEach(i=>i.value=''); htmx.trigger(f, 'submit')"
+                                                 (:i :class "bi bi-x-lg me-1") "Effacer")))
+
+                            ;; FILTRES DANS DETAILS
+                            (when visible-filters
+                              (:details :class "border rounded px-3 py-2 bg-white shadow-sm"
+                                        :open (if (> (length current-filters) 0) "true" nil)
+                                        (:summary :class "small text-primary fw-bold cursor-pointer mb-2" 
+                                                  :style "cursor: pointer; list-style: none;"
+                                                  (:i :class "bi bi-funnel me-1") "Filtres avancés")
+                                        (:div :class "row g-3"
+                                              (dolist (f visible-filters)
+                                                (lumen.view.components:render-filter-widget f current-filters))))))
+
+                     ;; --- APPEL AU DATAGRID ---
+                     (lumen.view.table:render-datagrid items columns 
+                                                      :id "entity-table-container"
+                                                      :source-url data-url
+                                                      :mode mode
+                                                      :current-sort sort-str 
+                                                      :current-dir dir-str
+                                                      :pagination (list :page page :total-pages total-pages :total-items count)
+                                                      :empty-message (format nil "Aucun élément de type '~A' trouvé." (%ui-label entity-sym))))
+               
+               ;; SCRIPT DE PERSISTENCE (Spécifique au mode Remote)
+               (when (eq mode :remote)
+                 (:script (:raw (format nil "
+                    (function() {
+                      const KEY = '~A';
+                      const form = document.getElementById('table-filters-form');
+                      // Restauration...
+                      const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+                      Object.keys(saved).forEach(k => {
+                        const el = form.querySelector(`[name='${k}']`);
+                        if(el) el.value = saved[k];
+                      });
+                      // Sauvegarde sur chaque requête...
+                      document.body.addEventListener('htmx:configRequest', (e) => {
+                        if(e.detail.elt.closest('#table-filters-form')) localStorage.setItem(KEY, JSON.stringify(e.detail.parameters));
+                      });
+                      // Helper Tri
+                      window.updateSortAndSubmit = (elt, key, formId) => {
+                        const f = document.getElementById(formId);
+                        const s = f.querySelector('[name=sort]');
+                        const d = f.querySelector('[name=dir]');
+                        if(s.value === key) d.value = (d.value === 'ASC' ? 'DESC' : 'ASC');
+                        else { s.value = key; d.value = 'ASC'; }
+                        htmx.trigger(f, 'submit');
+                      };
+                    })();
+                 " pid)))))))
+
+      ;; --- WRAPPER LAYOUT (Rétrocompatibilité Admin) ---
+      (if layout
+          (lumen.view.html:with-layout (:title page-title)
+             (:div :class "container-fluid py-4"
+                   (unless (lumen.view.html:htmx-target)
+                     (:div :class "d-flex justify-content-between align-items-center mb-4"
+                           (:h2 (:i :class "bi bi-table me-2") page-title)
+                           (:a :class "btn btn-primary" :href (format nil "~A/new" base-url)
+                               (:i :class "bi bi-plus-lg") " " (%ui-new-text entity-sym))))
+                   (render-dynamic-content)))
+          (render-dynamic-content))))))
+|#
+#|
+(defgeneric render-htmx-index (entity-sym items base-url columns
+                               &key count page total-pages sort dir q title
+                               current-filters layout)
+  (:documentation "Affiche la page liste. Si :layout nil, affiche seulement le composant table+filtres.")
+  
+  (:method (entity-sym items base-url columns
+            &key (count 0) (page 1) (total-pages 1) 
+                 (sort :created_at) (dir :desc) (q "") title
+                 (current-filters nil)
+                 (layout t)) ;; <--- Valeur par défaut T
+    
     (let* ((page-title (or title (%ui-plural entity-sym)))
            (sort-str (string-downcase sort))
-	   (fields   (lumen.data.dao:entity-fields entity-sym))
-           (dir-str  (string-upcase dir)))
+           (fields    (lumen.data.dao:entity-fields entity-sym))
+           (dir-str   (string-upcase dir)))
 
-      ;; --- DÉFINITION DU BLOC DYNAMIQUE (Ce qui change lors de la recherche) ---      
+      (format t "~&[HTMX-INDEX] Layout ? ~A~%" layout)
+
+      ;; --- 1. FONCTION LOCALE : LE CONTENU PUR ---
       (flet ((render-dynamic-content ()
-               (with-html
-                 ;; IMPORTANT : Ce DIV porte l'ID ciblé par HTMX.
-                 ;; Lors d'une mise à jour, il se remplacera lui-même grâce à hx-swap="outerHTML"
+               (spinneret:with-html
                  (:div :id "entity-table-container"
-		       ;; --- FORMULAIRE UNIFIÉ (Recherche + Filtres) ---
-		       (:form :class "mb-3"
-			      :hx-get base-url 
-			      :hx-target "#entity-table-container" 
-			      :hx-swap "outerHTML" 
-			      ;; On déclenche la recherche au submit ou au changement d'un filtre
-			      ;; Note: On met un délai pour éviter le spam sur les inputs text
-			      :hx-trigger "submit, change delay:300ms"
+                   ;; Formulaire (Recherche + Filtres)
+                   (:form :class "mb-3"
+                          :hx-get base-url 
+                          :hx-target "#entity-table-container" 
+                          :hx-swap "outerHTML" 
+                          :hx-trigger "submit, change delay:300ms"
                           
-			      ;; Champs cachés pour conserver le tri
-			      (:input :type "hidden" :name "sort" :value sort-str)
-			      (:input :type "hidden" :name "order" :value (format nil "~A:~A" sort-str dir-str))
+                          ;; Preservation des tris
+                          (:input :type "hidden" :name "sort" :value sort-str)
+                          (:input :type "hidden" :name "order" :value (format nil "~A:~A" sort-str dir-str))
                           
-			      ;; 1. BARRE PRINCIPALE (Recherche globale)
-			      (:div :class "row g-2 mb-2"
-				    (:div :class "col-md-4"
-					  (:div :class "input-group"
-						(:span :class "input-group-text bg-white" (:i :class "bi bi-search"))
-						(:input :type "search" :name "q" :class "form-control" 
-							:placeholder "Recherche globale..." :value q)))
+                          ;; Barre de recherche et filtres
+                          (:div :class "row g-2 mb-2"
+                            (:div :class "col-md-4"
+                              (:div :class "input-group"
+                                (:span :class "input-group-text bg-white" (:i :class "bi bi-search"))
+                                (:input :type "search" :name "q" :class "form-control" 
+                                        :placeholder "Recherche globale..." :value q)))
                             
-				    ;; Bouton Reset (Lien simple qui recharge la page sans params)
-				    (:div :class "col-auto ms-auto"
-					  (:button :type "button" 
-						   :class "btn btn-outline-secondary btn-sm"
-						   ;; On appelle l'URL de base (sans params)
-						   :hx-get base-url 
-						   ;; On cible le même conteneur que le formulaire
-						   :hx-target "#entity-table-container" 
-						   ;; On remplace tout le bloc
-						   :hx-swap "outerHTML"
-						   ;; On évite d'ajouter cette action 'technique' à l'historique (optionnel)
-						   :hx-push-url "true"
-                                       
-						   (:i :class "bi bi-x-lg me-1") "Effacer les filtres")))
+                            (:div :class "col-auto ms-auto"
+                              (:button :type "button" 
+                                       :class "btn btn-outline-secondary btn-sm"
+                                       :hx-get base-url 
+                                       :hx-target "#entity-table-container" 
+                                       :hx-swap "outerHTML"
+                                       :hx-push-url "true"
+                                       (:i :class "bi bi-x-lg me-1") "Effacer")))
 
-			      ;; 2. FILTRES AVANCÉS (Collapsible)
-			      ;; On ouvre automatiquement si un filtre est actif (hors q, sort, order, page...)
-			      (:details :class "border rounded px-3 py-2 bg-white shadow-sm"
-					:open (if (> (length current-filters) 0) "true" nil)
-					(:summary :class "small text-primary fw-bold cursor-pointer mb-2" 
-						  :style "cursor: pointer; list-style: none;"
-						  (:i :class "bi bi-funnel me-1") "Filtres par colonnes")
-                            
-					(:div :class "row g-3"
-					      (dolist (f fields)
-						;; On ne génère pas de filtre pour ID, Tenant, ou les champs cachés
-						(unless (or (getf f :hidden?) 
-							    (member (getf f :col) '(:id :tenant-id :password :secret) :test #'eq))
-						  ;; current-filters est une alist : (("status" . "todo") ...)
-						    
-						  (render-filter-widget f current-filters))))))
-		       (lumen.view.table:render-datagrid items columns 
-							 :id "entity-table-container" ;; ID utilisé pour les liens de tri interne
-							 :source-url base-url
-							 :current-sort sort-str 
-							 :current-dir dir-str
-							 :pagination (list :page page :total-pages total-pages :total-items count)
-							 :empty-message (format nil "Aucun élément de type '~A' trouvé." (%ui-label entity-sym)))))))
+                          ;; Filtres dynamiques
+                          (:details :class "border rounded px-3 py-2 bg-white shadow-sm"
+                                    :open (if (> (length current-filters) 0) "true" nil)
+                                    (:summary :class "small text-primary fw-bold cursor-pointer mb-2" 
+                                              :style "cursor: pointer; list-style: none;"
+                                              (:i :class "bi bi-funnel me-1") "Filtres par colonnes")
+                                    (:div :class "row g-3"
+                                          (dolist (f fields)
+                                            (unless (or (getf f :hidden?) 
+                                                        (member (getf f :col) '(:id :tenant-id :password :secret) :test #'eq))
+                                              (lumen.view.components:render-filter-widget f current-filters))))))
+                   
+                   ;; La Grille de Données
+                   (lumen.view.table:render-datagrid items columns 
+                                                     :id "entity-table-container"
+                                                     :source-url base-url
+                                                     :current-sort sort-str 
+                                                     :current-dir dir-str
+                                                     :pagination (list :page page :total-pages total-pages :total-items count)
+                                                     :empty-message (format nil "Aucun élément de type '~A' trouvé." (%ui-label entity-sym)))))))
 
-        ;; --- LOGIQUE DE BRANCHEMENT ---
-	(let ((target (lumen.view.html:htmx-target)))
-          (with-layout (:title page-title)
-	    (unless target 
-	      ;; Breadcrumbs
-	      (:nav :aria-label "breadcrumb" :class "mb-5"
+        ;; --- 2. LOGIQUE D'AFFICHAGE ---
+        (if layout
+            ;; MODE PAGE COMPLETE (Admin standard)
+            (let ((target (lumen.view.html:htmx-target)))
+              (with-layout (:title page-title)
+                (unless target 
+                  ;; Breadcrumbs et Titre H2 seulement si pas HTMX
+                  (:nav :aria-label "breadcrumb" :class "mb-5"
                     (:ol :class "breadcrumb"
-			 (:li :class "breadcrumb-item" (:a :href "/" "Accueil"))
-			 (:li :class "breadcrumb-item active" page-title)))
-
-	      ;; Titre H2 + Bouton New
-	      (:div :class "d-flex justify-content-between align-items-center mb-4"
+                      (:li :class "breadcrumb-item" (:a :href "/" "Accueil"))
+                      (:li :class "breadcrumb-item active" page-title)))
+                  
+                  (:div :class "d-flex justify-content-between align-items-center mb-4"
                     (:h2 (:i :class "bi bi-table me-2") page-title)
                     (:a :class "btn btn-primary" 
-			:href (format nil "~A/new" base-url)
-			(:i :class "bi bi-plus-lg") " " (%ui-new-text entity-sym))))
-              
-	    ;; Insertion du bloc dynamique
-	    (render-dynamic-content)))))))
+                        :href (format nil "~A/new" base-url)
+                        (:i :class "bi bi-plus-lg") " " (%ui-new-text entity-sym))))
+                
+                ;; Contenu
+                (render-dynamic-content)))
+            
+            ;; MODE PARTIEL (Intégration Dashboard)
+            ;; On rend juste le contenu dynamique, sans wrapper, sans titre H2
+            (render-dynamic-content))))))
+|#
 
 (defgeneric render-htmx-show (entity-sym item base-url &key title)
   (:method (entity-sym item base-url &key title)
@@ -251,7 +488,7 @@
               :cancel-url cancel-url
               ;; Important : Le formulaire doit se remplacer lui-même
               :hx-swap "outerHTML"))))
-    
+    ;;(print (list :form-content form-content))
     ;; 2. LOGIQUE DE DÉCISION
     (if (htmx-request-p)
         ;; CAS HTMX (Erreur de validation) : 
@@ -271,7 +508,44 @@
                    (:h4 :class "mb-0 card-title" title))
                  (:div :class "card-body"
                    ;; On injecte le formulaire ici
-                   (:raw form-content)))))))))
+                       (:raw form-content)))))))))
+
+(defmethod render-htmx-form ((entity-sym symbol) action method cancel-url &key values errors title)
+  ;; 1. CAPTURE HYBRIDE INFALLIBLE
+  (let ((form-content 
+         (spinneret:with-html-string
+           (let ((result (lumen.view.form:render-entity-form entity-sym 
+                             :action action 
+                             :method method
+                             :values values
+                             :errors errors
+                             :submit-text "Enregistrer"
+                             :cancel-url cancel-url
+                             :hx-swap "outerHTML")))
+             ;; Sécurité : Si render-entity-form retourne explicitement la chaîne 
+             ;; au lieu de l'écrire dans le flux, on la force dans le flux via :raw
+             (when (and (stringp result) (> (length result) 0))
+               (:raw result))))))
+    
+    ;; Vérification anti-panique dans la console
+    (when (str:blank? form-content)
+      (format t "~&[WARN] render-entity-form a généré un contenu vide pour ~A~%" entity-sym))
+
+    ;; 2. LOGIQUE DE DÉCISION
+    (if (htmx-request-p)
+        ;; CAS HTMX : On retourne simplement la chaîne HTML capturée
+        form-content
+        
+        ;; CAS STANDARD : On englobe dans le layout complet
+        (lumen.view.html:with-layout (:title title)
+             (:div :class "row justify-content-center"
+               (:div :class "col-md-8 col-lg-6"
+                 (:div :class "card shadow-sm"
+                   (:div :class "card-header bg-white py-3"
+                     (:h4 :class "mb-0 card-title" title))
+                   (:div :class "card-body"
+                     ;; On injecte le formulaire capturé
+                     (:raw form-content)))))))))
 
 ;;; ===========================================================================
 ;;; 3. HANDLERS (Logique de contrôle)
@@ -348,7 +622,7 @@
                (loop for (key . val) in raw-filters
                      unless (member key '("tenant_id" "tenant-id") :test #'string=)
                      when (and (stringp val) (> (length val) 0)) ;; Chaînes vides ignorées
-                     collect (cons 
+                     collect (cons
                               (cond 
                                 ((string= key "q") key)
                                 ;; GESTION INTELLIGENTE DES SUFFIXES
@@ -563,7 +837,7 @@
     (when auth-guard (funcall auth-guard req :op :create))
     (let (;;(base-url (format nil "/~As" (string-downcase entity-sym)))
 	  )
-      (print "IN %handle-htmx-new")
+     ;; (print "IN %handle-htmx-new")
       (respond-html
        (render-htmx-form entity-sym index-url :POST index-url
                          :title (or title (%ui-new-text entity-sym)))))))
@@ -631,6 +905,7 @@
          (base-edit  (format nil "~a/:id/edit" base-root))
          
          (forms '()))
+    (declare (ignore _))
 
     (format t "~&[HTMX-RESOURCE] BASE: ~A~%SEG: ~A~%BASE ROOT: ~A~%BASE NEW: ~A~%" base seg base-root base-item)
     (format t "~&[HTMX-RESOURCE] ACTIONS: ~A~%" actions)

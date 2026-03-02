@@ -1,5 +1,5 @@
 (defpackage :lumen.admin.audit
-  (:use :common-lisp :lumen.utils)
+  (:use :common-lisp :spinneret :lumen.utils)
   (:export :render-audit-view :render-diff-detail))
 
 (in-package :lumen.admin.audit)
