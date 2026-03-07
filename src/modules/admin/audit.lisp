@@ -33,9 +33,9 @@
                   (:tr 
                     (:td :class "fw-bold font-monospace text-muted" key)
                     (:td :class "text-danger bg-danger bg-opacity-10 text-break" 
-                         (escape-string (princ-to-string old)))
+                         (spinneret::escape-string (princ-to-string old)))
                     (:td :class "text-success bg-success bg-opacity-10 text-break" 
-                         (escape-string (princ-to-string new))))))))
+                         (spinneret::escape-string (princ-to-string new))))))))
           
           (:div :class "text-muted font-italic" "Aucun changement enregistré (ou création brute).")))))
 

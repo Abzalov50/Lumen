@@ -396,9 +396,11 @@
                (setf flexi (make-http-stream client :ssl ssl))
                
                (loop while alive do
-                 ;; Timeout de lecture pour éviter les Slowloris
-                 (unless (usocket:wait-for-input client :timeout *keep-alive-timeout*)
-                   (setf alive nil) (return))
+		 ;; FIX ARCHITECTURAL : On regarde d'abord le buffer interne (listen) 
+                  ;; avant de bloquer sur le socket matériel (usocket)
+                  (unless (or (listen flexi)
+                              (usocket:wait-for-input client :timeout *keep-alive-timeout*))
+                    (setf alive nil) (return))
                  
                  (multiple-value-bind (method uri http-ver) (read-request-line flexi)
                    (unless method (setf alive nil) (return))

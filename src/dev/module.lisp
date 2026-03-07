@@ -6,7 +6,7 @@
   (:import-from :lumen.data.dao :defentity :register-entity-meta-only!)
   (:import-from :lumen.http.crud :make-entity-crud-guard :mount-crud!)
   (:import-from :lumen.core.pipeline :execute-middleware-chain)
-  (:export :defmodule :find-module :get-modules
+  (:export :defmodule :define-proxy-module :find-module :get-modules
            :module-meta-path-prefix :module-meta-name :module-meta-doc
            :module-meta-entities :module-meta-resources :module-meta-routes))
 
@@ -300,3 +300,18 @@
            ,@(loop for (entity-sym . entity-hooks) in hooks appending
 							    (loop for hook-def in entity-hooks collect
 											       (%expand-hook entity-sym hook-def))))))))
+
+
+(defmacro define-proxy-module (module-name host path-prefix target-url)
+  "Génère les routes exactes et wildcards sans JAMAIS altérer le chemin."
+  (let* ((methods '(:GET :POST :PUT :DELETE :PATCH))
+         (paths (if (string= path-prefix "/")
+                    '("/" "/*")
+                    (list path-prefix (format nil "~A/*" path-prefix))))
+         (routes '()))
+    (dolist (m methods)
+      (dolist (p paths)
+        (push `(,m ,p (req) (funcall (lumen.http.proxy:proxy-pass ,target-url) req)) routes)))
+    `(defmodule ,module-name
+       :host ,host
+       :routes ,(reverse routes))))

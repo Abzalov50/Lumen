@@ -35,5 +35,5 @@
                    (:tbody 
                      (dolist (row result)
                        (:tr (dolist (k cols) 
-                              (:td (escape-string 
+                              (:td (spinneret::escape-string 
                                     (princ-to-string (alist-get row k))))))))))))))))))

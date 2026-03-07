@@ -6,4 +6,9 @@
   (pushnew :uuid *features*)
   (pushnew :local-time *features*)
   (pushnew :cl+ssl *features*)
+
+  (pushnew "hx-" spinneret:*unvalidated-attribute-prefixes* :test #'string-equal)
+  (pushnew "accept" spinneret:*unvalidated-attribute-prefixes* :test #'string-equal)
+  (pushnew "minlength" spinneret:*unvalidated-attribute-prefixes* :test #'string-equal)
+  (pushnew "width" spinneret:*unvalidated-attribute-prefixes* :test #'string-equal)
   )

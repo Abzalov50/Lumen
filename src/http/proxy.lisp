@@ -19,11 +19,11 @@
         p)))
 
 (defun %clean-headers-for-upstream (headers)
-  "Nettoie les headers (Alist) pour l'upstream.
-   On retire Host (recalculé par Dexador) et Content-Length (recalculé)."
+  "Nettoie les headers (Alist) pour l'upstream."
   (remove-if (lambda (pair)
                (member (car pair) 
-                       '("host" "content-length" "transfer-encoding" "connection") 
+                       ;; ON A RETIRÉ "host" DE CETTE LISTE !
+                       '("content-length" "transfer-encoding" "connection") 
                        :test #'string-equal))
              headers))
 
@@ -47,52 +47,113 @@
          buffer)))))
 
 ;;; 2. CŒUR DU PROXY
+;; Note: On autorise "accept-encoding" et "content-encoding" à passer.
+;; Le proxy va streamer les données compressées (GZIP) sans essayer de les lire, c'est infiniment plus rapide.
+;; LE BOUCLIER ANTI-GZIP EST LA CLÉ
+;; LE BOUCLIER ANTI-GZIP (Toujours vital pour que Dexador et le navigateur ne s'emmêlent pas les pinceaux)
+(defparameter *hop-by-hop*
+  '("connection" "keep-alive" "proxy-authenticate" "proxy-authorization"
+    "te" "trailers" "transfer-encoding" "upgrade" "content-length"
+    "accept-encoding" "content-encoding"))
 
-(defun proxy-pass (target-base-url &key (timeout 10))
-  "Retourne un Handler (Lambda) compatible avec Lumen."
+;;; ===================================================================
+;;; LA MACRO STANDARD
+;;; ===================================================================
+(defmacro define-proxy-module (module-name host path-prefix target-url)
+  (let* ((methods '(:GET :POST :PUT :DELETE :PATCH))
+         (paths (if (string= path-prefix "/")
+                    '("/" "/*")
+                    (list path-prefix (format nil "~A/*" path-prefix))))
+         (routes '()))
+    (dolist (m methods)
+      (dolist (p paths)
+        (push `(,m ,p (req) (funcall (lumen.http.proxy:proxy-pass ,target-url) req)) routes)))
+    `(defmodule ,module-name
+       :host ,host
+       :routes ,(reverse routes))))
+
+;;; ===================================================================
+;;; LE PROXY SYNCHRONE PERFORMANT (Natif Lumen)
+;;; ===================================================================
+(defun proxy-pass (target-base-url &key (timeout 30))
   (lambda (req)
-    (let* ((method  (req-method req)) ;; Keyword ou String, Dexador accepte les deux
-           ;; Construction de l'URL cible : Target + Path + Query
-           (final-url (format nil "~A~A" 
-                              (string-right-trim "/" target-base-url) 
-                              (%reconstruct-uri req)))
-           (headers (%clean-headers-for-upstream (req-headers req)))
-           ;; Lecture sûre du body
-           (body    (%safe-read-body req)))
+    (handler-case
+        (let* ((method (intern (string-upcase (string (req-method req))) "KEYWORD"))
+               (uri (%reconstruct-uri req))
+               (final-url (format nil "~A~A" (string-right-trim "/" target-base-url) uri))
+               (raw-req-headers (req-headers req))
+               (clean-req-headers '()))
 
-      (handler-case
-          (multiple-value-bind (resp-body status resp-headers)
-              (dex:request final-url
-                           :method method
-                           :headers headers
-                           :content body ;; ByteArray ou NIL
-                           :use-connection-pool t
-                           :keep-alive t
-                           :connect-timeout timeout
-                           :read-timeout timeout
-                           :ignore-status t) ;; On veut traiter les 404/500 nous-mêmes
-            
-            ;; Conversion des headers Dexador (Hash-Table) vers Alist pour Lumen
-            (let ((lumen-headers '()))
-              (maphash (lambda (k v) 
-                         (push (cons (string-downcase k) v) lumen-headers))
-                       resp-headers)
-              
-              ;; On retourne un objet RESPONSE standard Lumen
-              (make-instance 'lumen.core.http:response 
-                             :status status
-                             :headers lumen-headers
-                             :body resp-body)))
+          ;; On prévient Lumen que le tuyau entrant est propre pour le Keep-Alive
+          (lumen.core.http:ctx-set! req :body-consumed t)
 
-        ;; Gestion des erreurs de connexion (Cible éteinte, DNS fail...)
-        (usocket:socket-condition (e)
-          (declare (ignore e))
-          (lumen.core.http:respond-json 
-           '((:error . "Bad Gateway") (:message . "Upstream unreachable"))
-           :status 502))
-        
-        (error (e)
-          (format t "~&[Proxy Error] ~A~%" e)
-          (lumen.core.http:respond-json 
-           '((:error . "Proxy Internal Error"))
-           :status 500))))))
+          (flet ((process-header (k v)
+                   (let ((h (string-downcase (string k))))
+                     (unless (member h *hop-by-hop* :test #'string-equal)
+                       (if (listp v)
+                           (dolist (vv v) (push (cons h (princ-to-string vv)) clean-req-headers))
+                           (push (cons h (princ-to-string v)) clean-req-headers))))))
+            (if (hash-table-p raw-req-headers)
+                (maphash #'process-header raw-req-headers)
+                (dolist (kv raw-req-headers)
+                  (process-header (car kv) (cdr kv)))))
+
+          (let* ((headers (append clean-req-headers
+                                  (list (cons "X-Forwarded-Proto" "https")
+                                        (cons "X-Forwarded-Port" "443"))))
+                 (cl-header (if (hash-table-p raw-req-headers)
+                                (gethash "content-length" raw-req-headers)
+                                (cdr (assoc "content-length" raw-req-headers :test #'string-equal))))
+                 (has-body (and cl-header (> (or (parse-integer (princ-to-string cl-header) :junk-allowed t) 0) 0)))
+                 (in-body (if has-body (%safe-read-body req) nil)))
+
+            (multiple-value-bind (out-body status out-hdrs-ht)
+                (handler-case
+                    (dex:request final-url
+                                 :method method
+                                 :headers headers
+                                 :content in-body
+                                 :use-connection-pool nil
+                                 :keep-alive nil
+                                 :connect-timeout timeout
+                                 :read-timeout timeout
+                                 :max-redirects 0
+                                 :force-binary t)
+                  (dex:http-request-failed (e)
+                    (values (dex:response-body e) (dex:response-status e) (dex:response-headers e))))
+
+              (let ((lumen-headers '()))
+                (when out-hdrs-ht
+                  (maphash (lambda (k v)
+                             (let ((h (string-downcase (string k))))
+                               (unless (member h *hop-by-hop* :test #'string-equal)
+                                 (let ((v-list (if (listp v) v (list v))))
+                                   (dolist (vv v-list)
+                                     (push (cons h (princ-to-string vv)) lumen-headers))))))
+                           out-hdrs-ht))
+
+                (let ((final-body 
+                       (cond ((or (null out-body) (eq out-body nil)) 
+                              (make-array 0 :element-type '(unsigned-byte 8)))
+                             ((typep out-body '(simple-array (unsigned-byte 8) (*))) 
+                              out-body)
+                             ((typep out-body '(vector (unsigned-byte 8)))
+                              (let* ((len (length out-body))
+                                     (arr (make-array len :element-type '(unsigned-byte 8))))
+                                (replace arr out-body)
+                                arr))
+                             ((stringp out-body)
+                              (ignore-errors (trivial-utf-8:string-to-utf-8-bytes out-body)))
+                             (t (make-array 0 :element-type '(unsigned-byte 8))))))
+
+                  (make-instance 'lumen.core.http:response
+                                 :status status
+                                 :headers lumen-headers
+                                 :body final-body))))))
+      
+      (error (e)
+        (format t "~&[FATAL PROXY ERROR] ~A~%" e)
+        (make-instance 'lumen.core.http:response
+                       :status 502
+                       :headers '(("content-type" . "text/plain"))
+                       :body "502 Bad Gateway - Le backend a echoue.")))))

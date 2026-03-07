@@ -167,12 +167,25 @@
     (lumen.core.scheduler:schedule-cron :sys-gc-temp-files (* 24 3600) nil)
       
     ;; 4. Démarrage du serveur
-    (setf (app-listeners app)
-          (lumen.core.server:start 
-           :port (app-port app)
-           :handler handler-fn)))
+    (let ((ssl-enabled (getf (app-config app) :ssl nil))
+          (ssl-port    (getf (app-config app) :ssl-port 8443))
+          (cert-file   (getf (app-config app) :cert-file nil))
+          (key-file    (getf (app-config app) :key-file nil)))
+      
+      (setf (app-listeners app)
+            (lumen.core.server:start 
+             :port (app-port app)
+             :handler handler-fn
+             ;; --- NOUVEAUX PARAMÈTRES INJECTÉS ---
+             :ssl ssl-enabled
+             :ssl-port ssl-port
+             :cert-file cert-file
+             :key-file key-file))))
   
-  (format t "~&[APP] ~A started on port ~A.~%" (app-name app) (app-port app)))
+  ;; Même punition ici, on lit (app-config app) directement
+  (format t "~&[APP] ~A started on port ~A (SSL: ~A).~%" 
+          (app-name app) (app-port app) (if (getf (app-config app) :ssl nil) "ON" "OFF")) 
+  )
 
 (defun reload! (app)
   "Recharge la configuration et les routes de l'application SANS couper le serveur."

@@ -249,9 +249,10 @@
 	(let ((real-params
 		(if (and (= 1 (length params))
 			 (listp (first params))
-			 (> (cl-ppcre:count-matches "\\$\\d+" sql) 1))
-                    (first params)
-                    params)))
+			 ;; Correction ici : on compte la longueur de la liste des résultats
+			 (> (length (cl-ppcre:all-matches-as-strings "\\$\\d+" sql)) 1))
+		    (first params)
+		    params)))
         
           (handler-case
               (let ((rows (apply fn real-params)))
