@@ -290,6 +290,81 @@
     
     (http-halt (c) (halt-response c))))
 
+(defun match-and-execute-async (router req)
+  "Cœur du routage asynchrone : Retourne toujours (lambda (responder) ...)"
+  (lambda (responder)
+    (handler-case
+        (let* ((method (req-method req))
+               (path   (req-path req))
+               (match-method
+                (cond ((string= method "HEAD") "GET")
+                      ((string= method "PUT") '("PATCH" "PUT"))
+                      ((string= method "PATCH") '("PATCH" "PUT"))
+                      (t method)))
+               (host   (normalize-host req))
+               (matched nil))
+          
+          (format t "~&[MATCH-ASYNC] METH: ~A | HOST: ~A | PATH: ~A~%" method host path)
+          
+          (cond
+            ;; --- REQUÊTES OPTIONS (CORS) ---
+            ((string= method "OPTIONS")
+             (funcall responder
+                      (if (allowed-methods-for router path)
+                          (respond-options router path)
+                          (respond-404 "Not Found"))))
+            
+            ;; --- ROUTAGE CLASSIQUE ---
+            (t
+             ;; 1. Recherche de la route
+             (loop for r across (router-routes router) do
+               (when (and (if (stringp match-method)
+                              (string= match-method (route-method r))
+                              (member (route-method r) match-method :test #'equal))
+                          (%match-route-host-p r host)
+                          (cl-ppcre:scan (route-pattern r) path))
+                 (setf matched r)
+                 (return)))
+             
+             (if matched
+                 (progn
+                   ;; 2. Extraction des valeurs des paramètres
+                   (let ((param-values 
+                          (multiple-value-bind (full-match regs)
+                              (cl-ppcre:scan-to-strings (route-pattern matched) path)
+                            (declare (ignore full-match))
+                            (if regs (coerce regs 'list) nil))))
+                     
+                     ;; 3. Mise à jour du contexte
+                     (lumen.core.http:ctx-set! req :params 
+                                               (extract-path-params (route-pattern matched)
+                                                                    (route-param-names matched) path))
+                     (lumen.core.http:ctx-set! req :route-pattern (route-pattern matched))
+                     
+                     ;; 4. EXÉCUTION HYBRIDE (La Magie Asynchrone)
+                     (let ((result (apply (route-handler matched) req param-values)))
+                       ;; On vérifie si l'application est asynchrone (Proxy) ou synchrone (API classique)
+                       (if (functionp result)
+                           ;; Le handler est asynchrone : on lui passe le relais (le callback)
+                           (funcall result responder)
+                           ;; Le handler est synchrone : on exécute le callback immédiatement
+                           (funcall responder result)))))
+                 
+                 ;; 5. Pas de route trouvée
+                 (funcall responder
+                          (if (allowed-methods-for router path)
+                              (respond-405 router path)
+                              (respond-404 "Not Found")))))))
+      
+      ;; 6. Gestion du HTTP Halt
+      (http-halt (c)
+        (funcall responder (halt-response c)))
+      
+      ;; 7. Filet de sécurité
+      (error (e)
+        (format t "~&[ROUTER ASYNC ERROR] ~A~%" e)
+        (funcall responder (respond-500 "Internal Router Error"))))))
+
 (defun dispatch (req)
   (match-and-execute *global-router* req))
 

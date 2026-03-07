@@ -311,6 +311,9 @@
    ROBUSTESSE : Vérifie que client n'est pas NIL."
   (unless client 
     (error "make-http-stream called with NIL client"))
+
+  ;; FIX ANTI-SLOWLORIS : Timeout de 10 secondes pour recevoir une requête complète
+  (ignore-errors (usocket:socket-option client :receive-timeout 10))
   
   (let* ((raw (usocket:socket-stream client))
          (base (if ssl
@@ -342,26 +345,19 @@
     (loop
       with headers = '()
       with last-cell = nil
+      with total-header-size = 0 ;; FIX ANTI-OOM
       for line = (read-line stream nil nil)
       do
         (cond
-          ;; EOF sans ligne vide: on retourne ce qu'on a
-          ((null line)
-           (return (nreverse headers)))
-
-          ;; Ligne vide: fin des en-têtes
-          ((blank-line-p line)
-           (return (nreverse headers)))
-
-          ;; Ligne de continuation (obs-fold): commence par espace ou tab
-          ((and (> (length line) 0)
-                (member (char line 0) '(#\Space #\Tab)))
-           (when last-cell
-             (setf (cdr last-cell)
-                   (concatenate 'string (cdr last-cell) " " (trim line)))))
-
-          ;; Nouvelle ligne d'en-tête
+          ((null line) (return (nreverse headers)))
+          ((blank-line-p line) (return (nreverse headers)))
           (t
+           ;; FIX ANTI-OOM : Coupe si les headers dépassent 8 Ko
+           (incf total-header-size (length line))
+           (when (> total-header-size 8192)
+             (error "Headers Too Large (Anti-OOM Triggered)"))
+           
+           ;; ... le reste de votre logique de parsing ...
            (let* ((pos (position #\: line))
                   (raw-name (if pos (subseq line 0 pos) line))
                   (raw-val  (if pos (subseq line (1+ pos)) "")))

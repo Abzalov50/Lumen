@@ -44,6 +44,7 @@
        ;; --- SOCLE LUMEN 2.0 (DÉPLACÉ ICI) ---
        ;; Server utilise tout, donc à la fin
        (:file "server")
+       (:file "server-async")  ;; Version asynchrone extrêmement performante
        (:file "pipeline")    ;; 1. Base (Class middleware)
        
        (:file "middleware" :depends-on ("http" "trace"))  ;; 2. Macros (defmiddleware) + Implems standards
@@ -67,7 +68,8 @@
       :components
       ((:file "session")
        (:file "crud")
-       (:file "proxy")       
+       (:file "proxy")
+       (:file "proxy-async")
        ))
      (:module "extras"
       :components
@@ -146,4 +148,4 @@
   :depends-on (alexandria usocket bordeaux-threads flexi-streams cl-ppcre cl-json
 			  local-time trivial-utf-8 fiveam salza2 ironclad cl-base64
 			  cl+ssl uuid postmodern str dexador spinneret parenscript
-			  quri cl-smtp cl-dates parse-float))
+			  quri cl-smtp cl-dates parse-float lparallel cl-async fast-http slynk))

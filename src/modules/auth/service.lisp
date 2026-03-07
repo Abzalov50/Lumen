@@ -22,7 +22,7 @@
   "Matrice de correspondance entre les Rôles utilisateurs et les Scopes techniques.")
 
 ;; Clé utilisée dans la session data pour stocker l'ID user
-(defparameter *session-user-key* "uid")
+(defparameter *session-user-key* "user-id")
 (defparameter *session-tenant-key* :tid) ;; Si on veut stocker le tenant aussi
 (defparameter *session-impersonator-key* "impersonator_id")
 

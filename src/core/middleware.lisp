@@ -17,7 +17,7 @@
    :cors-middleware :cors-auto :static-middleware :cookie-middleware
    :form-parser-middleware :body-parser-middleware :query-parser-middleware
 	   :request-id-middleware :error-middleware :form-parser-middleware
-   :multipart-parser-middleware :router-middleware
+   :multipart-parser-middleware :router-middleware :router-middleware-async
    :etag-middleware :compression-middleware
 	   :last-modified-middleware :business-error-middleware
 	   :https-redirect-middleware :rate-limit-middleware :timeout-middleware
@@ -1173,6 +1173,28 @@
         ;; Sinon (Match 200, ou 405 Method Not Allowed, ou 404 explicite d'une route)
         ;; On retourne la réponse, on arrête la chaîne ici.
         response)))
+
+(defmiddleware router-middleware-async () (req next)
+  "Middleware de routage asynchrone avec gestion du Pass-Through 404."
+  (lambda (responder)
+    ;; On appelle le routeur, qui nous renvoie sa fonction d'attente
+    (let ((route-task (dispatch-async req))) 
+      
+      ;; On exécute la tâche du routeur en lui fournissant un "faux" responder
+      ;; pour intercepter le résultat avant de l'envoyer au client.
+      (funcall route-task 
+               (lambda (resp)
+                 ;; LOGIQUE DE PASS-THROUGH
+                 (if (and (= (lumen.core.http:resp-status resp) 404)
+                          (equal (lumen.core.http:resp-body resp) "Not Found"))
+                     
+                     ;; Si c'est un vrai 404 "Not Found", on appelle le middleware suivant.
+                     ;; Puisque 'next' est asynchrone, on lui passe le vrai 'responder'.
+                     (let ((next-task (funcall next req)))
+                       (funcall next-task responder))
+                     
+                     ;; Sinon (200, 405, etc.), on renvoie la réponse au client
+                     (funcall responder resp)))))))
 
 (defun %maybe-real-host-from-proxy (req)
   "Si un mw 'trust-proxy' alimente ctx [:real-host], l’utiliser en priorité."
