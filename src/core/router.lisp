@@ -14,6 +14,7 @@
    :%all-routes-registry-list :respond-415 :respond-options
    ;; API Container (Lumen 2.0)
    :create-router :register-module-routes :merge-module-routes :match-and-execute
+   :dispatch :dispatch-async
    :*global-router* :construct-route))
 
 (in-package :lumen.core.router)
@@ -56,6 +57,7 @@
             module-name (length clean-routes))
     clean-routes))
 
+#|
 (defun merge-module-routes (router module-name)
   "Injecte les routes d'un module dans un routeur actif."
   (let ((routes (gethash module-name *module-registry*)))
@@ -63,7 +65,39 @@
       (warn "Module ~A not found in registry (or empty)." module-name))
     (dolist (r routes)
       (add-route-to-router router r))))
+|#
 
+(defun merge-module-routes (router module-name &key app-prefix)
+  "Injecte les routes d'un module dans un routeur actif.
+   Si app-prefix est fourni, recompile la volée les routes pour s'y conformer."
+  (let ((routes (gethash module-name *module-registry*)))
+    (unless routes
+      (warn "Module ~A not found in registry (or empty)." module-name))
+    
+    (dolist (r routes)
+      (if app-prefix
+          ;; CAS A : L'APPLICATION A UN PRÉFIXE
+          (let* ((old-path (route-source-path r))
+                 ;; Concaténation propre : si old-path est "/", on le supprime pour éviter "/holiperf/"
+                 (new-path (format nil "~A~A" 
+                                   (string-right-trim "/" app-prefix)
+                                   (if (string= old-path "/") "" old-path))))
+            
+            ;; 1. On recompile la Regex (pattern) avec le nouveau chemin absolu
+            (multiple-value-bind (rx params) (compile-path new-path)
+              
+              ;; 2. On clone la route originale (généré automatiquement par defstruct route)
+              (let ((cloned-route (copy-route r)))
+                ;; 3. On écrase les attributs du clone avec les nouvelles données
+                (setf (route-pattern cloned-route) (cl-ppcre:create-scanner rx))
+                (setf (route-param-names cloned-route) params)
+                (setf (route-source-path cloned-route) new-path)
+                
+                ;; 4. On ajoute le clone au routeur
+                (add-route-to-router router cloned-route))))
+          
+          ;; CAS B : COMPORTEMENT NORMAL (PAS DE PRÉFIXE)
+          (add-route-to-router router r)))))
 ;;; ===========================================================================
 ;;; 3. COMPATIBILITÉ GLOBALE
 ;;; ===========================================================================
@@ -367,6 +401,47 @@
 
 (defun dispatch (req)
   (match-and-execute *global-router* req))
+
+(defun dispatch-async (req)
+  "Examine la requête, trouve la route correspondante et retourne une tâche asynchrone (CPS)."
+  (lambda (responder)
+    ;; 1. On cherche la route dans la table de routage globale
+    ;; (En supposant une fonction match-route qui renvoie le handler et les paramètres d'URL)
+    (multiple-value-bind (handler params)
+        (match-route (lumen.core.http:req-method req)
+                     (lumen.core.http:req-path req))
+      
+      (if handler
+          ;; ==========================================
+          ;; CAS 1 : ROUTE TROUVÉE
+          ;; ==========================================
+          (progn
+            ;; On injecte les variables d'URL dans la requête (ex: /users/:id -> id)
+            (setf (lumen.core.http:req-params req) params)
+            
+            ;; On exécute la route métier en la protégeant contre les crashs
+            (handler-case
+                (let ((result (funcall handler req)))
+                  
+                  ;; Support Hybride (Sync/Async) :
+                  (if (functionp result)
+                      ;; A. Le handler a renvoyé une tâche asynchrone, on lui passe notre responder
+                      (funcall result responder)
+                      
+                      ;; B. Le handler a renvoyé un objet Réponse (Lisp standard), on répond immédiatement
+                      (funcall responder result)))
+              
+              ;; Interception des crashs dans la route métier
+              (error (e)
+                (format t "~&[ROUTER CRASH] ~A~%" e)
+                (funcall responder (lumen.core.http:respond-500)))))
+          
+          ;; ==========================================
+          ;; CAS 2 : AUCUNE ROUTE (404 PASS-THROUGH)
+          ;; ==========================================
+          ;; C'est ce bloc précis qui sera intercepté par la condition 
+          ;; (= status 404) de votre middleware pour appeler 'next'.
+          (funcall responder (lumen.core.http:respond-404))))))
 
 ;;; ===========================================================================
 ;;; 7. INTROSPECTION

@@ -32,5 +32,9 @@
 ([nil nil ((3735 . 3736)) nil (27052 5273 392645 672000) 0 nil])
 ([nil nil ((nil rear-nonsticky nil 3744 . 3745) (nil fontified nil 3736 . 3745) (3736 . 3745)) nil (27052 5273 392644 632000) 0 nil])
 ([nil nil ((3745 . 3746)) nil (27052 5273 392642 752000) 0 nil])
-([nil current ((nil rear-nonsticky nil 3750 . 3751) (nil fontified nil 3746 . 3751) (3746 . 3751)) nil (27052 5273 392638 552000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 3750 . 3751) (nil fontified nil 3746 . 3751) (3746 . 3751)) nil (27052 5273 392638 552000) 0 nil])
+([nil nil ((1 . 2) (t 27052 5273 391274 289000)) nil (27082 29992 916264 855000) 0 nil])
+([nil nil ((#("d" 0 1 (fontified t)) . -1) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) 2) nil (27082 29992 916261 515000) 0 nil])
+([nil nil ((1 . 2) (t 27082 29992 915382 233000)) nil (27083 56317 272366 719000) 0 nil])
+([nil current ((#("f" 0 1 (fontified t)) . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) 2) nil (27083 56317 272362 489000) 0 nil])
 nil

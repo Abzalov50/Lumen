@@ -24,27 +24,24 @@
 
    ;; 2. ACTION DE LOGIN (POST HTMX)
    (POST "/login" (req)
-	 :summary "Traite l'authentification Session"
 	 (let* ((form (ctx-get req :form))
 		(email (alist-get form "email"))
 		(pass  (alist-get form "password"))
 		(current-tid (ctx-get req :tenant-id)))
 
-	   (print (ctx-from-req req))
-	   (format t "~&[AUTH LOGIN] TID: ~A~%" current-tid)
-    
-	   ;; 1. On appelle la vérification SIMPLE (Pas de calcul JWT)
 	   (multiple-value-bind (user error-msg)
                (lumen.modules.auth.service:verify-credentials email pass current-tid)
-
-	     (format t "~&[AUTH LOGIN] USER: ~A~%" user)
-	     (if user
-		 ;; 2. On crée la SESSION (Cookie) via respond-success
-		 (lumen.modules.auth.service:respond-success req user "/" :msg "Connexion réussie.")
-          
+         
+             (if user
+		 ;; Succès : On déclenche HTMX !
+		 (lumen.modules.auth.service:respond-success req user 
+                                                             (lumen.app.app:app-path "/") 
+                                                             :msg "Connexion réussie.")
 		 ;; Erreur
-		 (lumen.modules.auth.service:respond-error form error-msg)))))
-
+		 (lumen.modules.auth.service:respond-error
+		  form error-msg
+		  :render-fn #'lumen.modules.auth.view:render-login-form)))))
+   
    (POST "/api/v1/login" (req)
 	 ;; Appel la version qui génère le token
 	 (let* ((form (ctx-get req :form))
@@ -52,69 +49,56 @@
 		(pass  (alist-get form "password"))
 		(current-tid (ctx-get req :tenant-id)))
 	   (multiple-value-bind (user token)
-	       (authenticate-for-api email pass current-tid)
-	     (respond-json `((:token . ,token))))))
+               (authenticate-for-api email pass current-tid)
+             (respond-json `((:token . ,token))))))
 
    ;; 3. LOGOUT
    (POST "/logout" (req)
 	 (lumen.modules.auth.service:logout-user req)
 	 (let ((resp (lumen.core.http:respond-html "")))
-	   ;; Redirection HTMX vers Login
+	   ;; --- REFACTORISÉ : HX-Location dynamique ---
 	   (setf (lumen.core.http:resp-headers resp)
 		 (lumen.utils:ensure-header (lumen.core.http:resp-headers resp) 
-                                            "HX-Location" "/auth/login"))
+					    "HX-Location" 
+					    (lumen.app.app:app-path "/auth/login")))
 	   resp))
 
    ;; --- 2. SIGNUP (Contextualisé) ---
-   ;; Cas A : "Je veux créer mon compte employé sur 'acme.lumen.app'"
-   ;; Cas B : "Je veux créer ma nouvelle société sur 'www.lumen.app'"
-   
    (GET "/signup" (req)
 	(lumen.core.http:respond-html (lumen.modules.auth.view:render-signup-page)))
 
    (POST "/signup" (req)
 	 (let* ((form (lumen.core.http:ctx-get req :form))
-		;; On récupère le tenant résolu par le middleware (ex: si on est sur acme.lvh.me)
 		(current-tid (lumen.core.http:ctx-get req :tenant-id)))
     
 	   (if current-tid
                ;; --- CAS A : Inscription MEMBRE (Tenant connu) ---
-               ;; On est déjà sur le bon sous-domaine.
-               ;; register-member retourne (user token error) -> 3 valeurs
                (multiple-value-bind (user token err)
 		   (register-member current-tid form)
           
 		 (if user 
-		     ;; Succès : On reste sur le même domaine, redirection locale vers Dashboard
-		     (lumen.modules.auth.service:respond-success req user "/" 
+		     ;; --- REFACTORISÉ : Redirection locale ---
+		     (lumen.modules.auth.service:respond-success req user 
+								 (lumen.app.app:app-path "/") 
 								 :msg "Inscription réussie ! Bienvenue dans l'équipe.")
               
-		     ;; Erreur
 		     (lumen.modules.auth.service:respond-error form err)))
         
                ;; --- CAS B : Inscription NOUVEAU TENANT (SaaS) ---
-               ;; On est sur le domaine racine (www ou root).
-               ;; register-tenant-and-admin retourne (user token err redirect-url) -> 4 valeurs
                (multiple-value-bind (user token err redirect-url)
 		   (register-tenant-and-admin form)
-		 
+         
 		 (if user
-		     ;; Succès : On redirige vers l'URL absolue (http://nouveau-tenant.lvh.me:8080/)
-		     ;; Note : C'est ici que la magie du "redirect-url" opère
+		     ;; --- PAS DE CHANGEMENT ICI ---
+		     ;; redirect-url est déjà une URL HTTP absolue (http://subdom.root/), 
+		     ;; donc on ne doit PAS utiliser app-path dessus !
 		     (lumen.modules.auth.service:respond-success req user redirect-url 
 								 :msg "Votre espace a été créé avec succès. Redirection...")
               
-		     ;; Erreur
 		     (lumen.modules.auth.service:respond-error form err))))))
 
    (POST "/stop-impersonation" (req)
-	 ;; 1. On appelle la logique de session pour rétablir l'identité
 	 (lumen.modules.auth.service:stop-impersonation req)
-
-	 ;; 2. Réponse
-	 ;; Comme votre bouton a l'attribut :hx-on--after-request "window.location.reload()",
-	 ;; une réponse 200 OK simple suffit. Le navigateur rechargera la page,
-	 ;; et le backend générera la navbar "Admin" au lieu de "Impersonation".
 	 (lumen.core.http:respond-json '((:success . t) (:msg . "Session restaurée"))))))
 
 ;; --- LOGIQUE D'ENREGISTREMENT (Service) ---

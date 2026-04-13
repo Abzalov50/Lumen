@@ -39,7 +39,8 @@
                                    (guess-icon ent-sym))))
                  (format t "~&[ADMIN INTRO] Entité: ~A~%" ent-sym)
                  (push `(:symbol ,ent-sym :label ,label :icon ,icon
-			 :href ,(format nil "/admin/list/~A" (string-downcase ent-sym)))
+			 :href ,(lumen.app.app:app-path
+				 (format nil "/admin/list/~A" (string-downcase ent-sym))))
                        items)))
              
              ;; On ajoute le groupe (Module) au menu s'il a des items

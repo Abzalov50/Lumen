@@ -15,7 +15,7 @@
                (:i :class "bi bi-exclamation-triangle-fill me-2")
                "Zone dangereuse. Les requêtes sont exécutées directement sur la base.")
          
-         (:form :method "POST" :action "/admin/sql"
+         (:form :method "POST" :action (lumen.app.app:app-path "/admin/sql")
            (:div :class "mb-3"
              (:textarea :class "form-control font-monospace bg-dark text-light" 
                         :name "query" :rows "5" :placeholder "SELECT * FROM users..."

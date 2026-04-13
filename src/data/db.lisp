@@ -186,7 +186,43 @@
          (progn ,@body))))
 
 ;;; --- EXEC AVEC DEBUG LOGS ET PATCH ---
+(defun exec (sql &rest params)
+  "Execute INSERT/UPDATE/DELETE/DDL."
+  (lumen.core.trace:with-tracing ("DB:Exec" :sql (subseq sql 0 (min 100 (length sql))))
+    (let* ((kpos (position-if (lambda (x) (and (keywordp x) (not (member x '(:null :default) :test #'eq)))) params))
+           (args (if kpos (subseq params 0 kpos) params))
+           (opts (if kpos (subseq params kpos) '()))
+           (timeout-ms (getf opts :timeout-ms (or *default-statement-timeout-ms* nil)))
+           (t0 (get-internal-real-time)))
 
+      (with-statement-timeout (timeout-ms)
+        (let (affected ret)
+          ;; --- CORRECTION ICI ---
+          (if (null args)
+              ;; 1. Pas d'arguments (ex: CREATE TABLE) -> SQL brut direct !
+              ;; On évite cl-postgres et ses "SAVEPOINT sp" automatiques.
+              (progn
+                (%raw-exec sql)
+                (setf affected 0 ret nil))
+              
+              ;; 2. Il y a des arguments -> Requêtes préparées normales
+              (let* ((lower (string-downcase sql))
+                     (has-returning (search "returning" lower)))
+                (if has-returning
+                    (let* ((fn  (get-prepared-plan sql :format :alist))
+                           (row (apply fn args)))
+                      (setf affected (if row 1 0) ret row))
+                    (let* ((fn (get-prepared-plan sql :format :none))
+                           (n  (or (apply fn args) 0)))
+                      (setf affected n ret nil)))))
+          
+          ;; Métriques
+          (let ((elapsed-ms (* 1000.0 (/ (- (get-internal-real-time) t0) cl:internal-time-units-per-second))))
+            (record-query-latency sql elapsed-ms (or affected 0)))
+          
+          (values affected ret))))))
+
+#|
 (defun exec (sql &rest params)
   "Execute INSERT/UPDATE/DELETE."
 
@@ -236,6 +272,7 @@
 	
           (format t "~&[EXEC DEBUG] SQL executed.~%Affected: ~A~%Ret: ~A~%" affected  ret)    
           (values affected ret))))))
+|#
 
 (defun query-a (sql &rest params)
   "Execute SELECT. Return alist."
@@ -266,50 +303,52 @@
 ;;; ----------------------------------------------------------------------------
 ;;; TRANSACTION MANAGEMENT (BLOCK/LABELS - SAFE FLOW)
 ;;; ----------------------------------------------------------------------------
-#|
 (defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  "Transaction avec flux de contrôle explicite (pas de loop/return implicite)."
+  "Transaction gérée par Postmodern avec support des retries et du dynamic binding."
+  (format t "~&[TX] New Transaction~%")
   (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
     (let ((attempt 0))
       (block txn-block
-	(labels ((retry-loop ()
-                   ;; 1. Exécution
-                   (let ((result 
-                           (ensure-connection
-                             (handler-case
-				 (progn
-                                   (%raw-exec "BEGIN")
-                                   (let ((res (funcall thunk)))
-                                     (%raw-exec "COMMIT")
-                                     (list :ok res)))
-                               (error (c)
-				 (ignore-errors (%raw-exec "ROLLBACK"))
-				 (list :error c))))))
-                   
-                     ;; 2. Analyse
+        (labels ((retry-loop ()
+                   (let ((result              
+                          (ensure-connection
+                            (handler-case
+                                ;; 1. On délègue TOUT le cycle de vie à Postmodern.
+                                ;; En cas d'erreur, unwind-protect fera le ROLLBACK
+                                ;; et remettra *transaction-level* à son état précédent proprement.
+                                (let ((vals (multiple-value-list 
+                                             (postmodern:with-logical-transaction ()
+                                               (funcall thunk)))))
+                                  (list :ok vals))
+                              
+                              ;; 2. On attrape l'erreur APRÈS que Postmodern ait nettoyé son état
+                              (error (c)
+                                (list :error c))))))
+                     
                      (if (eq (first result) :ok)
-			 (return-from txn-block (second result))
-                       
-			 (let* ((err (second result))
-				(is-app (typep err 'lumen.core.error:application-error))
-				(mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                         (return-from txn-block (values-list (second result)))
                          
+                         (let* ((err (second result))
+                                (is-app (typep err 'lumen.core.error:application-error))
+                                (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                           
                            (when is-app (error err))
-                         
+                           
                            (if (and mapped 
                                     (< attempt retries) 
                                     (lumen.data.errors:retryable-db-error-p mapped))
                                (progn
-				 (incf attempt)
-				 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
-				 (sleep (/ (max 50 sleep-ms) 1000.0))
-				 (retry-loop)) ;; Appel récursif sûr
-                             
+                                 (incf attempt)
+                                 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
+                                 (sleep (/ (max 50 sleep-ms) 1000.0))
+                                 ;; 3. L'état de Postmodern est propre (niveau décrémenté par l'unwind-protect)
+                                 ;; On peut relancer la boucle en toute sécurité.
+                                 (retry-loop))
+                               
                                (error (or mapped err))))))))
-        
           (retry-loop))))))
-|#
 
+#|
 (defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
   "Transaction avec flux de contrôle explicite et support des valeurs multiples."
   (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
@@ -357,6 +396,7 @@
                              (error (or mapped err))))))))
           
           (retry-loop))))))
+|#
 
 (defmacro with-tx ((&key retries) &body body)
   `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))

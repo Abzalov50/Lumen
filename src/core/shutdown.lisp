@@ -24,12 +24,37 @@
 (defun draining-p () *draining?*)
 (defun %now () (truncate (/ (get-internal-real-time) internal-time-units-per-second)))
 
-(defun register-connection (token) (setf (gethash token *connections*) t) token)
-(defun unregister-connection (token) (remhash token *connections*) (values))
-(defun register-sse (token) (setf (gethash token *sse*) t) token)
-(defun unregister-sse (token) (remhash token *sse*) (values))
-(defun register-ws  (token) (setf (gethash token *ws*)  t) token)
-(defun unregister-ws (token) (remhash token *ws*)  (values))
+;; --- FONCTIONS SÉCURISÉES PAR VERROU (THREAD-SAFE) ---
+
+(defun register-connection (token) 
+  (with-lock-held (*lock*)
+    (setf (gethash token *connections*) t))
+  token)
+
+(defun unregister-connection (token) 
+  (with-lock-held (*lock*)
+    (remhash token *connections*))
+  (values))
+
+(defun register-sse (token) 
+  (with-lock-held (*lock*)
+    (setf (gethash token *sse*) t))
+  token)
+
+(defun unregister-sse (token) 
+  (with-lock-held (*lock*)
+    (remhash token *sse*))
+  (values))
+
+(defun register-ws (token) 
+  (with-lock-held (*lock*)
+    (setf (gethash token *ws*) t))
+  token)
+
+(defun unregister-ws (token) 
+  (with-lock-held (*lock*)
+    (remhash token *ws*))
+  (values))
 
 (defun request-shutdown (&key (grace-seconds 20))
   (with-lock-held (*lock*)

@@ -26,12 +26,12 @@
       (dolist (h headers)
         (format s "~A: ~A~C~C" (car h) (cdr h) #\Return #\Newline))
       (format s "Content-Length: ~A~C~C" len #\Return #\Newline)
-      (format s "Connection: keep-alive~C~C~C~C" #\Return #\Newline #\Return #\Newline))
+      (format s "Connection: keep-alive~C~C~C~C" #\Return #\Newline #\Return #\Newline)
     
-    ;; 1. Envoi des en-têtes (non-bloquant)
-    (as:write-socket-data socket (trivial-utf-8:string-to-utf-8-bytes (get-output-stream-string s)))
-    ;; 2. Envoi du corps (non-bloquant)
-    (as:write-socket-data socket body-bytes)))
+      ;; 1. Envoi des en-têtes (non-bloquant)
+      (as:write-socket-data socket (trivial-utf-8:string-to-utf-8-bytes (get-output-stream-string s)))
+      ;; 2. Envoi du corps (non-bloquant)
+      (as:write-socket-data socket body-bytes))))
 
 (defun start-async (&key (port 8080) handler)
   "Démarre le serveur Lumen en mode Event Loop pure avec fast-http."

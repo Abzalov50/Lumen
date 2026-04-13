@@ -496,6 +496,7 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
          (ua        (lumen.core.http:ctx-get req :ua))
          (auditflag (if audit?-p audit? (or (lumen.core.http:ctx-get req :audit?) t)))
 	 (json      (lumen.core.http:ctx-get req :json))
+	 (json-str      (lumen.core.http:ctx-get req :json-str))
 	 (form      (lumen.core.http:ctx-get req :form))
 	 (fields      (lumen.core.http:ctx-get req :fields))
 	 (files      (lumen.core.http:ctx-get req :files)))
@@ -507,7 +508,7 @@ Dépend des middlewares (tenant-from-host, auth, request-id) qui posent ces clé
           :request-id req-id
           :ip ip :ua ua
           :audit? auditflag
-	  :json json :form form
+	  :json json :json-str json-str :form form
 	  :fields fields :files files)))
 
 ;;; ------------------------------------------------------------

@@ -125,21 +125,49 @@
     (lumen.core.http:ctx-set! req :session alist) alist))
 
 ;; --- GARBAGE COLLECTOR ---
+#|
 (defun gc-sessions ()
   "Nettoie les sessions expirées (à appeler via un cron ou un timer)."
   (lumen.data.db:ensure-connection
     (let ((now (get-universal-time)))
       (pomo:query "DELETE FROM sessions WHERE expires_at < $1" now))))
+|#
+
+(defun gc-sessions (app-name)
+  "Nettoie les sessions expirées pour l'application spécifiée (avec fallback)."
+  
+  (format t "~&[Session GC] Worker réveillé pour l'app: ~S~%" app-name)
+  
+  ;; 1. On sécurise la clé (Fallback sur :default si introuvable)
+  (let* ((actual-app-name 
+          (if (lumen.data.db::get-db-context app-name)
+              app-name
+              (progn
+                (format t "~&[Session GC] App ~S non trouvée dans le registre DB. Fallback sur :DEFAULT.~%" app-name)
+                :default))))
+    
+    ;; 2. On bind le contexte avec la bonne clé
+    (lumen.data.db:with-db-app (actual-app-name)
+      
+      ;; -- LIGNE DE DEBUG -- (À retirer quand ça marchera)
+      (format t "~&[Session GC] Config DB injectée dans le thread: ~S~%" 
+              (list :user (getf lumen.core.context:*current-db-config* :user)
+                    :has-password (not (null (getf lumen.core.context:*current-db-config* :password)))))
+      
+      ;; 3. Exécution de la requête
+      (lumen.data.db:ensure-connection
+        (let ((now (get-universal-time)))
+          (let ((affected (lumen.data.db:exec "DELETE FROM sessions WHERE expires_at < $1" now)))
+            ;; exec renvoie multiple values, le nombre affecté est la première
+            (values affected)))))))
 
 ;;; Scheduling du GC
 (lumen.core.scheduler:defjob session-gc (payload)
-  (declare (ignore payload)) ;; Pas d'argument nécessaire
-  
-  ;; On appelle la fonction de nettoyage SQL existante
-  ;; Note: gc-sessions gère déjà ensure-connection
-  (let ((count (gc-sessions)))
-    (when (and count (plusp count))
-      (format t "~&[Session GC] Cleaned ~A expired sessions.~%" count))))
+  ;; Le payload contient maintenant le nom de l'app planificatrice
+  (let ((app-name (if payload payload :default))) 
+    (let ((count (gc-sessions app-name)))
+      (when (and count (plusp count))
+        (format t "~&[Session GC:~A] Cleaned ~A expired sessions.~%" app-name count)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; SESSION MIDDLEWARE (Cookie Signed)

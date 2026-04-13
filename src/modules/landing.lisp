@@ -44,7 +44,7 @@
               (:i :class "bi bi-exclamation-triangle-fill me-2")
               (:span "MODE IMPERSONATION ACTIF : Vous agissez en tant qu'un autre utilisateur.")
               (:button :class "btn btn-sm btn-dark ms-3" 
-                       :hx-post "/auth/stop-impersonation" 
+                       :hx-post (lumen.app.app:app-path "/auth/stop-impersonation")
                        ;; Important : On recharge la page après le stop pour rétablir la session Admin
                        :hx-on--after-request "window.location.reload()" 
                        "Revenir à mon compte"))))
@@ -88,23 +88,24 @@
                     
                     ;; Lien Admin
                     (when (equal (lumen.utils:alist-get user :role) "admin")
-                      (:li (:a :class "dropdown-item" :href "/admin" 
+                      (:li (:a :class "dropdown-item" :href (lumen.app.app:app-path "/admin")
                                (:i :class "bi bi-shield-lock me-2") "Administration")))
                     
-                    (:li (:a :class "dropdown-item" :href "/auth/me" 
+                    (:li (:a :class "dropdown-item" :href (lumen.app.app:app-path "/auth/me") 
                              (:i :class "bi bi-person me-2") "Mon Profil"))
                     
                     (:li (:hr :class "dropdown-divider"))
                     
                     ;; Logout
                     (:li (:button :class "dropdown-item text-danger" 
-                                  :hx-post "/auth/logout"
+                                  :hx-post (lumen.app.app:app-path "/auth/logout")
                                   :hx-target "body" 
                                   (:i :class "bi bi-box-arrow-right me-2") "Se déconnecter"))))
                 
                 ;; --- CAS NON CONNECTÉ ---
                 (:li :class "nav-item"
-                  (:a :class "btn btn-outline-primary" :href "/auth/login" "Se connecter")))))))))
+                     (:a :class "btn btn-outline-primary" :href (lumen.app.app:app-path "/auth/login")
+			 "Se connecter")))))))))
 
 (defun render-landing-page (req)
   "Assemble la page complète."
@@ -133,14 +134,20 @@
               
               (if user
                   (:div :class "d-flex gap-2 justify-content-center"
-                    (:a :class "btn btn-primary btn-lg" :href "/dashboard" "Accéder au Dashboard")
+			(:a :class "btn btn-primary btn-lg"
+			    :href (lumen.app.app:app-path "/dashboard")
+			    "Accéder au Dashboard")
                     ;; Si admin, un raccourci direct vers la gestion des utilisateurs
                     (when (equal (lumen.utils:alist-get user :role) "admin")
-                      (:a :class "btn btn-outline-secondary btn-lg" :href "/api/socle/users" "Gérer les Utilisateurs")))
+                      (:a :class "btn btn-outline-secondary btn-lg"
+			  :href (lumen.app.app:app-path "/api/socle/users")
+			  "Gérer les Utilisateurs")))
                   
                   ;; Si pas connecté
                   (:div 
-                    (:a :class "btn btn-primary btn-lg px-5" :href "/auth/login" "Commencer")))))
+                   (:a :class "btn btn-primary btn-lg px-5"
+		       :href (lumen.app.app:app-path "/auth/login")
+		       "Commencer")))))
           
           ;; Footer minimal
           (:footer :class "py-3 text-center text-muted border-top bg-white"

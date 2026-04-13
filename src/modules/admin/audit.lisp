@@ -84,7 +84,7 @@
                     ;; Bouton Détail (Modal HTMX)
                     (:td 
                      (:button :class "btn btn-sm btn-outline-primary"
-                              :hx-get (format nil "/admin/audit/~A" id)
+                              :hx-get (lumen.app.app:app-path (format nil "/admin/audit/~A" id))
                               :hx-target "#audit-modal-body"
                               :data-bs-toggle "modal" :data-bs-target "#auditModal"
                               (:i :class "bi bi-eye"))))))))

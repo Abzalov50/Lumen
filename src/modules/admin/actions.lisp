@@ -15,7 +15,7 @@
           (lumen.data.repo.core:repo-delete entity-sym ctx id))))
      ;; On renvoie la grille mise à jour (via redirection interne ou fetch-grid)
      (lumen.modules.auth.service:respond-success
-      req nil (format nil "/admin/list/~A" entity-sym)
+      req nil (lumen.app.app:app-path (format nil "/admin/list/~A" entity-sym))
       :msg (format nil "~A éléments supprimés." (length ids))))
     
     (:export-csv

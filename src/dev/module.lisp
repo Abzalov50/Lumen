@@ -301,7 +301,7 @@
 							    (loop for hook-def in entity-hooks collect
 											       (%expand-hook entity-sym hook-def))))))))
 
-
+#|
 (defmacro define-proxy-module (module-name host path-prefix target-url)
   "Génère les routes exactes et wildcards sans JAMAIS altérer le chemin."
   (let* ((methods '(:GET :POST :PUT :DELETE :PATCH))
@@ -312,6 +312,40 @@
     (dolist (m methods)
       (dolist (p paths)
         (push `(,m ,p (req) (funcall (lumen.http.proxy:proxy-pass ,target-url) req)) routes)))
+    `(defmodule ,module-name
+       :host ,host
+       :routes ,(reverse routes))))
+|#
+
+(defmacro define-proxy-module (module-name host path-prefix target-url &key (strip-prefix nil))
+  "Génère les routes exactes et wildcards. 
+   Gère parfaitement les préfixes vides, NIL, ou '/'.
+   Si :strip-prefix t, retire le préfixe de l'URL envoyée au backend."
+  (let* (;; 1. Normalisation absolue du préfixe : nil ou "" devient "/"
+         (prefix (if (or (null path-prefix) 
+                         (string= path-prefix "") 
+                         (string= path-prefix "/"))
+                     "/"
+                     path-prefix))
+         (methods '(:GET :POST :PUT :DELETE :PATCH))
+         ;; 2. Génération stricte (Toujours avec un / au début)
+         (paths (if (string= prefix "/")
+                    '("/" "/*")
+                    (list prefix (format nil "~A/*" prefix))))
+         (routes '()))
+    
+    (dolist (m methods)
+      (dolist (p paths)
+        (push `(,m ,p (req) 
+                  (funcall (lumen.http.proxy:proxy-pass 
+                            ,target-url 
+                            ;; On ne passe le préfixe à supprimer que si on n'est pas à la racine
+                            :strip-prefix ,(if (and strip-prefix (not (string= prefix "/"))) 
+                                               prefix 
+                                               nil)) 
+                           req)) 
+              routes)))
+    
     `(defmodule ,module-name
        :host ,host
        :routes ,(reverse routes))))

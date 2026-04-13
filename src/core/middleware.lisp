@@ -10,7 +10,7 @@
   (:import-from :lumen.core.jwt :*jwt-secret* :jwt-encode :jwt-decode)
   (:import-from :lumen.core.ratelimit :allow?)
   (:import-from :lumen.core.http-range :respond-file)
-  (:import-from :lumen.core.router :dispatch)
+  (:import-from :lumen.core.router :dispatch :dispatch-async)
   (:import-from :lumen.core.trace :with-tracing :*trace-root* :print-trace-waterfall
 		:current-context :with-propagated-context)
   (:export :defmiddleware :logger-middleware :json-only-middleware
@@ -34,17 +34,28 @@
   (let ((lumen.core.http:*request* req))
     (funcall next req)))
 
-(lumen.core.pipeline:defmiddleware spy-middleware
+(defmiddleware spy-middleware
     ((name :initarg :name :initform "Spy"))
     (req next)
-  (format t "~&[SPY] 🟢 ENTRÉE : ~A~%" (slot-value mw 'name))
-  (force-output) ;; Force l'affichage immédiat dans le REPL
-  
-  (let ((res (funcall next req)))
+  (let ((mw-name (slot-value mw 'name))
+        (path (lumen.core.http:req-path req)))
     
-    (format t "~&[SPY] 🔴 SORTIE : ~A~%" (slot-value mw 'name))
+    (format t "~&[SPY ⬇️ ENTRÉE] ~A | Path: ~A~%" mw-name path)
     (force-output)
-    res))
+    
+    ;; On intercepte les crashs internes pour ne pas accuser 'next' à tort
+    (let ((res (handler-case 
+                   (funcall next req)
+                 (error (e)
+                   (format t "~&[SPY 💥 CRASH INTERNE DANS ~A] ~A~%" mw-name e)
+                   (error e))))) ;; On relance pour voir qui l'attrape
+      
+      (format t "~&[SPY ⬆️ SORTIE] ~A | Type: ~A | Est NIL ? ~A~%" 
+              mw-name 
+              (type-of res)
+              (null res))
+      (force-output)
+      res)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 2. HELPERS (Logger Utils)
@@ -103,7 +114,8 @@
            (ms    (/ (- (get-internal-real-time) t0)
                      (/ internal-time-units-per-second 1000.0)))
            (msi   (round ms))
-           (st    (lumen.core.http:resp-status resp))
+	   (st   (if resp (lumen.core.http:resp-status resp) 500))
+	   (resp (if resp resp (lumen.core.http:respond-500 "FATAL: Pipeline returned NIL")))
            (ts    (local-time:format-timestring
                    nil (local-time:now)
                    :format '(:year "-" (:month 2) "-" (:day 2) " "
@@ -613,12 +625,15 @@
 
         ;; 2. Parsing
         (when (and len (> len 0))
-          (let ((val (lumen.core.body:parse-json 
+          (multiple-value-bind (json json-str)
+	      (lumen.core.body:parse-json 
                       (lumen.core.http:req-body-stream req) 
                       len 
-                      :limit limit)))
-            (when val
-              (lumen.core.http:ctx-set! req :json val)
+                      :limit limit)
+	    
+            (when json
+              (lumen.core.http:ctx-set! req :json json)
+	      (lumen.core.http:ctx-set! req :json-str json-str)
               (lumen.core.http:ctx-set! req :body-consumed t)))))))
   
   (funcall next req))
@@ -775,11 +790,16 @@
              (if (not wants-gzip) 
                  resp
                  (let* ((orig (lumen.core.http:resp-body resp))
-                        (bytes (etypecase orig
+			(bytes (typecase orig
                                  (string (trivial-utf-8:string-to-utf-8-bytes orig))
-                                 ((vector (unsigned-byte 8)) orig)
-				 (function #())
-                                 (null #())))
+                                 ((simple-array (unsigned-byte 8) (*)) orig)
+                                 (vector (coerce orig '(simple-array (unsigned-byte 8) (*))))
+                                 (function #())
+                                 (null #())
+                                 (t 
+                                  ;; Filet de sécurité : On ignore la compression sans crasher
+                                  (format t "~&[COMPRESS] WARN: Body non supporté (Type: ~A)~%" (type-of orig))
+                                  #())))
                         (len (length bytes)))
                    
                    ;; DEBUG LOG
@@ -976,8 +996,6 @@
          (resp nil)
          (done nil)
          (parent-ctx (lumen.core.trace:current-context))
-         
-         ;; --- 1. CAPTURE ---
          (current-req lumen.core.http:*request*)
          (current-app lumen.core.context::*current-app*)
          (current-db-cfg lumen.core.context::*current-db-config*)
@@ -985,7 +1003,6 @@
     
     (bt:make-thread
      (lambda ()
-       ;; --- 2. RESTAURATION ---
        (let ((lumen.core.http:*request* current-req)
              (lumen.core.context:*current-app* current-app)
              (lumen.core.context::*current-db-config* current-db-cfg)
@@ -993,34 +1010,31 @@
          
          (lumen.core.trace:with-propagated-context parent-ctx
            (unwind-protect
-               ;; On intercepte explicitement les sorties "halt" ET les crashs Lisp
                (handler-case
                    (setf resp (funcall next req))
-                 
-                 ;; 1. Sorties contrôlées par le framework (redirections, etc.)
                  (lumen.core.http:http-halt (c)
                    (setf resp (lumen.core.http:halt-response c)))
-                 
-                 ;; 2. LE FILET DE SÉCURITÉ ABSOLU : Crashs natifs Lisp
                  (error (e)
-                   (format t "~&[MW TIMEOUT] CRASH INTERCEPTÉ : ~A~%" e)
-                   ;; On force une réponse 500 propre au lieu d'un NIL destructeur
-                   (setf resp (lumen.core.http:respond-500 (format nil "Erreur interne: ~A" e)))))
-             
-             ;; FIN GARANTIE : Le thread parent sera TOUJOURS réveillé
+                   (format t "~&[MW TIMEOUT] CRASH INTERNE : ~A~%" e)
+                   (setf resp (lumen.core.http:respond-500 (format nil "Erreur: ~A" e)))))
              (bt:with-lock-held (lock)
                (setf done t)
                (bt:condition-notify cv)))))))
     
-    ;; --- 3. ATTENTE PARENT ---
+    ;; --- LA CORRECTION ANTI-RÉVEIL SPONTANÉ ---
     (bt:with-lock-held (lock)
-      (unless done
-        (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
-          (return-from handle 
-            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)))))
-    
-    ;; On retourne l'objet response au framework parent
-    resp))
+      (let ((timeout-reached nil))
+        (loop until done
+              do (let ((signaled (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))))
+                   (unless signaled
+                     ;; Le timeout est VRAIMENT expiré
+                     (setf timeout-reached t)
+                     (return)))) ;; On force la sortie du loop
+        
+        (if timeout-reached
+            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)
+            ;; Succès : done = T, et resp contient ENFIN l'objet valide !
+            resp)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 22. MAX BODY SIZE MIDDLEWARE
@@ -1168,7 +1182,7 @@
     
     (if (and (= (lumen.core.http:resp-status response) 404)
              (equal (lumen.core.http:resp-body response) "Not Found"))
-        (funcall next req)
+        (or (funcall next req) response)
         
         ;; Sinon (Match 200, ou 405 Method Not Allowed, ou 404 explicite d'une route)
         ;; On retourne la réponse, on arrête la chaîne ici.
@@ -1290,12 +1304,12 @@
         ;; Erreur Métier -> 400 JSON
         ((typep c 'lumen.core.error:application-error)
          (let ((msg (princ-to-string c)))
-           `(400 
-             (:content-type "application/json")
-             (,(cl-json:encode-json-to-string 
-                `((:status . "error") 
-                  (:code . "BUSINESS_ERROR") 
-                  (:message . ,msg)))))))
+           ;; On utilise vos excellents helpers HTTP
+           (lumen.core.http:respond-json 
+            `((:status . "error") 
+              (:code . "BUSINESS_ERROR") 
+              (:message . ,msg))
+            :status 400)))
         
         ;; Autre -> Relancer (Error Middleware standard s'en chargera)
         (t (error c))))))

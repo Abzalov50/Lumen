@@ -34,6 +34,7 @@
   (session-del! req "scopes")
   t)
 
+#|
 (defun login-user (req user &optional tenant-id)
   "Enregistre l'utilisateur et ses droits dans la session."
   (let* ((uid (alist-get user :id))
@@ -47,6 +48,37 @@
     (session-set! req *session-user-key* uid)
     (session-set! req "role" role)
     (session-set! req "scopes" final-scopes) ;; Attention: s'assurer que le backend session supporte les listes
+    (when tenant-id
+      (session-set! req *session-tenant-key* tenant-id))
+    t))
+|#
+
+(defun login-user (req user &optional tenant-id)
+  "Enregistre l'utilisateur et ses droits dans la session."
+  (let* ((uid (alist-get user :id))
+         (role (alist-get user :role))
+         (role-scopes (get-scopes-for-role role))
+         (raw-scopes (alist-get user :scopes))
+         
+         ;; --- LA CORRECTION EST ICI ---
+         ;; Décodage intelligent et sécurisé des scopes
+         (user-scopes (cond
+                        ((stringp raw-scopes) 
+                         (ignore-errors (cl-json:decode-json-from-string raw-scopes)))
+                        ((vectorp raw-scopes) 
+                         (coerce raw-scopes 'list))
+                        ((listp raw-scopes) 
+                         raw-scopes)
+                        (t nil)))
+         
+         ;; On fusionne avec #'equal pour bien comparer les chaînes de caractères
+         (final-scopes (remove-duplicates (append role-scopes user-scopes) :test #'equal)))
+    
+    ;; On stocke tout ce dont le middleware a besoin
+    (session-set! req *session-user-key* uid)
+    (session-set! req "role" role)
+    (session-set! req "scopes" final-scopes) 
+    
     (when tenant-id
       (session-set! req *session-tenant-key* tenant-id))
     t))
@@ -152,30 +184,25 @@
             ;; Echec
             (values nil "Email ou mot de passe incorrect"))))))
 
+
 (defun respond-success (req user target-url &key (msg "Opération réussie"))
-  "Enregistre l'utilisateur en session et redirige via HTMX."
-  ;; 1. Session (Gérée par le middleware)
+  (declare (ignore msg)) ;; On ignore le message temporairement pour éviter le crash
+  
   (let* ((tid (ctx-get req :tenant-id)))
+    ;; 1. On sauvegarde la session en base de données
     (login-user req user tid)
 
-    ;; 2. Réponse HTML vide
+    ;; 2. On crée une réponse vide
     (let ((resp (respond-html "")))
-    
-      ;; 3. Toast
+      
+      ;; 3. On ajoute UNIQUEMENT la redirection (Pas de HX-Trigger !)
       (setf (resp-headers resp)
-            (lumen.utils:ensure-header (resp-headers resp) "HX-Trigger" 
-				       (cl-json:encode-json-to-string 
-					`((:show-message . ((:type . "success") (:message . ,msg)))))))
-
-      ;; 4. Redirection
-      (setf (resp-headers resp)
-            (lumen.utils:ensure-header
-	     (resp-headers resp) 
-	     "HX-Redirect"
-	     target-url))
+            (lumen.utils:ensure-header (resp-headers resp) "HX-Redirect" target-url))
+      
       resp)))
 
-(defun respond-error (form-values error-msg &key (render-fn #'lumen.modules.auth.view:render-signup-form))
+(defun respond-error (form-values error-msg
+		      &key (render-fn #'lumen.modules.auth.view:render-signup-form))
   "Génère une réponse HTMX d'erreur :
    1. Renvoie le HTML du formulaire avec les valeurs saisies et le message d'erreur.
    2. Status 200 (pour que HTMX swap) ou 422 (le fix JS)."

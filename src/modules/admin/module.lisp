@@ -112,11 +112,9 @@
 
 		 (lumen.data.repo.core:repo-patch entity-sym ctx id clean-data)
 
-		 (print "NNNNNNN")
 		 (respond-ok (format nil "/admin/list/~A" entity-str))
 		 )
              (error (e)
-	       (print "LLLLLLL")
                (lumen.core.http:respond-html
 		(lumen.admin.view:render-admin-layout
 		 req 
@@ -211,7 +209,7 @@
           (lumen.utils:ensure-header 
            (lumen.core.http:resp-headers resp) 
            "HX-Redirect" 
-           target-url))
+           (lumen.app.app:app-path target-url)))
              
     ;; 2. Toast (Optionnel)
     (setf (lumen.core.http:resp-headers resp)

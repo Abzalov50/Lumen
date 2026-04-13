@@ -75,13 +75,21 @@
 ;;; ===================================================================
 ;;; LE PROXY SYNCHRONE PERFORMANT (Natif Lumen)
 ;;; ===================================================================
-(defun proxy-pass (target-base-url &key (timeout 30))
+(defun proxy-pass (target-base-url &key (timeout 30) strip-prefix)
   (lambda (req)
     (handler-case
-        (let* ((method (intern (string-upcase (string (req-method req))) "KEYWORD"))
-               (uri (%reconstruct-uri req))
-               (final-url (format nil "~A~A" (string-right-trim "/" target-base-url) uri))
-               (raw-req-headers (req-headers req))
+        (let* ((method (intern (string-upcase (string (lumen.core.http:req-method req))) "KEYWORD"))
+               (raw-uri (%reconstruct-uri req))
+               
+               ;; --- NOUVEAU : LOGIQUE DE NETTOYAGE DU PRÉFIXE ---
+               ;; Si l'URL est /api/users et le strip-prefix est "/api", l'URI finale devient "/users"
+               (final-uri (if (and strip-prefix (string= (subseq raw-uri 0 (length strip-prefix)) strip-prefix))
+                              (let ((stripped (subseq raw-uri (length strip-prefix))))
+                                (if (string= stripped "") "/" stripped))
+                              raw-uri))
+               
+               (final-url (format nil "~A~A" (string-right-trim "/" target-base-url) final-uri))
+               (raw-req-headers (lumen.core.http:req-headers req))
                (clean-req-headers '()))
 
           ;; On prévient Lumen que le tuyau entrant est propre pour le Keep-Alive

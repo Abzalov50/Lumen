@@ -101,7 +101,7 @@
                        ((:user :member) "info")
                        (t "light text-dark border"))))
          (format nil "<span class='badge bg-~A'>~A</span>" color
-                 (escape-string label))))
+                 (spinneret::escape-string label))))
 
       ;; 3. CAS BOOLÉEN
       ((eq type :boolean)
@@ -109,14 +109,18 @@
            "<i class='bi bi-check-circle-fill text-success fs-5'></i>" 
            "<i class='bi bi-dash-circle text-muted opacity-25 fs-5'></i>"))
 
-      ;; 4. CAS CLÉ ÉTRANGÈRE
+      ;; 4. CAS CLÉ ÉTRANGÈRE (REFACTORISÉ)
       (ref
        (let* ((target-entity (lumen.admin.utils:table-to-entity (string-downcase ref))) 
-              (display       (%resolve-fk-display (string-downcase ref) val)))
-         (format nil "<a href='/admin/list/~A?search=~A' class='text-decoration-none fw-medium'>~A</a>" 
-                 (if target-entity target-entity ref) ;; Fallback propre
-                 val 
-                 (escape-string display))))
+              (display       (%resolve-fk-display (string-downcase ref) val))
+              ;; On génère l'URL brute
+              (raw-url       (format nil "/admin/list/~A?search=~A" 
+                                     (if target-entity target-entity ref) val))
+              ;; On la rend dynamique vis-à-vis de l'application
+              (final-url     (lumen.app.app:app-path raw-url)))
+         (format nil "<a href='~A' class='text-decoration-none fw-medium'>~A</a>" 
+                 final-url 
+                 (spinneret::escape-string display))))
 
       ;; 5. CAS DATE & TIMESTAMP
       ((member type '(:date :timestamptz :timestamp))
@@ -126,43 +130,45 @@
               nil ts 
               :format '(:day "/" (:month 2) "/" :year " " (:hour 2) ":" (:min 2))
               :timezone local-time:+utc-zone+)
-             (escape-string val-str))))
+             (spinneret::escape-string val-str))))
 
       ;; 6. CAS JSONB
       ((eq type :jsonb)
        (let ((str (if (stringp val) val (cl-json:encode-json-to-string val))))
          (format nil "<code class='small text-muted' title='~A'>~A</code>" 
-                 (escape-string str)
-                 (escape-string 
+                 (spinneret::escape-string str)
+                 (spinneret::escape-string 
                   (if (> (length str) 30) (concatenate 'string (subseq str 0 30) "...") str)))))
       
-      ;; 7. CAS EMAIL
+      ;; 7. CAS EMAIL (Pas touche, c'est un mailto:)
       ((eq type :email)
        (format nil "<a href='mailto:~A' class='text-muted text-decoration-none'>~A</a>" 
-               val (escape-string val)))
+               val (spinneret::escape-string val)))
 
-      ;; --- 8. CAS SPÉCIAL : IMPERSONATION (CORRIGÉ) ---
+      ;; --- 8. CAS SPÉCIAL : IMPERSONATION (REFACTORISÉ) ---
       ;; Utilise un BUTTON + hx-get + stopPropagation
       ((and (eq col-name :id) 
             (search "USER" (string-upcase (symbol-name entity-sym))))
-       (format nil 
-               "<div class='d-flex align-items-center justify-content-between'>
-                  <span class='font-monospace text-muted'>~A</span>
-                  <button type='button' class='btn btn-sm btn-outline-warning ms-2 py-0 px-1' 
-                          hx-get='/admin/impersonate/~A'
-                          hx-target='body'
-                          onclick='event.stopPropagation();'
-                          title='Se connecter en tant que cet utilisateur'
-                          data-bs-toggle='tooltip'>
-                    <i class='bi bi-mask'></i>
-                  </button>
-                </div>" 
-               (escape-string val-str) 
-               val))
+       
+       (let ((impersonate-url (lumen.app.app:app-path (format nil "/admin/impersonate/~A" val))))
+         (format nil 
+                 "<div class='d-flex align-items-center justify-content-between'>
+                    <span class='font-monospace text-muted'>~A</span>
+                    <button type='button' class='btn btn-sm btn-outline-warning ms-2 py-0 px-1' 
+                            hx-get='~A'
+                            hx-target='body'
+                            onclick='event.stopPropagation();'
+                            title='Se connecter en tant que cet utilisateur'
+                            data-bs-toggle='tooltip'>
+                      <i class='bi bi-mask'></i>
+                    </button>
+                  </div>" 
+                 (spinneret::escape-string val-str) 
+                 impersonate-url)))
 
       ;; 9. DÉFAUT
       (t 
-       (escape-string val-str)))))
+       (spinneret::escape-string val-str)))))
 
 ;; --- 4. LE BUILDER SQL ---
 (defun fetch-grid-data (req entity-sym &key (page 1) (per-page 20) sort-col (sort-dir :asc) search)

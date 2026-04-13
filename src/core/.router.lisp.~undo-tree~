@@ -1,6 +1,59 @@
 (undo-tree-save-format-version . 1)
-"885baea82accf149c71d909665836f1f9066328f"
+"0588a69de62e01d1623e5cad52b28e0da6817217"
 [nil nil nil nil (27052 3569 970678 622000) 0 nil]
 ([nil nil ((12884 . 12886) (t 27045 40770 37390 252000)) nil (27052 3569 970677 342000) 0 nil])
-([nil current ((nil rear-nonsticky nil 16472 . 16473) (nil fontified nil 12886 . 16473) (12886 . 16473)) nil (27052 3569 970672 962000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 16472 . 16473) (nil fontified nil 12886 . 16473) (12886 . 16473)) nil (27052 3569 970672 962000) 0 nil])
+([nil nil ((16539 . 16541) (t 27052 3569 971427 676000)) nil (27082 30707 943198 817000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 19318 . 19319) (nil fontified nil 16541 . 19319) (16541 . 19319)) nil (27082 30707 943197 777000) 0 nil])
+([nil nil ((#("(in-package :lumen.core.router)" 0 1 (fontified t) 1 11 (face font-lock-keyword-face fontified t) 11 12 (fontified t) 12 30 (face font-lock-builtin-face fontified t) 30 31 (fontified t)) . -17164) (undo-tree-id5 . -31) 17195) nil (27082 30707 943196 257000) 0 nil])
+([nil nil ((#("
+
+Voici l'implémentation de dispatch-async qui s'intègre parfaitement avec votre middleware de routage basé sur les continuations (CPS - Continuation-Passing Style).
+
+Puisque votre middleware s'attend à recevoir une fonction (une \"tâche\") qui prend un responder en argument, dispatch-async doit être une \"usine à tâches\" (Task Factory).
+
+Voici le code robuste, qui inclut en prime une fonctionnalité très puissante : le support hybride. Il permet à vos routes métier de retourner soit une réponse synchrone classique, soit une autre tâche asynchrone (si vous faites des appels base de données non-bloquants plus tard).
+
+Lisp" 0 1 (fontified t) 1 2 (fontified t) 2 230 (fontified t) 230 237 (face font-lock-string-face fontified t) 237 304 (fontified t) 304 320 (face font-lock-string-face fontified t) 320 624 (fontified t)) . 16539) (undo-tree-id1 . -624) (undo-tree-id2 . -2) (undo-tree-id3 . -624) (undo-tree-id4 . -624)) nil (27082 30707 943193 917000) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 16539) (undo-tree-id0 . -1)) nil (27082 30707 943089 307000) 0 nil])
+([nil nil ((741 . 742)) nil (27082 30707 943075 67000) 0 nil])
+([nil nil ((742 . 743)) nil (27082 30707 943073 447000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 756 . 757) (nil fontified nil 743 . 757) (743 . 757)) nil (27082 30707 943068 617000) 0 nil])
+([nil nil ((743 . 745) (741 . 742) (t 27082 30707 944037 89000)) nil (27082 30762 629380 968000) 0 nil])
+([nil nil ((nil fontified nil 759 . 760) (nil fontified nil 746 . 759) (nil fontified nil 745 . 746) (745 . 760)) nil (27082 30762 629379 888000) 0 nil])
+([nil nil ((760 . 761)) nil (27082 30762 629378 548000) 0 nil])
+([nil nil ((#("async" 0 4 (face font-lock-builtin-face fontified t) 4 5 (face font-lock-builtin-face fontified t rear-nonsticky t)) . -755) (undo-tree-id31 . -5) (undo-tree-id32 . -5) (undo-tree-id33 . -5) (undo-tree-id34 . -5) (undo-tree-id35 . -5) (undo-tree-id36 . -2) (undo-tree-id37 . -2) (undo-tree-id38 . -2) (undo-tree-id39 . -2) (undo-tree-id40 . -2) (undo-tree-id41 . -2) (undo-tree-id42 . -5) (undo-tree-id43 . -5) (undo-tree-id44 . -5) (undo-tree-id45 . -5) (undo-tree-id46 . -5) (undo-tree-id47 . -5) (undo-tree-id48 . -5) (undo-tree-id49 . -5) 760) nil (27082 30762 629376 298000) 0 nil])
+([nil nil ((#("-" 0 1 (face font-lock-builtin-face fontified t)) . -754) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (undo-tree-id30 . -1) 755) nil (27082 30762 629360 898000) 0 nil])
+([nil nil ((#("make" 0 4 (fontified t)) . -18199) (undo-tree-id63 . -4) 18203 (t 27082 30762 627780 487000)) nil (27082 30890 712190 151000) 0 nil])
+([nil nil ((#("-" 0 1 (fontified t)) . 18199)) nil (27082 30890 712188 551000) 0 nil])
+([nil nil ((18207 . 18211)) nil (27082 30890 712188 51000) 0 nil])
+([nil nil ((#(" :status 500 :body \"Internal Server Error\"" 0 1 (fontified t) 1 8 (face font-lock-builtin-face fontified t) 8 13 (fontified t) 13 18 (face font-lock-builtin-face fontified t) 18 19 (fontified t) 19 42 (face font-lock-string-face fontified t)) . -18211) (undo-tree-id62 . -42) 18253) nil (27082 30890 712187 441000) 0 nil])
+([nil nil ((#("
+                        " 0 1 (fontified t) 1 25 (fontified t)) . -18156) (undo-tree-id61 . -25) 18181) nil (27082 30890 712184 641000) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -18155) (undo-tree-id59 . -1) (undo-tree-id60 . -1) 18156) nil (27082 30890 712183 261000) 0 nil])
+([nil nil ((#("
+                   " 0 20 (fontified t)) . -18537) (undo-tree-id58 . -20) 18557) nil (27082 30890 712181 221000) 0 nil])
+([nil nil ((#("make" 0 4 (fontified t)) . -18554) (undo-tree-id57 . -4) 18558) nil (27082 30890 712180 1000) 0 nil])
+([nil nil ((#("-" 0 1 (fontified t)) . 18554)) nil (27082 30890 712178 601000) 0 nil])
+([nil nil ((#("s" 0 1 (fontified t)) . -18560) (undo-tree-id55 . -1) (#("e" 0 1 (fontified t)) . -18561) (undo-tree-id56 . -1) 18562) nil (27082 30890 712177 751000) 0 nil])
+([nil nil ((18560 . 18561)) nil (27082 30890 712175 681000) 0 nil])
+([nil nil ((18561 . 18562)) nil (27082 30890 712175 191000) 0 nil])
+([nil nil ((#("(" 0 1 (fontified t)) . -18561) (undo-tree-id54 . -1) 18562) nil (27082 30890 712174 481000) 0 nil])
+([nil nil ((18561 . 18562)) nil (27082 30890 712173 231000) 0 nil])
+([nil nil ((#("(" 0 1 (fontified t)) . -18561) (undo-tree-id53 . -1) 18562) nil (27082 30890 712172 351000) 0 nil])
+([nil nil ((18561 . 18562)) nil (27082 30890 712170 931000) 0 nil])
+([nil nil ((#(" :status" 0 1 (fontified t) 1 8 (face font-lock-builtin-face fontified t)) . 18562)) nil (27082 30890 712170 421000) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . 18562)) nil (27082 30890 712169 781000) 0 nil])
+([nil nil ((#("s" 0 1 (fontified t)) . -18179) (undo-tree-id51 . -1) (#("e" 0 1 (fontified t)) . -18180) (undo-tree-id52 . -1) 18181) nil (27082 30890 712168 511000) 0 nil])
+([nil nil ((18179 . 18180)) nil (27082 30890 712164 941000) 0 nil])
+([nil nil ((#(" :body \"Not Found\"" 0 1 (fontified t) 1 6 (face font-lock-builtin-face fontified t) 6 7 (fontified t) 7 18 (face font-lock-string-face fontified t)) . -18564) (undo-tree-id50 . -18) 18582) nil (27082 30890 712161 661000) 0 nil])
+([nil nil ((2683 . 2684) (t 27082 30890 711145 860000)) nil (27083 24054 65784 70000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 4334 . 4335) (nil fontified nil 2684 . 4335) (2684 . 4335)) nil (27083 24054 65782 960000) 0 nil])
+([nil nil ((2364 . 2365)) nil (27083 24054 65781 710000) 0 nil])
+([nil nil ((2365 . 2367)) nil (27083 24054 65780 840000) 0 nil])
+([nil nil ((2686 . 2688)) nil (27083 24054 65780 30000) 0 nil])
+([nil nil ((#("\"" 0 1 (face font-lock-comment-face fontified t)) . -2687) (undo-tree-id64 . -1) 2688) nil (27083 24054 65777 860000) 0 nil])
+([nil nil ((2687 . 2688)) nil (27083 24054 65764 330000) 0 nil])
+([nil current ((2688 . 2689)) nil (27083 24054 65758 140000) 0 nil])
 nil

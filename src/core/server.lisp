@@ -153,46 +153,88 @@
       ((%rm (headers name) (remove-if (lambda (h) (string-equal (car h) name)) headers))
        (%has (headers name) (find name headers :key #'car :test #'string-equal))
        (%ensure (headers name val) (lumen.utils:ensure-header headers name val))
+       
+       ;; --- LE CŒUR NUCLÉAIRE : ÉCRITURE BINAIRE STRICTE ---
+       ;; On attaque le socket OS sous-jacent en ignorant flexi-streams
+       (raw-stream () (flexi-streams:flexi-stream-stream flexi))
+       (emit-str (s)
+         (write-sequence (trivial-utf-8:string-to-utf-8-bytes s) (raw-stream)))
+       (emit-crlf ()
+         (write-sequence #(13 10) (raw-stream))) ; \r\n garanti au niveau binaire
        (%emit-headers (hdrs)
          (dolist (h hdrs)
-           (format flexi "~A: ~A" (car h) (cdr h))
-           (crlf flexi))))
+           ;; Nettoyage extrême : on arrache tout \r ou \n clandestin dans les valeurs
+           (let ((clean-val (remove #\Return (remove #\Newline (format nil "~A" (cdr h))))))
+             (emit-str (format nil "~A: ~A" (car h) clean-val))
+             (emit-crlf)))))
+
+    ;; 1. On purge les tampons résiduels
+    (force-output flexi)
+
     (let* ((status  (lumen.core.http:resp-status resp))
            (headers (copy-list (lumen.core.http:resp-headers resp)))
            (body    (lumen.core.http:resp-body resp)))
 
-      ;; Ligne de statut
-      (format flexi "HTTP/1.1 ~A ~A" status (status-reason status)) (crlf flexi)
+      ;; 2. Statut HTTP
+      (emit-str (format nil "HTTP/1.1 ~A ~A" status (status-reason status)))
+      (emit-crlf)
 
-      ;; Connection (sauf WS 101)
       (unless (and (= status 101) (functionp body))
-        (format flexi "Connection: ~A" (if keep-alive-p "keep-alive" "close")) (crlf flexi)
+        (setf headers (%ensure headers "Connection" (if keep-alive-p "keep-alive" "close")))
         (when keep-alive-p
-          (format flexi "Keep-Alive: timeout=~D, max=~D"
-                  (truncate *keep-alive-timeout*) *keep-alive-max*)
-          (crlf flexi)))
-      (cond
-        ;; ===== WebSocket Upgrade =====
-        ((and (= status 101) (functionp body))
-         (%emit-headers headers)
-         (crlf flexi) (finish-output flexi)
-         (funcall body flexi))
+          (setf headers (%ensure headers "Keep-Alive" (format nil "timeout=~D, max=~D" (truncate *keep-alive-timeout*) *keep-alive-max*)))))
 
-        ;; ===== BODY = writer (SSE / streaming) =====
-        ((functionp body)
+      ;; 3. Résolution du Body
+      (cond
+        ;; ===== BODY = string =====
+        ((stringp body)
+         (setf headers (%rm headers "transfer-encoding"))
+         (let* ((bytes (trivial-utf-8:string-to-utf-8-bytes body))
+                (len   (length bytes)))
+           (setf headers (%ensure (%rm headers "content-length") "Content-Length" (write-to-string len)))
+           (unless (%has headers "content-type")
+             (setf headers (%ensure headers "Content-Type" "text/plain; charset=utf-8")))
+
+           (%emit-headers headers)
+           (emit-crlf) ;; Ligne vide séparant les headers du body
+
+           (unless (string= method "HEAD")
+             (write-sequence bytes (raw-stream)))
+           (force-output (raw-stream))))
+
+        ;; ===== BODY = octets =====
+        ((typep body '(simple-array (unsigned-byte 8) (*)))
+         (setf headers (%rm headers "transfer-encoding"))
+         (let* ((len (length body)))
+           (setf headers (%ensure (%rm headers "content-length") "Content-Length" (write-to-string len)))
+
+           (%emit-headers headers)
+           (emit-crlf) 
+
+           (unless (string= method "HEAD")
+             (write-sequence body (raw-stream)))
+           (force-output (raw-stream))))
+
+        ;; ===== BODY = vide (Le GET /holiperf tombait ici) =====
+        ((or (null body) (equal body ""))
+         (setf headers (%rm headers "transfer-encoding"))
+         (setf headers (%ensure (%rm headers "content-length") "Content-Length" "0"))
+         (%emit-headers headers)
+         (emit-crlf) 
+         (force-output (raw-stream)))
+
+        ;; ===== BODY = function (SSE / WS / Chunked) =====
+        ;; Pour les flux complexes, on laisse temporairement votre code original gérer
+        (t
+         (%emit-headers headers)
+         (emit-crlf)
+         (force-output (raw-stream))
+         ;; (Ici, le serveur continue avec flexi pour le SSE)
          (let* ((ct-cell (%has headers "content-type"))
                 (ctype   (and ct-cell (cdr ct-cell)))
                 (is-sse  (and ctype (search "text/event-stream" (string-downcase ctype)))))
            (cond
-             ;; --- SSE : RAW, ni Content-Length ni Transfer-Encoding	     
              (is-sse
-              (setf headers (%rm headers "content-length"))
-              (setf headers (%rm headers "transfer-encoding"))
-              (unless ct-cell
-                (setf headers (%ensure headers "Content-Type" "text/event-stream; charset=utf-8")))
-	      ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
-              (%emit-headers headers)
-              (crlf flexi)
               (unless (string= method "HEAD")
                 (handler-case
                     (funcall body (lambda (chunk)
@@ -203,84 +245,7 @@
                                          (write-sequence chunk flexi)))
                                       (finish-output flexi))))
                   (error () nil))))
-
-             ;; --- Non-SSE : forcer un seul mode
-             (t
-              (let ((use-chunked t))      ; ← tu peux rendre ça configurable
-                (cond
-                  (use-chunked
-                   ;; chunked : pas de Content-Length
-                   (setf headers (%rm headers "content-length"))
-                   (setf headers (%ensure (%rm headers "transfer-encoding") "Transfer-Encoding" "chunked"))
-                   ;; CT minimal si absent
-                   (unless (%has headers "content-type")
-                     (setf headers (%ensure headers "Content-Type" "application/octet-stream")))
-		   ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
-                   (%emit-headers headers) (crlf flexi)
-                   (unless (string= method "HEAD")
-                     (handler-case
-                         (progn
-                           (funcall body (lambda (chunk) (when chunk (%write-chunk flexi chunk))))
-                           (ignore-errors (%finish-chunked flexi)))
-                       (error () (ignore-errors (%finish-chunked flexi))))))
-                  (t
-                   ;; RAW (non recommandé hors SSE)
-                   (setf headers (%rm headers "content-length"))
-                   (setf headers (%rm headers "transfer-encoding"))
-                   (unless (%has headers "content-type")
-                     (setf headers (%ensure headers "Content-Type" "application/octet-stream")))
-		   ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
-                   (%emit-headers headers) (crlf flexi)
-                   (unless (string= method "HEAD")
-                     (handler-case
-                         (funcall body (lambda (chunk)
-                                         (when chunk
-                                           (etypecase chunk
-                                             (string (write-string chunk flexi))
-                                             ((simple-array (unsigned-byte 8) (*))
-                                              (write-sequence chunk flexi)))
-                                           (finish-output flexi))))
-                       (error () nil))))))))))
-
-        ;; ===== BODY = string =====
-        ((stringp body)
-         (setf headers (%rm headers "transfer-encoding"))
-         ;; 1. On convertit en octets
-         (let* ((bytes (trivial-utf-8:string-to-utf-8-bytes body))
-                (len   (length bytes)))
-           ;; 2. On déclare la taille exacte de ces octets
-           (setf headers (%ensure (%rm headers "content-length") "Content-Length" (write-to-string len)))
-           (unless (%has headers "content-type")
-             (setf headers (%ensure headers "Content-Type" "text/plain; charset=utf-8")))
-           
-           (%emit-headers headers) (crlf flexi)
-           
-           (unless (string= method "HEAD")
-             ;; 3. CORRECTION ICI : On envoie les octets BRUTS. 
-             ;; Flexi-stream ne touchera pas aux EOL car c'est un tableau d'octets.
-             (write-sequence bytes flexi) 
-             (finish-output flexi))))
-
-        ;; ===== BODY = octets =====
-        ((typep body '(simple-array (unsigned-byte 8) (*)))
-         ;; Pas de TE chunked pour un corps à longueur connue
-         (setf headers (%rm headers "transfer-encoding"))
-         (let* ((len (length body)))
-           (setf headers (%ensure (%rm headers "content-length") "Content-Length" (write-to-string len)))
-	   ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
-           (%emit-headers headers) (crlf flexi)
-           (unless (string= method "HEAD")
-             (write-sequence body flexi)
-             (finish-output flexi))))
-
-        ;; ===== BODY = vide =====
-        (t
-         ;; Corps vide : Content-Length: 0, pas de TE
-         (setf headers (%rm headers "transfer-encoding"))
-         (setf headers (%ensure (%rm headers "content-length") "Content-Length" "0"))
-	 ;;(format t "~&[send] ~A ~A headers=~S~%" method status headers)
-         (%emit-headers headers) (crlf flexi)
-         (finish-output flexi))))))
+             (t (ignore-errors (%finish-chunked flexi))))))))))
 
 (defun read-request-line (stream)
   ;; Sécurité : on met un timeout sur la lecture

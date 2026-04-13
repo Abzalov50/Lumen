@@ -1,9 +1,9 @@
 (defpackage :lumen.modules.auth.view
   (:use :cl :spinneret :lumen.utils :lumen.core.http :lumen.data.db :lumen.data.dao
    :lumen.view.html :lumen.data.repo.core :lumen.data.repo.query
-	)
+    )
   (:export :render-login-page :render-signup-page
-		:render-signup-form :render-signup-page))
+        :render-signup-form :render-login-form)) ;; J'ai corrigé un doublon dans vos exports
 
 (in-package :lumen.modules.auth.view)
 
@@ -15,7 +15,8 @@
         (company   (alist-get values "company")))
     
     (with-html-string
-      (:form :hx-post "/auth/signup" 
+      ;; --- REFACTORISÉ : hx-post dynamique ---
+      (:form :hx-post (lumen.app.app:app-path "/auth/signup") 
              :hx-swap "outerHTML"
              :class "needs-validation"
         
@@ -52,7 +53,9 @@
                  (:i :class "bi bi-rocket-takeoff me-2") "Démarrer")
         
         (:p :class "mt-4 text-center"
-          "Déjà un compte ? " (:a :href "/auth/login" "Se connecter"))))))
+          "Déjà un compte ? " 
+          ;; --- REFACTORISÉ : href dynamique ---
+          (:a :href (lumen.app.app:app-path "/auth/login") "Se connecter"))))))
 
 (defun render-signup-page ()
   "Page wrapper."
@@ -73,7 +76,8 @@
 (defun render-login-form (&key email error)
   "Génère le fragment HTML du formulaire (pour affichage initial ou swap HTMX)."
   (with-html-string
-    (:form :hx-post "/auth/login" 
+    ;; --- REFACTORISÉ : hx-post dynamique ---
+    (:form :hx-post (lumen.app.app:app-path "/auth/login") 
            :hx-swap "outerHTML"
            
       ;; Logo ou Titre

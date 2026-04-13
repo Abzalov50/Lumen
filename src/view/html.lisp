@@ -30,13 +30,13 @@
     (:script :src "https://unpkg.com/htmx.org@1.9.10" :defer t)
     ;; Extension HTMX pour JSON (optionnel mais utile)
     (:script :src "https://unpkg.com/htmx.org/dist/ext/json-enc.js" :defer t)
-    (:link :rel "stylesheet" :href "/assets/css/style.css")))
+    (:link :rel "stylesheet" :href (lumen.app.app:app-path "/assets/css/style.css"))))
 
 (defun render-core-js ()
   ;; CSS
   (with-html
     (:script :src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
-    (:script :src "/assets/js/app.js")))
+    (:script :src (lumen.app.app:app-path "/assets/js/app.js"))))
 
 ;;; 3. Layout Master
 ;;; Cette macro est magique : elle gère le "Full page" vs "Partial"

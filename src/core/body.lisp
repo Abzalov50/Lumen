@@ -59,7 +59,7 @@
       
       ;; 2. Parsing JSON
       (handler-case
-          (cl-json:decode-json-from-string txt)
+          (values (cl-json:decode-json-from-string txt) txt)
         (error (e)
           (format *error-output* "~&[json] decode error: ~A~%" e)
           nil)))))
