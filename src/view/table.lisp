@@ -2,7 +2,8 @@
   (:use :cl :spinneret :lumen.data.db :lumen.utils)
   (:import-from :lumen.data.dao :entity-fields)
   (:export :render-entity-table :render-entity-details-modal
-	   :make-action-col :render-datagrid :col))
+	   :make-action-col :render-datagrid :render-row :render-row-actions
+	   :render-header-col :render-pagination :col))
 
 (in-package :lumen.view.table)
 
@@ -311,7 +312,7 @@
                        :hx-swap "outerHTML swap:1s"
                        (:i :class "bi bi-trash")))))))
 
-(defun render-header-col (col current-sort current-dir base-url target-id)
+(defun render-header-col (col current-sort current-dir base-url target-id &optional (form-selector "closest form"))
   (let* ((key (getf col :key))
          (label (getf col :label))
          (sortable (getf col :sortable))
@@ -330,10 +331,11 @@
                    :hx-get (format nil "~A?sort=~A&dir=~A" base-url key new-dir)
                    :hx-target (format nil "#~A" target-id)
                    ;; OVERRIDE DU BODY !
-                   :hx-select (format nil "#~A" target-id) 
+                   ;;:hx-select (format nil "#~A" target-id) 
                    ;; ON REMPLACE TOUT LE BLOC
-                   :hx-swap "outerHTML" 
-                   :hx-include "closest form"
+                   ;;:hx-swap "outerHTML"
+		   :hx-swap "innerHTML" 
+                   :hx-include form-selector
                    
                    label
                    (cond 
@@ -359,9 +361,10 @@
                                            :hx-get (format nil "~A~Apage=~D" source-url sep target-page)
                                            :hx-target (format nil "#~A" target-id)
                                            ;; OVERRIDE DU BODY !
-                                           :hx-select (format nil "#~A" target-id)
+                                           ;;:hx-select (format nil "#~A" target-id)
                                            ;; ON REMPLACE TOUT LE BLOC
-                                           :hx-swap "outerHTML"
+                                           ;;:hx-swap "outerHTML"
+					   :hx-swap "innerHTML"
                                            :hx-include form-selector
                                            label))))
                       (render-link (1- page) "Précédent" (<= page 1))
@@ -409,7 +412,8 @@
 (defun render-datagrid (items columns &key (id "datagrid") (source-url "") 
                                            (mode :default) 
                                            (current-sort nil) (current-dir "DESC") 
-                                           (pagination nil) (empty-message "Aucune donnée."))
+                                        (pagination nil) (empty-message "Aucune donnée.")
+					(filter-selector "closest form"))
   
   (let ((tbody-id (format nil "~A-body" id))         ;; ID calculé pour le corps
         (pagination-id (format nil "~A-pagination" id))) ;; ID calculé pour le footer
@@ -429,7 +433,9 @@
                                   :hx-get (if (eq mode :remote) source-url "")
                                   :hx-trigger (if (eq mode :remote) "load" "")
                                   :hx-target "this"
-                                  :hx-include "closest form"
+                                  :hx-include filter-selector
+				  :hx-swap (if (eq mode :remote) "outerHTML" "")
+				  ;;:hx-select (if (eq mode :remote) (format nil "#~A" tbody-id) "")
                                   (if (eq mode :remote)
                                       ;; Loader initial
                                       (:tr (:td :colspan (length columns) :class "text-center py-5"
@@ -444,7 +450,7 @@
             (:div :id pagination-id
                   (when (and pagination (not (eq mode :remote)))
                     ;; On passe tbody-id pour que les boutons sachent quoi mettre à jour
-                    (render-pagination pagination source-url tbody-id)))))))
+                    (render-pagination pagination source-url tbody-id filter-selector)))))))
 
 #|
 (defun render-datagrid (items columns &key (id "datagrid") (source-url "") 

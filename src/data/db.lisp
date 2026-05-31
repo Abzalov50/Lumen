@@ -18,7 +18,7 @@
   
   (:export :start! :stop! :with-tx :query-a :query-1a :exec
            :with-conn :ensure-connection :with-rollback
-           :*connection-mode* :with-statement-timeout :run-in-transaction
+   :*connection-mode* :with-statement-timeout :run-in-transaction
            :*default-statement-timeout-ms* :*slow-query-ms*
 	   :db-session-middleware :connection-per-request-middleware :with-db-app))
 

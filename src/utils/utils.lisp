@@ -25,7 +25,7 @@
 
 	   ;; Dates
    :%val->date-input :%val->date-display :to-timestamp :format-timestamp
-   :format-now-fr :ts-filename :timestamp-diff :nb-workdays
+   :format-now-fr :ts-filename :timestamp-diff :nb-workdays :format-hours-to-hms
 
    ;; Files
    :gen-safe-filename :get-extension
@@ -365,6 +365,16 @@ Retourne la nouvelle plist."
        (format nil "~A/~A/~A" d m y)))
     
     (t (format nil "~A" val))))
+
+(defun format-hours-to-hms (hours-float)
+  "Convertit une durée décimale en heures vers le format HH:MM:SS."
+  (if (or (null hours-float) (<= hours-float 0))
+      "00:00:00"
+      (let* ((h (floor hours-float))
+             (rem-m (* (- hours-float h) 60))
+             (m (floor rem-m))
+             (s (round (* (- rem-m m) 60))))
+        (format nil "~2,'0D:~2,'0D:~2,'0D" h m s))))
 
 (defun slugify (string)
   "Convertit une chaîne en slug URL-friendly (ex: 'Hôtel & Spa!' -> 'hotel-spa')."
