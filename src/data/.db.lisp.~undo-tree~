@@ -1,294 +1,60 @@
 (undo-tree-save-format-version . 1)
-"55a97d91deb4035399096b1274237a74de4a81cf"
-[nil nil nil nil (27047 24105 973812 586000) 0 nil]
-([nil nil ((9722 . 9723) (t 27045 40770 49390 196000)) nil (27047 24105 973811 736000) 0 nil])
-([nil nil ((9722 . 9729)) nil (27047 24105 973811 86000) 0 nil])
-([nil nil ((#("o" 0 1 (fontified t)) . -9723) (undo-tree-id28 . -1) (#("u" 0 1 (fontified t)) . -9724) (undo-tree-id29 . -1) (#("n" 0 1 (fontified t)) . -9725) (undo-tree-id30 . -1) (#("t" 0 1 (fontified t)) . -9726) (undo-tree-id31 . -1) (#("-" 0 1 (fontified t)) . -9727) (undo-tree-id32 . -1) (#("m" 0 1 (fontified t)) . -9728) (undo-tree-id33 . -1) 9729) nil (27047 24105 973809 786000) 0 nil])
-([nil nil ((#(":" 0 1 (fontified t)) . -9721) (undo-tree-id24 . -1) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (#("c" 0 1 (fontified t)) . -9722) (undo-tree-id27 . -1) 9723) nil (27047 24105 973803 796000) 0 nil])
-([nil nil ((9721 . 9722)) nil (27047 24105 973673 277000) 0 nil])
-([nil nil ((#(" " 0 1 (fontified t)) . 9722)) nil (27047 24105 973672 307000) 0 nil])
-([nil nil ((#("(real-params
-		(if (and (= 1 (length params))
-			 (listp (first params))
-			 (> (cl-ppcre:count-matches \"\\\\$\\\\d+\" sql) 1))
-                    (first params)
-                    params))" 0 16 (fontified t) 16 18 (face font-lock-keyword-face fontified t) 18 73 (fontified t) 73 104 (fontified t) 104 113 (face font-lock-string-face fontified t) 113 123 (fontified t) 123 186 (fontified t)) . -9632) (undo-tree-id0 . -105) (undo-tree-id1 . -104) (undo-tree-id2 . -89) (undo-tree-id3 . -89) (undo-tree-id4 . -90) (undo-tree-id5 . -90) (undo-tree-id6 . -186) (undo-tree-id7 . -90) (undo-tree-id8 . -90) (undo-tree-id9 . -90) (undo-tree-id10 . -90) (undo-tree-id11 . -90) (undo-tree-id12 . -90) (undo-tree-id13 . -90) (undo-tree-id14 . -90) (undo-tree-id15 . -186) (undo-tree-id16 . -186) (undo-tree-id17 . -158) (undo-tree-id18 . -186) (undo-tree-id19 . -186) (undo-tree-id20 . -186) (undo-tree-id21 . -186) (undo-tree-id22 . -186) (undo-tree-id23 . -186) 9818) nil (27047 24105 974027 425000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 9907 . 9908) (nil fontified nil 9632 . 9908) (9632 . 9908)) nil (27047 24134 139520 864000) 0 nil] [nil nil ((nil rear-nonsticky nil 10386 . 10387) (nil fontified nil 10356 . 10387) (nil fontified nil 10351 . 10356) (nil fontified nil 10331 . 10351) (nil fontified nil 10326 . 10331) (nil fontified nil 10249 . 10326) (nil fontified nil 10246 . 10249) (nil fontified nil 10230 . 10246) (nil fontified nil 10218 . 10230) (nil fontified nil 10133 . 10218) (nil fontified nil 10123 . 10133) (nil fontified nil 10114 . 10123) (nil fontified nil 10083 . 10114) (nil fontified nil 10028 . 10083) (nil fontified nil 10026 . 10028) (nil fontified nil 10008 . 10026) (nil fontified nil 10005 . 10008) (nil fontified nil 10003 . 10005) (nil fontified nil 9960 . 10003) (nil fontified nil 9957 . 9960) (nil fontified nil 9945 . 9957) (nil fontified nil 9938 . 9945) (nil fontified nil 9937 . 9938) (nil fontified nil 9930 . 9937) (nil fontified nil 9858 . 9930) (nil fontified nil 9854 . 9858) (nil fontified nil 9784 . 9854) (nil fontified nil 9780 . 9784) (nil fontified nil 9744 . 9780) (nil fontified nil 9734 . 9744) (nil fontified nil 9732 . 9734) (nil fontified nil 9703 . 9732) (nil fontified nil 9699 . 9703) (nil fontified nil 9668 . 9699) (nil fontified nil 9657 . 9668) (nil fontified nil 9652 . 9657) (nil fontified nil 9646 . 9652) (nil fontified nil 9639 . 9646) (nil fontified nil 9638 . 9639) (nil fontified nil 9633 . 9638) (nil fontified nil 9632 . 9633) (9632 . 10387)) ((#("(defun query-a (sql &rest params)
-  \"Execute SELECT. Return alist.\"
-  (lumen.core.trace:with-tracing (\"DB:Query\" 
-                                  :sql (subseq sql 0 (min 100 (length sql))))
-    (ensure-connection
-      (let* ((t0 (get-internal-real-time))
-             (fn (get-prepared-plan sql :format :alists)))
-      
-	;; Patch identique pour query-a, par sécurité
-	(let ((real-params
-		(if (and (= 1 (length params))
-			 (listp (first params))
-			 (> (cl-ppcre:count-matches \"\\\\$\\\\d+\" sql) 1))
-                    (first params)
-                    params)))
-        
-          (handler-case
-              (let ((rows (apply fn real-params)))
-		(values rows (length rows)))
-            (error (c)
-              (error (translate-db-error c)))))))))" 0 1 (fontified nil) 1 6 (face font-lock-keyword-face fontified nil) 6 7 (fontified nil) 7 14 (face font-lock-function-name-face fontified nil) 14 20 (fontified nil) 20 25 (face font-lock-type-face fontified nil) 25 34 (fontified nil) 34 36 (fontified nil) 36 67 (face font-lock-doc-face fontified nil) 67 68 (fontified nil) 68 71 (fontified nil) 71 100 (face font-lock-keyword-face fontified nil) 100 102 (fontified nil) 102 112 (face font-lock-string-face fontified nil) 112 114 (fontified nil) 114 148 (fontified nil) 148 152 (face font-lock-builtin-face fontified nil) 152 215 (fontified nil) 215 222 (fontified nil) 222 226 (face font-lock-keyword-face fontified nil) 226 258 (fontified nil) 258 298 (fontified nil) 298 305 (face font-lock-builtin-face fontified nil) 305 306 (fontified nil) 306 313 (face font-lock-builtin-face fontified nil) 313 324 (fontified nil) 324 325 (fontified nil) 325 328 (face font-lock-comment-delimiter-face fontified nil) 328 371 (face font-lock-comment-face fontified nil) 371 373 (fontified nil) 373 376 (face font-lock-keyword-face fontified nil) 376 391 (fontified nil) 391 394 (fontified nil) 394 396 (face font-lock-keyword-face fontified nil) 396 451 (fontified nil) 451 482 (fontified nil) 482 491 (face font-lock-string-face fontified nil) 491 501 (fontified nil) 501 575 (fontified nil) 575 586 (fontified nil) 586 598 (face font-lock-keyword-face fontified nil) 598 599 (fontified nil) 599 614 (fontified nil) 614 617 (face font-lock-keyword-face fontified nil) 617 681 (fontified nil) 681 694 (fontified nil) 694 699 (face font-lock-warning-face fontified nil) 699 704 (fontified nil) 704 719 (fontified nil) 719 724 (face font-lock-warning-face fontified nil) 724 754 (fontified nil) 754 755 (rear-nonsticky nil fontified nil)) . 9632) (undo-tree-id34 . -755) (undo-tree-id35 . -704) (nil fontified t 9657 . 9666) (nil fontified t 9699 . 9700) (nil fontified t 9744 . 9746) (nil fontified t 9784 . 9847) (nil fontified t 9858 . 9890) (nil fontified t 9945 . 9956) (nil fontified t 9960 . 10003) (nil fontified t 10008 . 10023) (nil fontified t 10028 . 10083) (nil fontified t 10123 . 10133) (nil fontified t 10133 . 10207) (nil fontified t 10230 . 10231) (nil fontified t 10249 . 10313) (nil fontified t 10331 . 10336) (nil rear-nonsticky t 10386 . 10387)) (27047 24105 973628 497000) 0 nil])
-([nil nil ((#("                    " 0 20 (fontified t)) . -9845) (undo-tree-id68 . -20) (undo-tree-id69 . -19) (undo-tree-id70 . -19) (undo-tree-id71 . -19) (undo-tree-id72 . -19) (undo-tree-id73 . -20) (undo-tree-id74 . -20) 9865) nil (27047 24134 139519 444000) 0 nil])
-nil
-([nil nil ((#("
-" 0 1 (fontified t)) . -9844) (undo-tree-id47 . -1) (undo-tree-id48 . -1) (undo-tree-id49 . -1) (undo-tree-id50 . -1) (undo-tree-id51 . -1) (undo-tree-id52 . -1) (undo-tree-id53 . -1) (undo-tree-id54 . -1) (undo-tree-id55 . -1) (undo-tree-id56 . -1) (undo-tree-id57 . -1) (undo-tree-id58 . -1) (undo-tree-id59 . -1) (undo-tree-id60 . -1) (undo-tree-id61 . -1) (undo-tree-id62 . -1) (undo-tree-id63 . -1) (undo-tree-id64 . -1) (undo-tree-id65 . -1) (undo-tree-id66 . -1) (undo-tree-id67 . -1) 9845) nil (27047 24134 139512 714000) 0 nil])
-([nil nil ((9844 . 9851)) nil (27047 24137 245571 165000) 0 nil])
-([nil nil ((#("                    " 0 20 (fontified t)) . -9866) (undo-tree-id111 . -20) (undo-tree-id112 . -20) (undo-tree-id113 . -20) (undo-tree-id114 . -20) (undo-tree-id115 . -20) (undo-tree-id116 . -20) (undo-tree-id117 . -20) (undo-tree-id118 . -20) (undo-tree-id119 . -20) (undo-tree-id120 . -20) (undo-tree-id121 . -20) (undo-tree-id122 . -20) (undo-tree-id123 . -20) (undo-tree-id124 . -20) (undo-tree-id125 . -20) 9886) nil (27047 24152 32355 831000) 0 nil] [nil nil ((#("params)))
-" 0 7 (fontified t) 7 8 (fontified t rear-nonsticky t) 8 10 (fontified t)) . 9886) (undo-tree-id36 . -10) (undo-tree-id37 . -8) (undo-tree-id38 . -10) (undo-tree-id39 . -8) (undo-tree-id40 . -8) (undo-tree-id41 . -8) (undo-tree-id42 . -10) (undo-tree-id43 . -10) (undo-tree-id44 . -10) (undo-tree-id45 . -10) (undo-tree-id46 . -10)) ((9886 . 9896)) (27047 24134 139721 523000) 0 nil])
-([nil nil ((#("
-" 0 1 (fontified t)) . -9865) (undo-tree-id77 . -1) (undo-tree-id78 . -1) (undo-tree-id79 . -1) (undo-tree-id80 . -1) (undo-tree-id81 . -1) (undo-tree-id82 . -1) (undo-tree-id83 . -1) (undo-tree-id84 . -1) (undo-tree-id85 . -1) (undo-tree-id86 . -1) (undo-tree-id87 . -1) (undo-tree-id88 . -1) (undo-tree-id89 . -1) (undo-tree-id90 . -1) (undo-tree-id91 . -1) (undo-tree-id92 . -1) (undo-tree-id93 . -1) (undo-tree-id94 . -1) (undo-tree-id95 . -1) (undo-tree-id96 . -1) (undo-tree-id97 . -1) (undo-tree-id98 . -1) (undo-tree-id99 . -1) (undo-tree-id100 . -1) (undo-tree-id101 . -1) (undo-tree-id102 . -1) (undo-tree-id103 . -1) (undo-tree-id104 . -1) (undo-tree-id105 . -1) (undo-tree-id106 . -1) (undo-tree-id107 . -1) (undo-tree-id108 . -1) (undo-tree-id109 . -1) (undo-tree-id110 . -1) 9866) nil (27047 24152 32343 521000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 10161 . 10162) (nil fontified nil 9886 . 10162) (9886 . 10162)) ((#("(real-params
-		(if (and (= 1 (length params))
-			 (listp (first params))
-			 ;; Correction ici : on compte la longueur de la liste des résultats
-			 (> (length (cl-ppcre:all-matches-as-strings \"\\\\$\\\\d+\" sql)) 1))
-                    (first params)
-                    params))" 0 16 (fontified nil) 16 18 (face font-lock-keyword-face fontified nil) 18 77 (fontified nil) 77 80 (face font-lock-comment-delimiter-face fontified nil) 80 145 (face font-lock-comment-face fontified nil) 145 193 (fontified nil) 193 202 (face font-lock-string-face fontified nil) 202 248 (fontified nil) 248 275 (fontified nil) 275 276 (rear-nonsticky nil fontified nil)) . 9886) (undo-tree-id75 . -276) (undo-tree-id76 . -248) (nil fontified t 10088 . 10134) (nil fontified t 10079 . 10088) (nil fontified t 10031 . 10079) (nil fontified t 9966 . 10031) (nil fontified t 9963 . 9966) (nil fontified t 9904 . 9963) (nil fontified t 9902 . 9904) (nil fontified t 9886 . 9902) (nil rear-nonsticky t 10161 . 10162)) (27047 24134 139471 34000) 0 nil])
-([nil nil ((9865 . 9872)) nil (27047 24152 32222 791000) 0 nil])
-nil
+"c5b05420ed674782684d67f9b02cd642b26cef23"
+[nil nil nil nil (27164 23269 195059 0) 0 nil]
 ([nil nil ((#("(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  \"Transaction avec flux de contrôle explicite (pas de loop/return implicite).\"
+  \"Transaction avec flux de contrôle explicite et support des valeurs multiples.\"
   (lumen.core.trace:with-tracing (\"DB:Transaction\" :retries-max retries)
     (let ((attempt 0))
       (block txn-block
-	(labels ((retry-loop ()
+        (labels ((retry-loop ()
                    ;; 1. Exécution
-                   (let ((result 
-                           (ensure-connection
-                             (handler-case
-				 (progn
-                                   (%raw-exec \"BEGIN\")
-                                   (let ((res (funcall thunk)))
-                                     (%raw-exec \"COMMIT\")
-                                     (list :ok res)))
-                               (error (c)
-				 (ignore-errors (%raw-exec \"ROLLBACK\"))
-				 (list :error c))))))
+                   (let ((result			   
+                          (ensure-connection
+                            (handler-case
+                                (progn
+                                  (%raw-exec \"BEGIN\")
+                                  ;; --- CHANGEMENT 1 : Capture de TOUTES les valeurs ---
+                                  ;; On transforme (values a b) en (list a b) pour le stocker
+                                  (let ((vals (multiple-value-list (funcall thunk))))
+                                    (%raw-exec \"COMMIT\")
+                                    ;; On retourne la liste dans notre wrapper interne
+                                    (list :ok vals)))
+                              
+                              (error (c)
+                                (ignore-errors (%raw-exec \"ROLLBACK\"))
+                                (list :error c))))))
                    
-                     ;; 2. Analyse
-                     (if (eq (first result) :ok)
-			 (return-from txn-block (second result))
+                   ;; 2. Analyse
+                   (if (eq (first result) :ok)
+                       ;; --- CHANGEMENT 2 : Restitution des valeurs ---
+                       ;; On transforme (list a b) en (values a b) pour sortir du bloc
+                       (return-from txn-block (values-list (second result)))
                        
-			 (let* ((err (second result))
-				(is-app (typep err 'lumen.core.error:application-error))
-				(mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                       (let* ((err (second result))
+                              (is-app (typep err 'lumen.core.error:application-error))
+                              (mapped (unless is-app (lumen.data.errors:map-db-error err))))
                          
-                           (when is-app (error err))
+                         (when is-app (error err))
                          
-                           (if (and mapped 
-                                    (< attempt retries) 
-                                    (lumen.data.errors:retryable-db-error-p mapped))
-                               (progn
-				 (incf attempt)
-				 (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
-				 (sleep (/ (max 50 sleep-ms) 1000.0))
-				 (retry-loop)) ;; Appel récursif sûr
+                         (if (and mapped 
+                                  (< attempt retries) 
+                                  (lumen.data.errors:retryable-db-error-p mapped))
+                             (progn
+                               (incf attempt)
+                               (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
+                               (sleep (/ (max 50 sleep-ms) 1000.0))
+                               (retry-loop)) ;; Appel récursif sûr
                              
-                               (error (or mapped err))))))))
-        
-          (retry-loop))))))" 0 348 (face font-lock-comment-face fontified t) 348 358 (face font-lock-comment-face fontified t) 358 1757 (face font-lock-comment-face fontified t)) . -10368) (undo-tree-id1 . -1757) 12125 (t 27047 24152 34805 794000)) nil (27082 28578 978109 854000) 0 nil])
+                             (error (or mapped err))))))))
+          
+          (retry-loop))))))" 0 592 (face font-lock-comment-face fontified t) 592 642 (face font-lock-comment-face fontified t) 642 2142 (face font-lock-comment-face fontified t) 2142 2174 (face font-lock-comment-face fontified t) 2174 2525 (face font-lock-comment-face fontified t)) . -14672) (undo-tree-id37 . -2525) (undo-tree-id38 . -1316) 17197 (t 27164 21358 0 0)) nil (27164 23269 195058 0) 0 nil])
 ([nil nil ((#("
 #|
 
-|#
-" 0 1 (face font-lock-comment-face fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 4 (face font-lock-comment-face fontified t) 4 5 (face font-lock-comment-face fontified t) 5 7 (face font-lock-comment-delimiter-face fontified t) 7 8 (fontified t)) . 10364) (undo-tree-id0 . -8)) nil (27082 28578 978106 774000) 0 nil])
-([nil nil ((10364 . 10365)) nil (27082 28578 981539 918000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 12876 . 12877) (nil fontified nil 10365 . 12877) (10365 . 12877)) nil (27082 28605 208803 170000) 0 nil] [nil nil ((nil rear-nonsticky nil 25658 . 25659) (nil fontified nil 23810 . 25659) (nil fontified nil 23782 . 23810) (nil fontified nil 23662 . 23782) (nil fontified nil 23658 . 23662) (nil fontified nil 23653 . 23658) (nil fontified nil 23573 . 23653) (nil fontified nil 23564 . 23573) (nil fontified nil 23559 . 23564) (nil fontified nil 23546 . 23559) (nil fontified nil 23535 . 23546) (nil fontified nil 23534 . 23535) (nil fontified nil 23526 . 23534) (nil fontified nil 23525 . 23526) (nil fontified nil 23376 . 23525) (nil fontified nil 23372 . 23376) (nil fontified nil 23352 . 23372) (nil fontified nil 23344 . 23352) (nil fontified nil 23332 . 23344) (nil fontified nil 23326 . 23332) (nil fontified nil 23295 . 23326) (nil fontified nil 23290 . 23295) (nil fontified nil 23280 . 23290) (nil fontified nil 23276 . 23280) (nil fontified nil 23273 . 23276) (nil fontified nil 23266 . 23273) (nil fontified nil 23265 . 23266) (nil fontified nil 23257 . 23265) (nil fontified nil 23192 . 23257) (nil fontified nil 23187 . 23192) (nil fontified nil 23127 . 23187) (nil fontified nil 23108 . 23127) (nil fontified nil 23105 . 23108) (nil fontified nil 22974 . 23105) (nil fontified nil 22944 . 22974) (nil fontified nil 22856 . 22944) (nil fontified nil 22851 . 22856) (nil fontified nil 22669 . 22851) (nil fontified nil 22667 . 22669) (nil fontified nil 22608 . 22667) (nil fontified nil 22603 . 22608) (nil fontified nil 22594 . 22603) (nil fontified nil 22590 . 22594) (nil fontified nil 22490 . 22590) (nil fontified nil 22484 . 22490) (nil fontified nil 22334 . 22484) (nil fontified nil 22330 . 22334) (nil fontified nil 22282 . 22330) (nil fontified nil 22240 . 22282) (nil fontified nil 22229 . 22240) (nil fontified nil 22225 . 22229) (nil fontified nil 22224 . 22225) (nil fontified nil 22205 . 22224) (nil fontified nil 22144 . 22205) (nil fontified nil 22141 . 22144) (nil fontified nil 22118 . 22141) (nil fontified nil 22071 . 22118) (nil fontified nil 22068 . 22071) (nil fontified nil 22043 . 22068) (nil fontified nil 22040 . 22043) (nil fontified nil 22020 . 22040) (nil fontified nil 22018 . 22020) (nil fontified nil 21998 . 22018) (nil fontified nil 21987 . 21998) (nil fontified nil 21984 . 21987) (nil fontified nil 21936 . 21984) (nil fontified nil 21930 . 21936) (nil fontified nil 21889 . 21930) (nil fontified nil 21879 . 21889) (nil fontified nil 21867 . 21879) (nil fontified nil 21854 . 21867) (nil fontified nil 21816 . 21854) (nil fontified nil 21811 . 21816) (nil fontified nil 21740 . 21811) (nil fontified nil 21737 . 21740) (nil fontified nil 21695 . 21737) (nil fontified nil 21647 . 21695) (nil fontified nil 21644 . 21647) (nil fontified nil 21606 . 21644) (nil fontified nil 21598 . 21606) (nil fontified nil 21503 . 21598) (nil fontified nil 21500 . 21503) (nil fontified nil 21465 . 21500) (nil fontified nil 21408 . 21465) (nil fontified nil 21405 . 21408) (nil fontified nil 21371 . 21405) (nil fontified nil 21318 . 21371) (nil fontified nil 21315 . 21318) (nil fontified nil 21279 . 21315) (nil fontified nil 21272 . 21279) (nil fontified nil 21226 . 21272) (nil fontified nil 21221 . 21226) (nil fontified nil 21187 . 21221) (nil fontified nil 21175 . 21187) (nil fontified nil 21085 . 21175) (nil fontified nil 21082 . 21085) (nil fontified nil 21062 . 21082) (nil fontified nil 21049 . 21062) (nil fontified nil 21046 . 21049) (nil fontified nil 21010 . 21046) (nil fontified nil 21004 . 21010) (nil fontified nil 20984 . 21004) (nil fontified nil 20979 . 20984) (nil fontified nil 20957 . 20979) (nil fontified nil 20954 . 20957) (nil fontified nil 20939 . 20954) (nil fontified nil 20927 . 20939) (nil fontified nil 20926 . 20927) (nil fontified nil 20910 . 20926) (nil fontified nil 20908 . 20910) (nil fontified nil 20879 . 20908) (nil fontified nil 20876 . 20879) (nil fontified nil 20875 . 20876) (nil fontified nil 20825 . 20875) (nil fontified nil 20796 . 20825) (nil fontified nil 20766 . 20796) (nil fontified nil 20762 . 20766) (nil fontified nil 20754 . 20762) (nil fontified nil 20736 . 20754) (nil fontified nil 20735 . 20736) (nil fontified nil 20730 . 20735) (nil fontified nil 20729 . 20730) (nil fontified nil 20728 . 20729) (nil fontified nil 20652 . 20728) (nil fontified nil 20648 . 20652) (nil fontified nil 20598 . 20648) (nil fontified nil 20594 . 20598) (nil fontified nil 20517 . 20594) (nil fontified nil 20513 . 20517) (nil fontified nil 20463 . 20513) (nil fontified nil 20458 . 20463) (nil fontified nil 20452 . 20458) (nil fontified nil 20444 . 20452) (nil fontified nil 20443 . 20444) (nil fontified nil 20438 . 20443) (nil fontified nil 20404 . 20438) (nil fontified nil 20399 . 20404) (nil fontified nil 20379 . 20399) (nil fontified nil 20374 . 20379) (nil fontified nil 20297 . 20374) (nil fontified nil 20294 . 20297) (nil fontified nil 20278 . 20294) (nil fontified nil 20266 . 20278) (nil fontified nil 20198 . 20266) (nil fontified nil 20189 . 20198) (nil fontified nil 20141 . 20189) (nil fontified nil 20076 . 20141) (nil fontified nil 20073 . 20076) (nil fontified nil 20014 . 20073) (nil fontified nil 20012 . 20014) (nil fontified nil 19994 . 20012) (nil fontified nil 19991 . 19994) (nil fontified nil 19989 . 19991) (nil fontified nil 19946 . 19989) (nil fontified nil 19943 . 19946) (nil fontified nil 19931 . 19943) (nil fontified nil 19924 . 19931) (nil fontified nil 19923 . 19924) (nil fontified nil 19916 . 19923) (nil fontified nil 19844 . 19916) (nil fontified nil 19840 . 19844) (nil fontified nil 19770 . 19840) (nil fontified nil 19766 . 19770) (nil fontified nil 19730 . 19766) (nil fontified nil 19720 . 19730) (nil fontified nil 19718 . 19720) (nil fontified nil 19689 . 19718) (nil fontified nil 19685 . 19689) (nil fontified nil 19654 . 19685) (nil fontified nil 19643 . 19654) (nil fontified nil 19638 . 19643) (nil fontified nil 19632 . 19638) (nil fontified nil 19625 . 19632) (nil fontified nil 19624 . 19625) (nil fontified nil 19619 . 19624) (nil fontified nil 19580 . 19619) (nil fontified nil 19560 . 19580) (nil fontified nil 19511 . 19560) (nil fontified nil 19505 . 19511) (nil fontified nil 19470 . 19505) (nil fontified nil 19461 . 19470) (nil fontified nil 19455 . 19461) (nil fontified nil 19448 . 19455) (nil fontified nil 19311 . 19448) (nil fontified nil 19307 . 19311) (nil fontified nil 19125 . 19307) (nil fontified nil 19122 . 19125) (nil fontified nil 19111 . 19122) (nil fontified nil 19101 . 19111) (nil fontified nil 19098 . 19101) (nil fontified nil 18970 . 19098) (nil fontified nil 18965 . 18970) (nil fontified nil 18964 . 18965) (nil fontified nil 18957 . 18964) (nil fontified nil 18928 . 18957) (nil fontified nil 18924 . 18928) (nil fontified nil 18909 . 18924) (nil fontified nil 18896 . 18909) (nil fontified nil 18893 . 18896) (nil fontified nil 18824 . 18893) (nil fontified nil 18822 . 18824) (nil fontified nil 18757 . 18822) (nil fontified nil 18751 . 18757) (nil fontified nil 18750 . 18751) (nil fontified nil 18743 . 18750) (nil fontified nil 18713 . 18743) (nil fontified nil 18709 . 18713) (nil fontified nil 18694 . 18709) (nil fontified nil 18684 . 18694) (nil fontified nil 18681 . 18684) (nil fontified nil 18652 . 18681) (nil fontified nil 18650 . 18652) (nil fontified nil 18601 . 18650) (nil fontified nil 18590 . 18601) (nil fontified nil 18520 . 18590) (nil fontified nil 18516 . 18520) (nil fontified nil 18500 . 18516) (nil fontified nil 18478 . 18500) (nil fontified nil 18471 . 18478) (nil fontified nil 18397 . 18471) (nil fontified nil 18394 . 18397) (nil fontified nil 18387 . 18394) (nil fontified nil 18349 . 18387) (nil fontified nil 18347 . 18349) (nil fontified nil 18334 . 18347) (nil fontified nil 18313 . 18334) (nil fontified nil 18297 . 18313) (nil fontified nil 18261 . 18297) (nil fontified nil 18259 . 18261) (nil fontified nil 18167 . 18259) (nil fontified nil 18156 . 18167) (nil fontified nil 18089 . 18156) (nil fontified nil 18087 . 18089) (nil fontified nil 18031 . 18087) (nil fontified nil 18029 . 18031) (nil fontified nil 18011 . 18029) (nil fontified nil 17997 . 18011) (nil fontified nil 17962 . 17997) (nil fontified nil 17957 . 17962) (nil fontified nil 17955 . 17957) (nil fontified nil 17947 . 17955) (nil fontified nil 17946 . 17947) (nil fontified nil 17941 . 17946) (nil fontified nil 17860 . 17941) (nil fontified nil 17854 . 17860) (nil fontified nil 17832 . 17854) (nil fontified nil 17828 . 17832) (nil fontified nil 17814 . 17828) (nil fontified nil 17794 . 17814) (nil fontified nil 17762 . 17794) (nil fontified nil 17749 . 17762) (nil fontified nil 17676 . 17749) (nil fontified nil 17672 . 17676) (nil fontified nil 17636 . 17672) (nil fontified nil 17627 . 17636) (nil fontified nil 17625 . 17627) (nil fontified nil 17596 . 17625) (nil fontified nil 17591 . 17596) (nil fontified nil 17560 . 17591) (nil fontified nil 17549 . 17560) (nil fontified nil 17544 . 17549) (nil fontified nil 17538 . 17544) (nil fontified nil 17534 . 17538) (nil fontified nil 17533 . 17534) (nil fontified nil 17528 . 17533) (nil fontified nil 17527 . 17528) (nil fontified nil 17526 . 17527) (nil fontified nil 17488 . 17526) (nil fontified nil 17484 . 17488) (nil fontified nil 17471 . 17484) (nil fontified nil 17466 . 17471) (nil fontified nil 17413 . 17466) (nil fontified nil 17379 . 17413) (nil fontified nil 17355 . 17379) (nil fontified nil 17342 . 17355) (nil fontified nil 17340 . 17342) (nil fontified nil 17335 . 17340) (nil fontified nil 17304 . 17335) (nil fontified nil 17302 . 17304) (nil fontified nil 17283 . 17302) (nil fontified nil 17280 . 17283) (nil fontified nil 17269 . 17280) (nil fontified nil 17264 . 17269) (nil fontified nil 17257 . 17264) (nil fontified nil 17235 . 17257) (nil fontified nil 17234 . 17235) (nil fontified nil 17226 . 17234) (nil fontified nil 17163 . 17226) (nil fontified nil 17154 . 17163) (nil fontified nil 17153 . 17154) (nil fontified nil 17148 . 17153) (nil fontified nil 17138 . 17148) (nil fontified nil 17123 . 17138) (nil fontified nil 17122 . 17123) (nil fontified nil 17116 . 17122) (nil fontified nil 17109 . 17116) (nil fontified nil 17079 . 17109) (nil fontified nil 17078 . 17079) (nil fontified nil 17072 . 17078) (nil fontified nil 17071 . 17072) (nil fontified nil 17055 . 17071) (nil fontified nil 17051 . 17055) (nil fontified nil 17029 . 17051) (nil fontified nil 17023 . 17029) (nil fontified nil 16979 . 17023) (nil fontified nil 16973 . 16979) (nil fontified nil 16883 . 16973) (nil fontified nil 16881 . 16883) (nil fontified nil 16871 . 16881) (nil fontified nil 16866 . 16871) (nil fontified nil 16860 . 16866) (nil fontified nil 16851 . 16860) (nil fontified nil 16849 . 16851) (nil fontified nil 16840 . 16849) (nil fontified nil 16839 . 16840) (nil fontified nil 16831 . 16839) (nil fontified nil 16815 . 16831) (nil fontified nil 16809 . 16815) (nil fontified nil 16782 . 16809) (nil fontified nil 16777 . 16782) (nil fontified nil 16775 . 16777) (nil fontified nil 16758 . 16775) (nil fontified nil 16757 . 16758) (nil fontified nil 16749 . 16757) (nil fontified nil 16711 . 16749) (nil fontified nil 16698 . 16711) (nil fontified nil 16595 . 16698) (nil fontified nil 16592 . 16595) (nil fontified nil 16573 . 16592) (nil fontified nil 16559 . 16573) (nil fontified nil 16511 . 16559) (nil fontified nil 16508 . 16511) (nil fontified nil 16497 . 16508) (nil fontified nil 16438 . 16497) (nil fontified nil 16391 . 16438) (nil fontified nil 16389 . 16391) (nil fontified nil 16279 . 16389) (nil fontified nil 16276 . 16279) (nil fontified nil 16192 . 16276) (nil fontified nil 16187 . 16192) (nil fontified nil 16166 . 16187) (nil fontified nil 16152 . 16166) (nil fontified nil 16123 . 16152) (nil fontified nil 16120 . 16123) (nil fontified nil 16011 . 16120) (nil fontified nil 16008 . 16011) (nil fontified nil 15967 . 16008) (nil fontified nil 15965 . 15967) (nil fontified nil 15919 . 15965) (nil fontified nil 15917 . 15919) (nil fontified nil 15832 . 15917) (nil fontified nil 15828 . 15832) (nil fontified nil 15820 . 15828) (nil fontified nil 15806 . 15820) (nil fontified nil 15805 . 15806) (nil fontified nil 15800 . 15805) (nil fontified nil 15799 . 15800) (nil fontified nil 15729 . 15799) (nil fontified nil 15712 . 15729) (nil fontified nil 15660 . 15712) (nil fontified nil 15656 . 15660) (nil fontified nil 15640 . 15656) (nil fontified nil 15621 . 15640) (nil fontified nil 15620 . 15621) (nil fontified nil 15615 . 15620) (nil fontified nil 15469 . 15615) (nil fontified nil 15456 . 15469) (nil fontified nil 15454 . 15456) (nil fontified nil 15449 . 15454) (nil fontified nil 15388 . 15449) (nil fontified nil 15386 . 15388) (nil fontified nil 15371 . 15386) (nil fontified nil 15369 . 15371) (nil fontified nil 15291 . 15369) (nil fontified nil 15274 . 15291) (nil fontified nil 15255 . 15274) (nil fontified nil 15252 . 15255) (nil fontified nil 15210 . 15252) (nil fontified nil 15200 . 15210) (nil fontified nil 15199 . 15200) (nil fontified nil 15183 . 15199) (nil fontified nil 15181 . 15183) (nil fontified nil 15152 . 15181) (nil fontified nil 15149 . 15152) (nil fontified nil 15113 . 15149) (nil fontified nil 15110 . 15113) (nil fontified nil 15100 . 15110) (nil fontified nil 15080 . 15100) (nil fontified nil 15079 . 15080) (nil fontified nil 15074 . 15079) (nil fontified nil 15066 . 15074) (nil fontified nil 15051 . 15066) (nil fontified nil 15050 . 15051) (nil fontified nil 15044 . 15050) (nil fontified nil 15043 . 15044) (nil fontified nil 15002 . 15043) (nil fontified nil 14998 . 15002) (nil fontified nil 14938 . 14998) (nil fontified nil 14893 . 14938) (nil fontified nil 14885 . 14893) (nil fontified nil 14875 . 14885) (nil fontified nil 14871 . 14875) (nil fontified nil 14868 . 14871) (nil fontified nil 14834 . 14868) (nil fontified nil 14831 . 14834) (nil fontified nil 14817 . 14831) (nil fontified nil 14782 . 14817) (nil fontified nil 14696 . 14782) (nil fontified nil 14683 . 14696) (nil fontified nil 14635 . 14683) (nil fontified nil 14629 . 14635) (nil fontified nil 14596 . 14629) (nil fontified nil 14579 . 14596) (nil fontified nil 14562 . 14579) (nil fontified nil 14558 . 14562) (nil fontified nil 14527 . 14558) (nil fontified nil 14524 . 14527) (nil fontified nil 14510 . 14524) (nil fontified nil 14506 . 14510) (nil fontified nil 14458 . 14506) (nil fontified nil 14455 . 14458) (nil fontified nil 14449 . 14455) (nil fontified nil 14441 . 14449) (nil fontified nil 14434 . 14441) (nil fontified nil 14430 . 14434) (nil fontified nil 14428 . 14430) (nil fontified nil 14423 . 14428) (nil fontified nil 14422 . 14423) (nil fontified nil 14417 . 14422) (nil fontified nil 14416 . 14417) (nil fontified nil 14335 . 14416) (nil fontified nil 14327 . 14335) (nil fontified nil 14317 . 14327) (nil fontified nil 14313 . 14317) (nil fontified nil 14234 . 14313) (nil fontified nil 14229 . 14234) (nil fontified nil 14220 . 14229) (nil fontified nil 14190 . 14220) (nil fontified nil 14187 . 14190) (nil fontified nil 14045 . 14187) (nil fontified nil 14037 . 14045) (nil fontified nil 14027 . 14037) (nil fontified nil 14023 . 14027) (nil fontified nil 14012 . 14023) (nil fontified nil 13946 . 14012) (nil fontified nil 13943 . 13946) (nil fontified nil 13916 . 13943) (nil fontified nil 13906 . 13916) (nil fontified nil 13887 . 13906) (nil fontified nil 13841 . 13887) (nil fontified nil 13749 . 13841) (nil fontified nil 13704 . 13749) (nil fontified nil 13701 . 13704) (nil fontified nil 13657 . 13701) (nil fontified nil 13654 . 13657) (nil fontified nil 13643 . 13654) (nil fontified nil 13629 . 13643) (nil fontified nil 13608 . 13629) (nil fontified nil 13606 . 13608) (nil fontified nil 13592 . 13606) (nil fontified nil 13578 . 13592) (nil fontified nil 13576 . 13578) (nil fontified nil 13557 . 13576) (nil fontified nil 13521 . 13557) (nil fontified nil 13518 . 13521) (nil fontified nil 13507 . 13518) (nil fontified nil 13502 . 13507) (nil fontified nil 13493 . 13502) (nil fontified nil 13446 . 13493) (nil fontified nil 13443 . 13446) (nil fontified nil 13438 . 13443) (nil fontified nil 13437 . 13438) (nil fontified nil 13400 . 13437) (nil fontified nil 13319 . 13400) (nil fontified nil 13314 . 13319) (nil fontified nil 13306 . 13314) (nil fontified nil 13260 . 13306) (nil fontified nil 13256 . 13260) (nil fontified nil 13254 . 13256) (nil fontified nil 13248 . 13254) (nil fontified nil 13247 . 13248) (nil fontified nil 13242 . 13247) (nil fontified nil 13241 . 13242) (nil fontified nil 13164 . 13241) (nil fontified nil 13151 . 13164) (nil fontified nil 13085 . 13151) (nil fontified nil 13079 . 13085) (nil fontified nil 13028 . 13079) (nil fontified nil 13011 . 13028) (nil fontified nil 12976 . 13011) (nil fontified nil 12972 . 12976) (nil fontified nil 12965 . 12972) (nil fontified nil 12952 . 12965) (nil fontified nil 12951 . 12952) (nil fontified nil 12946 . 12951) (nil fontified nil 12933 . 12946) (nil fontified nil 12926 . 12933) (nil fontified nil 12914 . 12926) (nil fontified nil 12908 . 12914) (nil fontified nil 12888 . 12908) (nil fontified nil 12878 . 12888) (nil fontified nil 12849 . 12878) (nil fontified nil 12839 . 12849) (nil fontified nil 12814 . 12839) (nil fontified nil 12811 . 12814) (nil fontified nil 12798 . 12811) (nil fontified nil 12788 . 12798) (nil fontified nil 12787 . 12788) (nil fontified nil 12782 . 12787) (nil fontified nil 12737 . 12782) (nil fontified nil 12723 . 12737) (nil fontified nil 12722 . 12723) (nil fontified nil 12717 . 12722) (nil fontified nil 12716 . 12717) (nil fontified nil 12672 . 12716) (nil fontified nil 12669 . 12672) (nil fontified nil 12661 . 12669) (nil fontified nil 12656 . 12661) (nil fontified nil 12645 . 12656) (nil fontified nil 12596 . 12645) (nil fontified nil 12575 . 12596) (nil fontified nil 12570 . 12575) (nil fontified nil 12561 . 12570) (nil fontified nil 12552 . 12561) (nil fontified nil 12542 . 12552) (nil fontified nil 12539 . 12542) (nil fontified nil 12534 . 12539) (nil fontified nil 12530 . 12534) (nil fontified nil 12529 . 12530) (nil fontified nil 12521 . 12529) (nil fontified nil 12518 . 12521) (nil fontified nil 12510 . 12518) (nil fontified nil 12499 . 12510) (nil fontified nil 12495 . 12499) (nil fontified nil 12493 . 12495) (nil fontified nil 12485 . 12493) (nil fontified nil 12470 . 12485) (nil fontified nil 12465 . 12470) (nil fontified nil 12450 . 12465) (nil fontified nil 12445 . 12450) (nil fontified nil 12436 . 12445) (nil fontified nil 12425 . 12436) (nil fontified nil 12423 . 12425) (nil fontified nil 12418 . 12423) (nil fontified nil 12395 . 12418) (nil fontified nil 12386 . 12395) (nil fontified nil 12367 . 12386) (nil fontified nil 12362 . 12367) (nil fontified nil 12343 . 12362) (nil fontified nil 12334 . 12343) (nil fontified nil 12289 . 12334) (nil fontified nil 12277 . 12289) (nil fontified nil 12267 . 12277) (nil fontified nil 12249 . 12267) (nil fontified nil 12248 . 12249) (nil fontified nil 12243 . 12248) (nil fontified nil 12204 . 12243) (nil fontified nil 12190 . 12204) (nil fontified nil 12143 . 12190) (nil fontified nil 12139 . 12143) (nil fontified nil 12138 . 12139) (nil fontified nil 12129 . 12138) (nil fontified nil 12128 . 12129) (nil fontified nil 12089 . 12128) (nil fontified nil 12085 . 12089) (nil fontified nil 12080 . 12085) (nil fontified nil 12070 . 12080) (nil fontified nil 12069 . 12070) (nil fontified nil 12057 . 12069) (nil fontified nil 12056 . 12057) (nil fontified nil 11999 . 12056) (nil fontified nil 11996 . 11999) (nil fontified nil 11994 . 11996) (nil fontified nil 11929 . 11994) (nil fontified nil 11924 . 11929) (nil fontified nil 11908 . 11924) (nil fontified nil 11907 . 11908) (nil fontified nil 11901 . 11907) (nil fontified nil 11900 . 11901) (nil fontified nil 11898 . 11900) (nil fontified nil 11884 . 11898) (nil fontified nil 11883 . 11884) (nil fontified nil 11866 . 11883) (nil fontified nil 11865 . 11866) (nil fontified nil 11859 . 11865) (nil fontified nil 11852 . 11859) (nil fontified nil 11843 . 11852) (nil fontified nil 11842 . 11843) (nil fontified nil 11836 . 11842) (nil fontified nil 11834 . 11836) (nil fontified nil 11804 . 11834) (nil fontified nil 11802 . 11804) (nil fontified nil 11779 . 11802) (nil fontified nil 11777 . 11779) (nil fontified nil 11743 . 11777) (nil fontified nil 11740 . 11743) (nil fontified nil 11663 . 11740) (nil fontified nil 11660 . 11663) (nil fontified nil 11591 . 11660) (nil fontified nil 11588 . 11591) (nil fontified nil 11585 . 11588) (nil fontified nil 11512 . 11585) (nil fontified nil 11501 . 11512) (nil fontified nil 11496 . 11501) (nil fontified nil 11478 . 11496) (nil fontified nil 11462 . 11478) (nil fontified nil 11461 . 11462) (nil fontified nil 11455 . 11461) (nil fontified nil 11454 . 11455) (nil fontified nil 11427 . 11454) (nil fontified nil 11424 . 11427) (nil fontified nil 11421 . 11424) (nil fontified nil 11407 . 11421) (nil fontified nil 11406 . 11407) (nil fontified nil 11396 . 11406) (nil fontified nil 11391 . 11396) (nil fontified nil 11379 . 11391) (nil fontified nil 11378 . 11379) (nil fontified nil 11344 . 11378) (nil fontified nil 11343 . 11344) (nil fontified nil 11321 . 11343) (nil fontified nil 11316 . 11321) (nil fontified nil 11300 . 11316) (nil fontified nil 11299 . 11300) (nil fontified nil 11268 . 11299) (nil fontified nil 11256 . 11268) (nil fontified nil 11237 . 11256) (nil fontified nil 11236 . 11237) (nil fontified nil 11213 . 11236) (nil fontified nil 11212 . 11213) (nil fontified nil 11194 . 11212) (nil fontified nil 11182 . 11194) (nil fontified nil 11168 . 11182) (nil fontified nil 11167 . 11168) (nil fontified nil 11149 . 11167) (nil fontified nil 11148 . 11149) (nil fontified nil 11138 . 11148) (nil fontified nil 11126 . 11138) (nil fontified nil 11121 . 11126) (nil fontified nil 11120 . 11121) (nil fontified nil 11111 . 11120) (nil fontified nil 11110 . 11111) (nil fontified nil 11102 . 11110) (nil fontified nil 11101 . 11102) (nil fontified nil 11093 . 11101) (nil fontified nil 11092 . 11093) (nil fontified nil 11086 . 11092) (nil fontified nil 11085 . 11086) (nil fontified nil 11078 . 11085) (nil fontified nil 11077 . 11078) (nil fontified nil 11070 . 11077) (nil fontified nil 11062 . 11070) (nil fontified nil 11049 . 11062) (nil fontified nil 11048 . 11049) (nil fontified nil 11031 . 11048) (nil fontified nil 11030 . 11031) (nil fontified nil 11018 . 11030) (nil fontified nil 11013 . 11018) (nil fontified nil 10995 . 11013) (nil fontified nil 10994 . 10995) (nil fontified nil 10973 . 10994) (nil fontified nil 10968 . 10973) (nil fontified nil 10949 . 10968) (nil fontified nil 10948 . 10949) (nil fontified nil 10936 . 10948) (nil fontified nil 10931 . 10936) (nil fontified nil 10908 . 10931) (nil fontified nil 10907 . 10908) (nil fontified nil 10881 . 10907) (nil fontified nil 10880 . 10881) (nil fontified nil 10862 . 10880) (nil fontified nil 10857 . 10862) (nil fontified nil 10840 . 10857) (nil fontified nil 10839 . 10840) (nil fontified nil 10827 . 10839) (nil fontified nil 10822 . 10827) (nil fontified nil 10801 . 10822) (nil fontified nil 10800 . 10801) (nil fontified nil 10787 . 10800) (nil fontified nil 10786 . 10787) (nil fontified nil 10767 . 10786) (nil fontified nil 10762 . 10767) (nil fontified nil 10744 . 10762) (nil fontified nil 10743 . 10744) (nil fontified nil 10731 . 10743) (nil fontified nil 10726 . 10731) (nil fontified nil 10703 . 10726) (nil fontified nil 10702 . 10703) (nil fontified nil 10682 . 10702) (nil fontified nil 10681 . 10682) (nil fontified nil 10663 . 10681) (nil fontified nil 10658 . 10663) (nil fontified nil 10639 . 10658) (nil fontified nil 10638 . 10639) (nil fontified nil 10626 . 10638) (nil fontified nil 10621 . 10626) (nil fontified nil 10611 . 10621) (nil fontified nil 10610 . 10611) (nil fontified nil 10592 . 10610) (nil fontified nil 10591 . 10592) (nil fontified nil 10579 . 10591) (nil fontified nil 10574 . 10579) (nil fontified nil 10563 . 10574) (nil fontified nil 10562 . 10563) (nil fontified nil 10550 . 10562) (nil fontified nil 10549 . 10550) (nil fontified nil 10537 . 10549) (nil fontified nil 10532 . 10537) (nil fontified nil 10520 . 10532) (nil fontified nil 10519 . 10520) (nil fontified nil 10511 . 10519) (nil fontified nil 10510 . 10511) (nil fontified nil 10494 . 10510) (nil fontified nil 10493 . 10494) (nil fontified nil 10473 . 10493) (nil fontified nil 10472 . 10473) (nil fontified nil 10455 . 10472) (nil fontified nil 10450 . 10455) (nil fontified nil 10439 . 10450) (nil fontified nil 10438 . 10439) (nil fontified nil 10426 . 10438) (nil fontified nil 10421 . 10426) (nil fontified nil 10418 . 10421) (nil fontified nil 10417 . 10418) (nil fontified nil 10413 . 10417) (nil fontified nil 10409 . 10413) (nil fontified nil 10395 . 10409) (nil fontified nil 10394 . 10395) (nil fontified nil 10384 . 10394) (nil fontified nil 10380 . 10384) (nil fontified nil 10377 . 10380) (nil fontified nil 10376 . 10377) (nil fontified nil 10366 . 10376) (nil fontified nil 10365 . 10366) (10365 . 25659)) ((#("(in-package :cl)
-
-(defpackage :lumen.data.db
-  (:use :cl)
-  (:import-from :postmodern 
-   :connect-toplevel :disconnect-toplevel :with-connection :execute :connected-p)
-  (:import-from :cl-postgres :exec-query)
-  (:import-from :lumen.data.config :db-config)
-  (:import-from :lumen.data.prepare 
-   :get-prepared-plan :reset-prepare-cache :*prepare-cache-ttl-ms*)
-  (:import-from :lumen.data.errors 
-   :translate-db-error :map-db-error :retryable-db-error-p)
-  (:import-from :lumen.core.error 
-   :application-error :application-error-message :application-error-code)
-  (:import-from :lumen.data.metrics 
-   :record-query-latency :record-slow-query)
-  (:import-from :lumen.core.trace :with-tracing)
-  
-  (:export :start! :stop! :with-tx :query-a :query-1a :exec
-           :with-conn :ensure-connection :with-rollback
-           :*connection-mode* :with-statement-timeout :run-in-transaction
-           :*default-statement-timeout-ms* :*slow-query-ms*
-	   :db-session-middleware :connection-per-request-middleware :with-db-app))
-
-(in-package :lumen.data.db)
-
-;; --- REGISTRE DES POOLS ---
-(defvar *pools-registry* (make-hash-table :test 'equal)
-  \"Stocke les configurations et pools par nom d'application (ou :default).\")
-
-;; On garde ces variables pour la compatibilité et le binding dynamique
-;; *db-pool* et *current-config* deviendront \"Thread-Local\" grâce au middleware
-;; Remontées dans lumen.core.context
-;;(defvar *db-pool* nil)
-;;(defvar *current-config* nil)
-
-(defvar *started* nil)
-(defvar *connection-mode* :pooled-native)
-(defvar *in-transaction* nil \"Indique si le thread courant est déjà dans une transaction SQL.\")
-;; Variable globale pour suivre la profondeur d'imbrication
-(defparameter *tx-depth* 0)
-
-;;; --- POOL INFRASTRUCTURE (Inchangé) ---
-(defstruct pool
-  (available-conns '())
-  (lock (bt:make-lock \"db-pool-lock\"))
-  (semaphore nil)
-  (config nil))
-
-(defun %create-connection (cfg)
-  (handler-case
-      (postmodern:connect 
-       (getf cfg :database)
-       (getf cfg :user)
-       (getf cfg :password)
-       (or (getf cfg :host) \"localhost\")
-       :port (or (getf cfg :port) 5432)
-       :use-ssl (case (getf cfg :sslmode) (:require :yes) (t :no))
-       :pooled-p t)
-    (error (c)
-      (format t \"~&[DB] Fatal: Failed to create connection: ~A~%\" c)
-      (error c))))
-
-;; helper pour récupérer le couple pool/config
-(defun get-db-context (name)
-  (gethash name *pools-registry*))
-
-(defun init-pool! (config)
-  (let ((size (or (getf config :pool-size) 10)))
-    (make-pool 
-     :semaphore (bt:make-semaphore :count size)
-     :config config)))
-
-(defun destroy-pool! ()
-  (when lumen.core.context:*db-pool*
-    (bt:with-lock-held ((pool-lock lumen.core.context:*db-pool*))
-      (dolist (c (pool-available-conns lumen.core.context:*db-pool*))
-        (ignore-errors (postmodern:disconnect c))))
-    (setf lumen.core.context:*db-pool* nil)))
-
-(defun start! (&key (config (lumen.data.config:db-config)) (name :default))
-  \"Démarre une pool pour un contexte donné (NAME).
-   Si NAME est :default, on initialise aussi les variables globales.\"
-  
-  ;; 1. Arrêter si une pool existe déjà pour ce nom
-  (stop! :name name)
-
-  (let ((connection-mode (or (getf config :db-connection-mode) :pooled-native)))
-    
-    (if (eq connection-mode :pooled-native)
-        (let ((new-pool (init-pool! config)))
-          ;; On stocke dans le registre : (POOL . CONFIG)
-          (setf (gethash name *pools-registry*) (cons new-pool config))
-          (format t \"~&[DB] Pool started for app ~S (size: ~A).~%\" name (getf config :pool-size 10))
-          
-          ;; Si c'est le default, on set les globales pour rétro-compatibilité
-          (when (eq name :default)
-            (setf lumen.core.context:*db-pool* new-pool
-                  lumen.core.context:*current-db-config* config)))
-        
-        ;; Mode sans pool (juste config)
-        (progn
-          (setf (gethash name *pools-registry*) (cons nil config))
-          (when (eq name :default)
-             (setf lumen.core.context:*current-db-config* config)))))
-  
-  t)
-
-(defun stop! (&key (name :default))
-  (let ((entry (gethash name *pools-registry*)))
-    (when entry
-      (let ((pool (car entry)))
-        (when pool
-          (bt:with-lock-held ((pool-lock pool))
-            (dolist (c (pool-available-conns pool))
-              (ignore-errors (postmodern:disconnect c))))))
-      (remhash name *pools-registry*)
-      (format t \"~&[DB] Pool stopped for app ~S.~%\" name)))
-  
-  ;; Nettoyage global si c'est default
-  (when (eq name :default)
-    (setf lumen.core.context:*db-pool* nil
-          lumen.core.context:*current-db-config* nil))
-  t)
-;;; --- CONNECTION MANAGEMENT (Inchangé) ---
-(defvar *in-connection* nil)
-
-(defun %checkout-connection (pool)
-  ;; On trace l'acquisition de connexion
-  (lumen.core.trace:with-tracing (\"DB:AcquireConn\" :pool-size (length (pool-available-conns pool)))
-  (let ((conn nil))
-    (bt:with-lock-held ((pool-lock pool))
-      (setf conn (pop (pool-available-conns pool))))
-    (if conn
-        (if (postmodern:connected-p conn)
-            conn
-            (progn (ignore-errors (postmodern:disconnect conn))
-                   (%create-connection (pool-config pool))))
-        (%create-connection (pool-config pool))))))
-
-(defun %checkin-connection (pool conn)
-  (when (and pool conn (postmodern:connected-p conn))
-    (bt:with-lock-held ((pool-lock pool))
-      (push conn (pool-available-conns pool)))))
-
-(defun call-with-conn (thunk &key (cfg (or lumen.core.context:*current-db-config* (lumen.data.config:db-config))))
-  (if *in-connection*
-      (funcall thunk)
-      (if lumen.core.context:*db-pool*
-          (let ((pool lumen.core.context:*db-pool*))
-            (bt:wait-on-semaphore (pool-semaphore pool))
-            (let ((conn nil))
-              (unwind-protect
-                   (progn
-                     (setf conn (%checkout-connection pool))
-                     (let ((postmodern:*database* conn) (*in-connection* t))
-                       (funcall thunk)))
-                (if conn (%checkin-connection pool conn) nil)
-                (bt:signal-semaphore (pool-semaphore pool)))))
-          (let ((conn (%create-connection cfg)))
-            (unwind-protect
-                 (let ((postmodern:*database* conn) (*in-connection* t))
-                   (funcall thunk))
-              (ignore-errors (postmodern:disconnect conn)))))))
-
-(defmacro ensure-connection (&body body)
-  `(call-with-conn (lambda () ,@body)))
-
-(defmacro with-conn (&optional opts &body body)
-  (if (and opts (listp opts) (or (null opts) (keywordp (first opts))))
-      `(call-with-conn (lambda () ,@body) ,@opts)
-      `(call-with-conn (lambda () ,opts ,@body))))
-
-;;; --- HELPERS ---
-(defvar *default-statement-timeout-ms* nil)
-(defvar *slow-query-ms* 500.0)
-
-(defun %raw-exec (sql)
-  (cl-postgres:exec-query postmodern:*database* sql))
-
-(defmacro with-statement-timeout ((ms) &body body)
-  `(let ((%ms ,ms))
-     (if (and %ms (> %ms 0))
-         (progn (ignore-errors (%raw-exec (format nil \"SET LOCAL statement_timeout = ~d\" (truncate %ms))))
-                ,@body)
-         (progn ,@body))))
-
-;;; --- EXEC AVEC DEBUG LOGS ET PATCH ---
-
-(defun exec (sql &rest params)
+|#" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 4 (face font-lock-comment-face fontified t) 4 5 (face font-lock-comment-face fontified t) 5 7 (face font-lock-comment-delimiter-face fontified t)) . 14668) (undo-tree-id36 . -7)) nil (27164 23269 195056 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . 14668)) nil (27164 23269 195055 0) 0 nil])
+([nil nil ((#("(defun exec (sql &rest params)
   \"Execute INSERT/UPDATE/DELETE.\"
 
   (lumen.core.trace:with-tracing (\"DB:Exec\" 
@@ -336,162 +102,139 @@ nil
                sql elapsed-ms :params args :affected affected)))
 	
           (format t \"~&[EXEC DEBUG] SQL executed.~%Affected: ~A~%Ret: ~A~%\" affected  ret)    
-          (values affected ret))))))
-
-(defun query-a (sql &rest params)
-  \"Execute SELECT. Return alist.\"
-  (lumen.core.trace:with-tracing (\"DB:Query\" 
-                                  :sql (subseq sql 0 (min 100 (length sql))))
-    (ensure-connection
-      (let* ((t0 (get-internal-real-time))
-             (fn (get-prepared-plan sql :format :alists)))
-      
-	;; Patch identique pour query-a, par sécurité
-	(let ((real-params
-		(if (and (= 1 (length params))
-			 (listp (first params))
-			 ;; Correction ici : on compte la longueur de la liste des résultats
-			 (> (length (cl-ppcre:all-matches-as-strings \"\\\\$\\\\d+\" sql)) 1))
-		    (first params)
-		    params)))
-        
-          (handler-case
-              (let ((rows (apply fn real-params)))
-		(values rows (length rows)))
-            (error (c)
-              (error (translate-db-error c)))))))))
-
-(defun query-1a (sql &rest params)
-  (first (apply #'query-a sql params)))
-
-;;; ----------------------------------------------------------------------------
-;;; TRANSACTION MANAGEMENT (BLOCK/LABELS - SAFE FLOW)
-;;; ----------------------------------------------------------------------------
-(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  \"Transaction avec flux de contrôle explicite et support des valeurs multiples.\"
-  (lumen.core.trace:with-tracing (\"DB:Transaction\" :retries-max retries)
-    (let ((attempt 0))
-      (block txn-block
-        (labels ((retry-loop ()
-                   ;; 1. Exécution
-                   (let ((result			   
-                          (ensure-connection
-                            (handler-case
-                                (progn
-                                  (%raw-exec \"BEGIN\")
-                                  ;; --- CHANGEMENT 1 : Capture de TOUTES les valeurs ---
-                                  ;; On transforme (values a b) en (list a b) pour le stocker
-                                  (let ((vals (multiple-value-list (funcall thunk))))
-                                    (%raw-exec \"COMMIT\")
-                                    ;; On retourne la liste dans notre wrapper interne
-                                    (list :ok vals)))
-                              
-                              (error (c)
-                                (ignore-errors (%raw-exec \"ROLLBACK\"))
-                                (list :error c))))))
-                   
-                   ;; 2. Analyse
-                   (if (eq (first result) :ok)
-                       ;; --- CHANGEMENT 2 : Restitution des valeurs ---
-                       ;; On transforme (list a b) en (values a b) pour sortir du bloc
-                       (return-from txn-block (values-list (second result)))
-                       
-                       (let* ((err (second result))
-                              (is-app (typep err 'lumen.core.error:application-error))
-                              (mapped (unless is-app (lumen.data.errors:map-db-error err))))
-                         
-                         (when is-app (error err))
-                         
-                         (if (and mapped 
-                                  (< attempt retries) 
-                                  (lumen.data.errors:retryable-db-error-p mapped))
-                             (progn
-                               (incf attempt)
-                               (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
-                               (sleep (/ (max 50 sleep-ms) 1000.0))
-                               (retry-loop)) ;; Appel récursif sûr
-                             
-                             (error (or mapped err))))))))
-          
-          (retry-loop))))))
-
-(defmacro with-tx ((&key retries) &body body)
-  `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))
-
-;;; Pour forcer une config spécifique à l'intérieur d'un controlleur (par exemple pour qu'une App A aille lire exceptionnellement dans la DB de l'App B)
-(defmacro with-db-app ((app-name) &body body)
-  \"Permet d'exécuter un bloc de code avec le contexte DB d'une autre application.\"
-  `(let* ((ctx (get-db-context ,app-name))
-          (lumen.core.context:*db-pool* (car ctx))
-          (lumen.core.context:*current-db-config* (cdr ctx)))
-     ,@body))
-
-;;; Middleware qui lie dynamiquement *db-pool* et *current-config* au contexte de l'application spécifiée par APP-NAME.
-(lumen.core.pipeline:defmiddleware db-session-middleware
-    ((app-name :initarg :app-name :initform :default :reader mw-app-name))
-    (req next)
-  
-  (let* ((name (slot-value mw 'app-name))
-         ;; On récupère le couple (pool . config) depuis le registre
-         (context (get-db-context name)))
-    
-    ;; Sécurité : on vérifie que l'app a bien été démarrée via (start! :name ...)
-    (unless context
-      (error \"Lumen DB: Aucune configuration trouvée pour l'application ~S. Avez-vous appelé (lumen.data.db:start! :name ~S ...) ?\" name name))
-    
-    ;; --- LE CŒUR DU SYSTÈME : DYNAMIC BINDING ---
-    ;; On écrase temporairement les variables globales pour la durée de (funcall next req)
-    ;; Toutes les fonctions appelées plus bas (query-a, exec, repo-*, etc.) verront CES valeurs.
-    (let ((lumen.core.context:*db-pool* (car context))
-          (lumen.core.context:*current-db-config* (cdr context)))
-      
-      ;; On passe la main à la requête avec le bon contexte DB chargé
-      (funcall next req))))
-
-(lumen.core.pipeline:defmiddleware connection-per-request-middleware ()
-    (req next)
-  \"Emprunte une connexion DB unique pour toute la durée du traitement de la requête HTTP.\"
-  ;; On s'assure qu'on est bien dans un contexte d'application DB (db-session-middleware a dû passer avant)
-  (if lumen.core.context:*db-pool*
-      ;; On utilise call-with-conn qui va checker la connexion, binder *in-connection*, 
-      ;; exécuter NEXT (tout le reste de l'app), puis rendre la connexion proprement grâce à unwind-protect.
-      (lumen.data.db::call-with-conn (lambda () (funcall next req)))
-      
-      ;; Si pas de DB (routes statiques par ex), on passe la main
-      (funcall next req)))
-" 0 1 (fontified nil) 1 11 (face font-lock-keyword-face fontified nil) 11 12 (fontified nil) 12 15 (face font-lock-builtin-face fontified nil) 15 18 (fontified nil) 18 19 (fontified nil) 19 29 (face font-lock-keyword-face fontified nil) 29 30 (fontified nil) 30 44 (face font-lock-type-face fontified nil) 44 45 (fontified nil) 45 48 (fontified nil) 48 52 (face font-lock-builtin-face fontified nil) 52 53 (fontified nil) 53 56 (face font-lock-builtin-face fontified nil) 56 58 (fontified nil) 58 61 (fontified nil) 61 73 (face font-lock-builtin-face fontified nil) 73 74 (fontified nil) 74 85 (face font-lock-builtin-face fontified nil) 85 87 (fontified nil) 87 90 (fontified nil) 90 107 (face font-lock-builtin-face fontified nil) 107 108 (fontified nil) 108 128 (face font-lock-builtin-face fontified nil) 128 129 (fontified nil) 129 145 (face font-lock-builtin-face fontified nil) 145 146 (fontified nil) 146 154 (face font-lock-builtin-face fontified nil) 154 155 (fontified nil) 155 167 (face font-lock-builtin-face fontified nil) 167 169 (fontified nil) 169 172 (fontified nil) 172 184 (face font-lock-builtin-face fontified nil) 184 185 (fontified nil) 185 197 (face font-lock-builtin-face fontified nil) 197 198 (fontified nil) 198 209 (face font-lock-builtin-face fontified nil) 209 211 (fontified nil) 211 214 (fontified nil) 214 226 (face font-lock-builtin-face fontified nil) 226 227 (fontified nil) 227 245 (face font-lock-builtin-face fontified nil) 245 246 (fontified nil) 246 256 (face font-lock-builtin-face fontified nil) 256 258 (fontified nil) 258 261 (fontified nil) 261 273 (face font-lock-builtin-face fontified nil) 273 274 (fontified nil) 274 293 (face font-lock-builtin-face fontified nil) 293 295 (fontified nil) 295 298 (fontified nil) 298 316 (face font-lock-builtin-face fontified nil) 316 317 (fontified nil) 317 337 (face font-lock-builtin-face fontified nil) 337 338 (fontified nil) 338 361 (face font-lock-builtin-face fontified nil) 361 363 (fontified nil) 363 366 (fontified nil) 366 378 (face font-lock-builtin-face fontified nil) 378 379 (fontified nil) 379 397 (face font-lock-builtin-face fontified nil) 397 399 (fontified nil) 399 402 (fontified nil) 402 421 (face font-lock-builtin-face fontified nil) 421 422 (fontified nil) 422 435 (face font-lock-builtin-face fontified nil) 435 436 (fontified nil) 436 457 (face font-lock-builtin-face fontified nil) 457 459 (fontified nil) 459 462 (fontified nil) 462 474 (face font-lock-builtin-face fontified nil) 474 475 (fontified nil) 475 492 (face font-lock-builtin-face fontified nil) 492 494 (fontified nil) 494 497 (fontified nil) 497 515 (face font-lock-builtin-face fontified nil) 515 516 (fontified nil) 516 542 (face font-lock-builtin-face fontified nil) 542 543 (fontified nil) 543 566 (face font-lock-builtin-face fontified nil) 566 568 (fontified nil) 568 571 (fontified nil) 571 583 (face font-lock-builtin-face fontified nil) 583 584 (fontified nil) 584 603 (face font-lock-builtin-face fontified nil) 603 605 (fontified nil) 605 608 (fontified nil) 608 629 (face font-lock-builtin-face fontified nil) 629 630 (fontified nil) 630 648 (face font-lock-builtin-face fontified nil) 648 650 (fontified nil) 650 653 (fontified nil) 653 665 (face font-lock-builtin-face fontified nil) 665 666 (fontified nil) 666 683 (face font-lock-builtin-face fontified nil) 683 684 (fontified nil) 684 697 (face font-lock-builtin-face fontified nil) 697 702 (fontified nil) 702 705 (fontified nil) 705 712 (face font-lock-builtin-face fontified nil) 712 713 (fontified nil) 713 720 (face font-lock-builtin-face fontified nil) 720 721 (fontified nil) 721 727 (face font-lock-builtin-face fontified nil) 727 728 (fontified nil) 728 736 (face font-lock-builtin-face fontified nil) 736 737 (fontified nil) 737 745 (face font-lock-builtin-face fontified nil) 745 746 (fontified nil) 746 755 (face font-lock-builtin-face fontified nil) 755 756 (fontified nil) 756 761 (face font-lock-builtin-face fontified nil) 761 762 (fontified nil) 762 773 (fontified nil) 773 783 (face font-lock-builtin-face fontified nil) 783 784 (fontified nil) 784 802 (face font-lock-builtin-face fontified nil) 802 803 (fontified nil) 803 817 (face font-lock-builtin-face fontified nil) 817 818 (fontified nil) 818 829 (fontified nil) 829 847 (face font-lock-builtin-face fontified nil) 847 848 (fontified nil) 848 871 (face font-lock-builtin-face fontified nil) 871 872 (fontified nil) 872 891 (face font-lock-builtin-face fontified nil) 891 892 (fontified nil) 892 903 (fontified nil) 903 934 (face font-lock-builtin-face fontified nil) 934 935 (fontified nil) 935 951 (face font-lock-builtin-face fontified nil) 951 952 (fontified nil) 952 956 (fontified nil) 956 978 (face font-lock-builtin-face fontified nil) 978 979 (fontified nil) 979 1013 (face font-lock-builtin-face fontified nil) 1013 1014 (fontified nil) 1014 1026 (face font-lock-builtin-face fontified nil) 1026 1030 (fontified nil) 1030 1031 (fontified nil) 1031 1041 (face font-lock-keyword-face fontified nil) 1041 1042 (fontified nil) 1042 1056 (face font-lock-builtin-face fontified nil) 1056 1059 (fontified nil) 1059 1062 (face font-lock-comment-delimiter-face fontified nil) 1062 1089 (face font-lock-comment-face fontified nil) 1089 1090 (fontified nil) 1090 1096 (face font-lock-keyword-face fontified nil) 1096 1097 (fontified nil) 1097 1113 (face font-lock-variable-name-face fontified nil) 1113 1131 (fontified nil) 1131 1136 (face font-lock-builtin-face fontified nil) 1136 1145 (fontified nil) 1145 1147 (fontified nil) 1147 1220 (face font-lock-doc-face fontified nil) 1220 1223 (fontified nil) 1223 1226 (face font-lock-comment-delimiter-face fontified nil) 1226 1295 (face font-lock-comment-face fontified nil) 1295 1298 (face font-lock-comment-delimiter-face fontified nil) 1298 1375 (face font-lock-comment-face fontified nil) 1375 1378 (face font-lock-comment-delimiter-face fontified nil) 1378 1412 (face font-lock-comment-face fontified nil) 1412 1414 (face font-lock-comment-delimiter-face fontified nil) 1414 1437 (face font-lock-comment-face fontified nil) 1437 1439 (face font-lock-comment-delimiter-face fontified nil) 1439 1469 (face font-lock-comment-face fontified nil) 1469 1470 (fontified nil) 1470 1471 (fontified nil) 1471 1477 (face font-lock-keyword-face fontified nil) 1477 1478 (fontified nil) 1478 1487 (face font-lock-variable-name-face fontified nil) 1487 1493 (fontified nil) 1493 1494 (fontified nil) 1494 1500 (face font-lock-keyword-face fontified nil) 1500 1501 (fontified nil) 1501 1518 (face font-lock-variable-name-face fontified nil) 1518 1519 (fontified nil) 1519 1533 (face font-lock-builtin-face fontified nil) 1533 1535 (fontified nil) 1535 1536 (fontified nil) 1536 1542 (face font-lock-keyword-face fontified nil) 1542 1543 (fontified nil) 1543 1559 (face font-lock-variable-name-face fontified nil) 1559 1564 (fontified nil) 1564 1629 (face font-lock-doc-face fontified nil) 1629 1631 (fontified nil) 1631 1634 (face font-lock-comment-delimiter-face fontified nil) 1634 1691 (face font-lock-comment-face fontified nil) 1691 1692 (fontified nil) 1692 1704 (face font-lock-keyword-face fontified nil) 1704 1705 (fontified nil) 1705 1715 (face font-lock-variable-name-face fontified nil) 1715 1720 (fontified nil) 1720 1724 (face font-lock-comment-delimiter-face fontified nil) 1724 1763 (face font-lock-comment-face fontified nil) 1763 1764 (fontified nil) 1764 1773 (face font-lock-keyword-face fontified nil) 1773 1774 (fontified nil) 1774 1778 (face font-lock-type-face fontified nil) 1778 1803 (fontified nil) 1803 1825 (fontified nil) 1825 1839 (face font-lock-string-face fontified nil) 1839 1877 (fontified nil) 1877 1878 (fontified nil) 1878 1883 (face font-lock-keyword-face fontified nil) 1883 1884 (fontified nil) 1884 1902 (face font-lock-function-name-face fontified nil) 1902 1909 (fontified nil) 1909 1912 (fontified nil) 1912 1924 (face font-lock-keyword-face fontified nil) 1924 1952 (fontified nil) 1952 1969 (fontified nil) 1969 1978 (face font-lock-builtin-face fontified nil) 1978 1980 (fontified nil) 1980 1997 (fontified nil) 1997 2002 (face font-lock-builtin-face fontified nil) 2002 2004 (fontified nil) 2004 2021 (fontified nil) 2021 2030 (face font-lock-builtin-face fontified nil) 2030 2032 (fontified nil) 2032 2053 (fontified nil) 2053 2058 (face font-lock-builtin-face fontified nil) 2058 2060 (fontified nil) 2060 2071 (face font-lock-string-face fontified nil) 2071 2073 (fontified nil) 2073 2080 (fontified nil) 2080 2085 (face font-lock-builtin-face fontified nil) 2085 2100 (fontified nil) 2100 2105 (face font-lock-builtin-face fontified nil) 2105 2113 (fontified nil) 2113 2120 (fontified nil) 2120 2128 (face font-lock-builtin-face fontified nil) 2128 2130 (fontified nil) 2130 2134 (face font-lock-keyword-face fontified nil) 2134 2145 (fontified nil) 2145 2153 (face font-lock-builtin-face fontified nil) 2153 2156 (fontified nil) 2156 2164 (face font-lock-builtin-face fontified nil) 2164 2165 (fontified nil) 2165 2169 (face font-lock-builtin-face fontified nil) 2169 2174 (fontified nil) 2174 2177 (face font-lock-builtin-face fontified nil) 2177 2180 (fontified nil) 2180 2187 (fontified nil) 2187 2196 (face font-lock-builtin-face fontified nil) 2196 2200 (fontified nil) 2200 2205 (fontified nil) 2205 2210 (face font-lock-warning-face fontified nil) 2210 2215 (fontified nil) 2215 2231 (fontified nil) 2231 2280 (face font-lock-string-face fontified nil) 2280 2284 (fontified nil) 2284 2291 (fontified nil) 2291 2296 (face font-lock-warning-face fontified nil) 2296 2304 (fontified nil) 2304 2307 (face font-lock-comment-delimiter-face fontified nil) 2307 2351 (face font-lock-comment-face fontified nil) 2351 2352 (fontified nil) 2352 2357 (face font-lock-keyword-face fontified nil) 2357 2358 (fontified nil) 2358 2372 (face font-lock-function-name-face fontified nil) 2372 2416 (fontified nil) 2416 2417 (fontified nil) 2417 2422 (face font-lock-keyword-face fontified nil) 2422 2423 (fontified nil) 2423 2433 (face font-lock-function-name-face fontified nil) 2433 2443 (fontified nil) 2443 2446 (fontified nil) 2446 2449 (face font-lock-keyword-face fontified nil) 2449 2474 (fontified nil) 2474 2484 (face font-lock-builtin-face fontified nil) 2484 2508 (fontified nil) 2508 2513 (fontified nil) 2513 2523 (face font-lock-builtin-face fontified nil) 2523 2543 (fontified nil) 2543 2549 (face font-lock-builtin-face fontified nil) 2549 2556 (fontified nil) 2556 2561 (fontified nil) 2561 2568 (face font-lock-builtin-face fontified nil) 2568 2580 (fontified nil) 2580 2581 (fontified nil) 2581 2586 (face font-lock-keyword-face fontified nil) 2586 2587 (fontified nil) 2587 2600 (face font-lock-function-name-face fontified nil) 2600 2604 (fontified nil) 2604 2607 (fontified nil) 2607 2611 (face font-lock-keyword-face fontified nil) 2611 2641 (fontified nil) 2641 2646 (fontified nil) 2646 2663 (face font-lock-keyword-face fontified nil) 2663 2707 (fontified nil) 2707 2714 (fontified nil) 2714 2720 (face font-lock-keyword-face fontified nil) 2720 2777 (fontified nil) 2777 2786 (fontified nil) 2786 2799 (face font-lock-keyword-face fontified nil) 2799 2876 (fontified nil) 2876 2877 (fontified nil) 2877 2882 (face font-lock-keyword-face fontified nil) 2882 2883 (fontified nil) 2883 2889 (face font-lock-function-name-face fontified nil) 2889 2891 (fontified nil) 2891 2895 (face font-lock-type-face fontified nil) 2895 2941 (fontified nil) 2941 2949 (face font-lock-builtin-face fontified nil) 2949 2952 (fontified nil) 2952 2954 (fontified nil) 2954 3003 (face font-lock-doc-face fontified nil) 3003 3035 (face font-lock-doc-face fontified nil) 3035 3072 (face font-lock-doc-face fontified nil) 3072 3073 (fontified nil) 3073 3076 (fontified nil) 3076 3078 (fontified nil) 3078 3081 (face font-lock-comment-delimiter-face fontified nil) 3081 3128 (face font-lock-comment-face fontified nil) 3128 3137 (fontified nil) 3137 3142 (face font-lock-builtin-face fontified nil) 3142 3150 (fontified nil) 3150 3153 (fontified nil) 3153 3156 (face font-lock-keyword-face fontified nil) 3156 3192 (fontified nil) 3192 3211 (face font-lock-builtin-face fontified nil) 3211 3213 (fontified nil) 3213 3227 (face font-lock-builtin-face fontified nil) 3227 3236 (fontified nil) 3236 3241 (fontified nil) 3241 3243 (face font-lock-keyword-face fontified nil) 3243 3264 (fontified nil) 3264 3278 (face font-lock-builtin-face fontified nil) 3278 3280 (fontified nil) 3280 3289 (fontified nil) 3289 3292 (face font-lock-keyword-face fontified nil) 3292 3326 (fontified nil) 3326 3336 (fontified nil) 3336 3339 (face font-lock-comment-delimiter-face fontified nil) 3339 3384 (face font-lock-comment-face fontified nil) 3384 3456 (fontified nil) 3456 3476 (fontified nil) 3476 3522 (face font-lock-string-face fontified nil) 3522 3541 (fontified nil) 3541 3551 (face font-lock-builtin-face fontified nil) 3551 3568 (fontified nil) 3568 3578 (fontified nil) 3578 3581 (face font-lock-comment-delimiter-face fontified nil) 3581 3647 (face font-lock-comment-face fontified nil) 3647 3658 (fontified nil) 3658 3662 (face font-lock-keyword-face fontified nil) 3662 3672 (fontified nil) 3672 3680 (face font-lock-builtin-face fontified nil) 3680 3814 (fontified nil) 3814 3822 (fontified nil) 3822 3825 (face font-lock-comment-delimiter-face fontified nil) 3825 3855 (face font-lock-comment-face fontified nil) 3855 3864 (fontified nil) 3864 3869 (face font-lock-keyword-face fontified nil) 3869 3937 (fontified nil) 3937 3948 (fontified nil) 3948 3952 (face font-lock-keyword-face fontified nil) 3952 3962 (fontified nil) 3962 3970 (face font-lock-builtin-face fontified nil) 3970 4051 (fontified nil) 4051 4052 (fontified nil) 4052 4057 (face font-lock-keyword-face fontified nil) 4057 4058 (fontified nil) 4058 4063 (face font-lock-function-name-face fontified nil) 4063 4065 (fontified nil) 4065 4069 (face font-lock-type-face fontified nil) 4069 4076 (fontified nil) 4076 4084 (face font-lock-builtin-face fontified nil) 4084 4087 (fontified nil) 4087 4090 (fontified nil) 4090 4093 (face font-lock-keyword-face fontified nil) 4093 4136 (fontified nil) 4136 4141 (fontified nil) 4141 4145 (face font-lock-keyword-face fontified nil) 4145 4152 (fontified nil) 4152 4159 (fontified nil) 4159 4162 (face font-lock-keyword-face fontified nil) 4162 4184 (fontified nil) 4184 4193 (fontified nil) 4193 4197 (face font-lock-keyword-face fontified nil) 4197 4203 (fontified nil) 4203 4214 (fontified nil) 4214 4231 (face font-lock-keyword-face fontified nil) 4231 4251 (fontified nil) 4251 4264 (fontified nil) 4264 4270 (face font-lock-keyword-face fontified nil) 4270 4303 (fontified nil) 4303 4318 (fontified nil) 4318 4331 (face font-lock-keyword-face fontified nil) 4331 4401 (fontified nil) 4401 4417 (fontified nil) 4417 4452 (face font-lock-string-face fontified nil) 4452 4464 (fontified nil) 4464 4466 (fontified nil) 4466 4469 (face font-lock-comment-delimiter-face fontified nil) 4469 4503 (face font-lock-comment-face fontified nil) 4503 4506 (fontified nil) 4506 4510 (face font-lock-keyword-face fontified nil) 4510 4520 (fontified nil) 4520 4528 (face font-lock-builtin-face fontified nil) 4528 4573 (fontified nil) 4573 4633 (fontified nil) 4633 4637 (fontified nil face font-lock-comment-delimiter-face) 4637 4678 (fontified nil face font-lock-comment-face) 4678 4679 (fontified nil) 4679 4685 (fontified nil face font-lock-keyword-face) 4685 4686 (fontified nil) 4686 4701 (fontified nil face font-lock-variable-name-face) 4701 4708 (fontified nil) 4708 4709 (fontified nil) 4709 4714 (fontified nil face font-lock-keyword-face) 4714 4715 (fontified nil) 4715 4735 (fontified nil face font-lock-function-name-face) 4735 4743 (fontified nil) 4743 4745 (fontified nil) 4745 4748 (fontified nil face font-lock-comment-delimiter-face) 4748 4784 (fontified nil face font-lock-comment-face) 4784 4787 (fontified nil) 4787 4816 (fontified nil face font-lock-keyword-face) 4816 4818 (fontified nil) 4818 4834 (fontified nil face font-lock-string-face) 4834 4835 (fontified nil) 4835 4845 (fontified nil face font-lock-builtin-face) 4845 4884 (fontified nil) 4884 4887 (fontified nil) 4887 4890 (fontified nil face font-lock-keyword-face) 4890 4904 (fontified nil) 4904 4909 (fontified nil) 4909 4926 (fontified nil face font-lock-keyword-face) 4926 4999 (fontified nil) 4999 5004 (fontified nil) 5004 5006 (fontified nil face font-lock-keyword-face) 5006 5012 (fontified nil) 5012 5021 (fontified nil) 5021 5023 (fontified nil face font-lock-keyword-face) 5023 5071 (fontified nil) 5071 5084 (fontified nil) 5084 5089 (fontified nil face font-lock-keyword-face) 5089 5091 (fontified nil) 5091 5104 (fontified nil face font-lock-keyword-face) 5104 5249 (fontified nil) 5249 5250 (fontified nil) 5250 5255 (fontified nil face font-lock-keyword-face) 5255 5256 (fontified nil) 5256 5275 (fontified nil face font-lock-function-name-face) 5275 5288 (fontified nil) 5288 5291 (fontified nil) 5291 5295 (fontified nil face font-lock-keyword-face) 5295 5342 (fontified nil) 5342 5347 (fontified nil) 5347 5364 (fontified nil face font-lock-keyword-face) 5364 5434 (fontified nil) 5434 5435 (fontified nil) 5435 5440 (fontified nil face font-lock-keyword-face) 5440 5441 (fontified nil) 5441 5455 (fontified nil face font-lock-function-name-face) 5455 5463 (fontified nil) 5463 5467 (fontified nil face font-lock-type-face) 5467 5549 (fontified nil) 5549 5552 (fontified nil) 5552 5554 (fontified nil face font-lock-keyword-face) 5554 5593 (fontified nil) 5593 5600 (fontified nil) 5600 5602 (fontified nil face font-lock-keyword-face) 5602 5632 (fontified nil) 5632 5643 (fontified nil) 5643 5646 (fontified nil face font-lock-keyword-face) 5646 5742 (fontified nil) 5742 5755 (fontified nil) 5755 5758 (fontified nil face font-lock-keyword-face) 5758 5772 (fontified nil) 5772 5787 (fontified nil) 5787 5801 (fontified nil face font-lock-keyword-face) 5801 5802 (fontified nil) 5802 5822 (fontified nil) 5822 5827 (fontified nil face font-lock-keyword-face) 5827 5889 (fontified nil) 5889 5911 (fontified nil) 5911 5914 (fontified nil face font-lock-keyword-face) 5914 6007 (fontified nil) 6007 6024 (fontified nil) 6024 6026 (fontified nil face font-lock-keyword-face) 6026 6069 (fontified nil) 6069 6073 (fontified nil) 6073 6132 (fontified nil) 6132 6143 (fontified nil) 6143 6146 (fontified nil face font-lock-keyword-face) 6146 6181 (fontified nil) 6181 6194 (fontified nil) 6194 6208 (fontified nil face font-lock-keyword-face) 6208 6209 (fontified nil) 6209 6227 (fontified nil) 6227 6230 (fontified nil face font-lock-keyword-face) 6230 6318 (fontified nil) 6318 6333 (fontified nil) 6333 6346 (fontified nil face font-lock-keyword-face) 6346 6383 (fontified nil) 6383 6384 (fontified nil) 6384 6392 (fontified nil face font-lock-keyword-face) 6392 6393 (fontified nil) 6393 6410 (fontified nil face font-lock-function-name-face) 6410 6412 (fontified nil) 6412 6417 (fontified nil face font-lock-type-face) 6417 6424 (fontified nil) 6424 6444 (fontified nil) 6444 6450 (fontified nil face font-lock-keyword-face) 6450 6465 (fontified nil) 6465 6466 (fontified nil) 6466 6474 (fontified nil face font-lock-keyword-face) 6474 6475 (fontified nil) 6475 6484 (fontified nil face font-lock-function-name-face) 6484 6486 (fontified nil) 6486 6495 (fontified nil face font-lock-type-face) 6495 6501 (fontified nil) 6501 6506 (fontified nil face font-lock-type-face) 6506 6513 (fontified nil) 6513 6516 (fontified nil) 6516 6518 (fontified nil face font-lock-keyword-face) 6518 6584 (fontified nil) 6584 6608 (fontified nil) 6608 6614 (fontified nil face font-lock-keyword-face) 6614 6634 (fontified nil) 6634 6658 (fontified nil) 6658 6664 (fontified nil face font-lock-keyword-face) 6664 6686 (fontified nil) 6686 6690 (fontified nil face font-lock-comment-delimiter-face) 6690 6706 (fontified nil face font-lock-comment-face) 6706 6707 (fontified nil) 6707 6713 (fontified nil face font-lock-keyword-face) 6713 6714 (fontified nil) 6714 6744 (fontified nil face font-lock-variable-name-face) 6744 6750 (fontified nil) 6750 6751 (fontified nil) 6751 6757 (fontified nil face font-lock-keyword-face) 6757 6758 (fontified nil) 6758 6773 (fontified nil face font-lock-variable-name-face) 6773 6782 (fontified nil) 6782 6783 (fontified nil) 6783 6788 (fontified nil face font-lock-keyword-face) 6788 6789 (fontified nil) 6789 6798 (fontified nil face font-lock-function-name-face) 6798 6860 (fontified nil) 6860 6861 (fontified nil) 6861 6869 (fontified nil face font-lock-keyword-face) 6869 6870 (fontified nil) 6870 6892 (fontified nil face font-lock-function-name-face) 6892 6899 (fontified nil) 6899 6904 (fontified nil face font-lock-type-face) 6904 6911 (fontified nil) 6911 6915 (fontified nil) 6915 6918 (fontified nil face font-lock-keyword-face) 6918 6931 (fontified nil) 6931 6937 (fontified nil) 6937 6939 (fontified nil face font-lock-keyword-face) 6939 6960 (fontified nil) 6960 6970 (fontified nil) 6970 6975 (fontified nil face font-lock-keyword-face) 6975 6977 (fontified nil) 6977 6990 (fontified nil face font-lock-keyword-face) 6990 7014 (fontified nil) 7014 7048 (fontified nil face font-lock-string-face) 7048 7091 (fontified nil) 7091 7101 (fontified nil) 7101 7106 (fontified nil face font-lock-keyword-face) 7106 7119 (fontified nil) 7119 7123 (fontified nil face font-lock-comment-delimiter-face) 7123 7161 (fontified nil face font-lock-comment-face) 7161 7162 (fontified nil) 7162 7163 (fontified nil) 7163 7168 (fontified nil face font-lock-keyword-face) 7168 7169 (fontified nil) 7169 7173 (fontified nil face font-lock-function-name-face) 7173 7179 (fontified nil) 7179 7184 (fontified nil face font-lock-type-face) 7184 7193 (fontified nil) 7193 7195 (fontified nil) 7195 7226 (fontified nil face font-lock-doc-face) 7226 7228 (fontified nil) 7228 7231 (fontified nil) 7231 7260 (fontified nil face font-lock-keyword-face) 7260 7262 (fontified nil) 7262 7271 (fontified nil face font-lock-string-face) 7271 7273 (fontified nil) 7273 7307 (fontified nil) 7307 7311 (fontified nil face font-lock-builtin-face) 7311 7350 (fontified nil) 7350 7384 (fontified nil) 7384 7397 (fontified nil face font-lock-builtin-face) 7397 7415 (fontified nil) 7415 7429 (fontified nil) 7429 7449 (fontified nil face font-lock-string-face) 7449 7458 (fontified nil) 7458 7463 (fontified nil) 7463 7467 (fontified nil face font-lock-keyword-face) 7467 7489 (fontified nil) 7489 7495 (fontified nil face font-lock-keyword-face) 7495 7522 (fontified nil) 7522 7576 (fontified nil) 7576 7581 (fontified nil face font-lock-builtin-face) 7581 7582 (fontified nil) 7582 7590 (fontified nil face font-lock-builtin-face) 7590 7592 (fontified nil) 7592 7597 (fontified nil face font-lock-builtin-face) 7597 7607 (fontified nil) 7607 7632 (fontified nil) 7632 7646 (fontified nil) 7646 7664 (fontified nil) 7664 7666 (fontified nil face font-lock-keyword-face) 7666 7704 (fontified nil) 7704 7722 (fontified nil) 7722 7724 (fontified nil face font-lock-keyword-face) 7724 7757 (fontified nil) 7757 7791 (fontified nil) 7791 7802 (fontified nil face font-lock-builtin-face) 7802 7888 (fontified nil) 7888 7894 (fontified nil) 7894 7896 (fontified nil face font-lock-comment-delimiter-face) 7896 7932 (fontified nil face font-lock-comment-face) 7932 7948 (fontified nil) 7948 7969 (fontified nil face font-lock-string-face) 7969 7976 (fontified nil) 7976 7982 (fontified nil) 7982 7984 (fontified nil face font-lock-comment-delimiter-face) 7984 8022 (fontified nil face font-lock-comment-face) 8022 8023 (fontified nil) 8023 8029 (fontified nil) 8029 8032 (fontified nil face font-lock-comment-delimiter-face) 8032 8106 (fontified nil face font-lock-comment-face) 8106 8113 (fontified nil) 8113 8135 (fontified nil face font-lock-keyword-face) 8135 8149 (fontified nil) 8149 8151 (fontified nil) 8151 8155 (fontified nil face font-lock-keyword-face) 8155 8187 (fontified nil) 8187 8225 (fontified nil) 8225 8236 (fontified nil face font-lock-string-face) 8236 8274 (fontified nil) 8274 8285 (fontified nil) 8285 8287 (fontified nil face font-lock-keyword-face) 8287 8302 (fontified nil) 8302 8316 (fontified nil) 8316 8319 (fontified nil face font-lock-comment-delimiter-face) 8319 8329 (fontified nil face font-lock-comment-face) 8329 8344 (fontified nil) 8344 8348 (fontified nil face font-lock-keyword-face) 8348 8378 (fontified nil) 8378 8385 (fontified nil face font-lock-builtin-face) 8385 8386 (fontified nil) 8386 8392 (fontified nil face font-lock-builtin-face) 8392 8439 (fontified nil) 8439 8457 (fontified nil) 8457 8459 (fontified nil face font-lock-keyword-face) 8459 8514 (fontified nil) 8514 8528 (fontified nil) 8528 8531 (fontified nil face font-lock-comment-delimiter-face) 8531 8544 (fontified nil face font-lock-comment-face) 8544 8559 (fontified nil) 8559 8563 (fontified nil face font-lock-keyword-face) 8563 8592 (fontified nil) 8592 8599 (fontified nil face font-lock-builtin-face) 8599 8600 (fontified nil) 8600 8605 (fontified nil face font-lock-builtin-face) 8605 8723 (fontified nil) 8723 8733 (fontified nil) 8733 8736 (fontified nil face font-lock-comment-delimiter-face) 8736 8746 (fontified nil face font-lock-comment-face) 8746 8757 (fontified nil) 8757 8760 (fontified nil face font-lock-keyword-face) 8760 8929 (fontified nil) 8929 8942 (fontified nil) 8942 8946 (fontified nil face font-lock-keyword-face) 8946 9053 (fontified nil) 9053 9083 (fontified nil) 9083 9090 (fontified nil face font-lock-builtin-face) 9090 9096 (fontified nil) 9096 9105 (fontified nil face font-lock-builtin-face) 9105 9120 (fontified nil) 9120 9140 (fontified nil) 9140 9146 (fontified nil face font-lock-string-face) 9146 9195 (fontified nil face font-lock-string-face) 9195 9215 (fontified nil) 9215 9253 (fontified nil) 9253 9254 (fontified nil) 9254 9259 (fontified nil face font-lock-keyword-face) 9259 9260 (fontified nil) 9260 9267 (fontified nil face font-lock-function-name-face) 9267 9273 (fontified nil) 9273 9278 (fontified nil face font-lock-type-face) 9278 9287 (fontified nil) 9287 9289 (fontified nil) 9289 9320 (fontified nil face font-lock-doc-face) 9320 9321 (fontified nil) 9321 9324 (fontified nil) 9324 9353 (fontified nil face font-lock-keyword-face) 9353 9355 (fontified nil) 9355 9365 (fontified nil face font-lock-string-face) 9365 9367 (fontified nil) 9367 9401 (fontified nil) 9401 9405 (fontified nil face font-lock-builtin-face) 9405 9468 (fontified nil) 9468 9475 (fontified nil) 9475 9479 (fontified nil face font-lock-keyword-face) 9479 9511 (fontified nil) 9511 9551 (fontified nil) 9551 9558 (fontified nil face font-lock-builtin-face) 9558 9559 (fontified nil) 9559 9566 (fontified nil face font-lock-builtin-face) 9566 9577 (fontified nil) 9577 9578 (fontified nil) 9578 9581 (fontified nil face font-lock-comment-delimiter-face) 9581 9624 (fontified nil face font-lock-comment-face) 9624 9626 (fontified nil) 9626 9629 (fontified nil face font-lock-keyword-face) 9629 9644 (fontified nil) 9644 9647 (fontified nil) 9647 9649 (fontified nil face font-lock-keyword-face) 9649 9704 (fontified nil) 9704 9708 (fontified nil) 9708 9711 (fontified nil face font-lock-comment-delimiter-face) 9711 9776 (fontified nil face font-lock-comment-face) 9776 9824 (fontified nil) 9824 9833 (fontified nil face font-lock-string-face) 9833 9890 (fontified nil) 9890 9901 (fontified nil) 9901 9913 (fontified nil face font-lock-keyword-face) 9913 9914 (fontified nil) 9914 9929 (fontified nil) 9929 9932 (fontified nil face font-lock-keyword-face) 9932 9996 (fontified nil) 9996 10009 (fontified nil) 10009 10014 (fontified nil face font-lock-warning-face) 10014 10019 (fontified nil) 10019 10034 (fontified nil) 10034 10039 (fontified nil face font-lock-warning-face) 10039 10072 (fontified nil) 10072 10073 (fontified nil) 10073 10078 (fontified nil face font-lock-keyword-face) 10078 10079 (fontified nil) 10079 10087 (fontified nil face font-lock-function-name-face) 10087 10093 (fontified nil) 10093 10098 (fontified nil face font-lock-type-face) 10098 10148 (fontified nil) 10148 10152 (fontified nil face font-lock-comment-delimiter-face) 10152 10229 (fontified nil face font-lock-comment-face) 10229 10233 (fontified nil face font-lock-comment-delimiter-face) 10233 10283 (fontified nil face font-lock-comment-face) 10283 10287 (fontified nil face font-lock-comment-delimiter-face) 10287 10363 (fontified nil face font-lock-comment-face) 10363 10364 (fontified nil face font-lock-comment-face) 10364 10365 (fontified nil) 10365 10370 (fontified nil face font-lock-keyword-face) 10370 10371 (fontified nil) 10371 10389 (fontified nil face font-lock-function-name-face) 10389 10397 (fontified nil) 10397 10401 (fontified nil face font-lock-type-face) 10401 10429 (fontified nil) 10429 10431 (fontified nil) 10431 10460 (fontified nil face font-lock-doc-face) 10460 10510 (fontified nil face font-lock-doc-face) 10510 10511 (fontified nil) 10511 10514 (fontified nil) 10514 10543 (fontified nil face font-lock-keyword-face) 10543 10545 (fontified nil) 10545 10561 (fontified nil face font-lock-string-face) 10561 10562 (fontified nil) 10562 10574 (fontified nil face font-lock-builtin-face) 10574 10584 (fontified nil) 10584 10589 (fontified nil) 10589 10592 (fontified nil face font-lock-keyword-face) 10592 10607 (fontified nil) 10607 10614 (fontified nil) 10614 10619 (fontified nil face font-lock-keyword-face) 10619 10630 (fontified nil) 10630 10639 (fontified nil) 10639 10645 (fontified nil face font-lock-keyword-face) 10645 10662 (fontified nil) 10662 10681 (fontified nil) 10681 10684 (fontified nil face font-lock-comment-delimiter-face) 10684 10697 (fontified nil face font-lock-comment-face) 10697 10717 (fontified nil) 10717 10720 (fontified nil face font-lock-keyword-face) 10720 10781 (fontified nil) 10781 10810 (fontified nil) 10810 10822 (fontified nil face font-lock-keyword-face) 10822 10823 (fontified nil) 10823 10856 (fontified nil) 10856 10861 (fontified nil face font-lock-keyword-face) 10861 10862 (fontified nil) 10862 10907 (fontified nil) 10907 10914 (fontified nil face font-lock-string-face) 10914 10916 (fontified nil) 10916 10950 (fontified nil) 10950 10953 (fontified nil face font-lock-comment-delimiter-face) 10953 11006 (fontified nil face font-lock-comment-face) 11006 11040 (fontified nil) 11040 11043 (fontified nil face font-lock-comment-delimiter-face) 11043 11100 (fontified nil face font-lock-comment-face) 11100 11135 (fontified nil) 11135 11138 (fontified nil face font-lock-keyword-face) 11138 11186 (fontified nil) 11186 11233 (fontified nil) 11233 11241 (fontified nil face font-lock-string-face) 11241 11243 (fontified nil) 11243 11279 (fontified nil) 11279 11282 (fontified nil face font-lock-comment-delimiter-face) 11282 11330 (fontified nil face font-lock-comment-face) 11330 11372 (fontified nil) 11372 11375 (fontified nil face font-lock-builtin-face) 11375 11415 (fontified nil) 11415 11446 (fontified nil) 11446 11451 (fontified nil face font-lock-warning-face) 11451 11456 (fontified nil) 11456 11489 (fontified nil) 11489 11502 (fontified nil face font-lock-keyword-face) 11502 11514 (fontified nil) 11514 11524 (fontified nil face font-lock-string-face) 11524 11527 (fontified nil) 11527 11565 (fontified nil) 11565 11571 (fontified nil face font-lock-builtin-face) 11571 11600 (fontified nil) 11600 11619 (fontified nil) 11619 11622 (fontified nil face font-lock-comment-delimiter-face) 11622 11633 (fontified nil face font-lock-comment-face) 11633 11653 (fontified nil) 11653 11655 (fontified nil face font-lock-keyword-face) 11655 11675 (fontified nil) 11675 11678 (fontified nil face font-lock-builtin-face) 11678 11680 (fontified nil) 11680 11703 (fontified nil) 11703 11706 (fontified nil face font-lock-comment-delimiter-face) 11706 11753 (fontified nil face font-lock-comment-face) 11753 11776 (fontified nil) 11776 11779 (fontified nil face font-lock-comment-delimiter-face) 11779 11840 (fontified nil face font-lock-comment-face) 11840 11859 (fontified nil) 11859 11860 (fontified nil) 11860 11864 (fontified nil) 11864 11875 (fontified nil face font-lock-keyword-face) 11875 11917 (fontified nil) 11917 11941 (fontified nil) 11941 11965 (fontified nil) 11965 11969 (fontified nil face font-lock-keyword-face) 11969 12080 (fontified nil) 12080 12119 (fontified nil) 12119 12125 (fontified nil face font-lock-keyword-face) 12125 12199 (fontified nil) 12199 12225 (fontified nil) 12225 12229 (fontified nil face font-lock-keyword-face) 12229 12238 (fontified nil) 12238 12243 (fontified nil face font-lock-warning-face) 12243 12276 (fontified nil) 12276 12302 (fontified nil) 12302 12304 (fontified nil face font-lock-keyword-face) 12304 12456 (fontified nil) 12456 12486 (fontified nil) 12486 12491 (fontified nil face font-lock-keyword-face) 12491 12538 (fontified nil) 12538 12579 (fontified nil) 12579 12609 (fontified nil face font-lock-string-face) 12609 12695 (fontified nil) 12695 12740 (fontified nil) 12740 12743 (fontified nil face font-lock-comment-delimiter-face) 12743 12762 (fontified nil face font-lock-comment-face) 12762 12792 (fontified nil) 12792 12822 (fontified nil) 12822 12827 (fontified nil face font-lock-warning-face) 12827 12891 (fontified nil) 12891 12892 (fontified nil) 12892 12900 (fontified nil face font-lock-keyword-face) 12900 12901 (fontified nil) 12901 12908 (fontified nil face font-lock-function-name-face) 12908 12911 (fontified nil) 12911 12915 (fontified nil face font-lock-type-face) 12915 12925 (fontified nil) 12925 12930 (fontified nil face font-lock-type-face) 12930 12937 (fontified nil) 12937 12961 (fontified nil) 12961 12967 (fontified nil face font-lock-keyword-face) 12967 12979 (fontified nil) 12979 12987 (fontified nil face font-lock-builtin-face) 12987 13007 (fontified nil) 13007 13011 (fontified nil face font-lock-comment-delimiter-face) 13011 13160 (fontified nil face font-lock-comment-face) 13160 13161 (fontified nil) 13161 13169 (face font-lock-keyword-face fontified nil) 13169 13170 (fontified nil) 13170 13181 (face font-lock-function-name-face fontified nil) 13181 13194 (fontified nil) 13194 13199 (face font-lock-type-face fontified nil) 13199 13206 (fontified nil) 13206 13208 (fontified nil) 13208 13288 (face font-lock-doc-face fontified nil) 13288 13289 (fontified nil) 13289 13293 (fontified nil) 13293 13297 (face font-lock-keyword-face fontified nil) 13297 13383 (fontified nil) 13383 13417 (fontified nil) 13417 13445 (fontified nil) 13445 13460 (fontified nil) 13460 13464 (face font-lock-comment-delimiter-face fontified nil) 13464 13580 (face font-lock-comment-face fontified nil) 13580 13652 (fontified nil) 13652 13660 (face font-lock-builtin-face fontified nil) 13660 13661 (fontified nil) 13661 13670 (face font-lock-builtin-face fontified nil) 13670 13671 (fontified nil) 13671 13680 (face font-lock-builtin-face fontified nil) 13680 13681 (fontified nil) 13681 13689 (face font-lock-builtin-face fontified nil) 13689 13690 (fontified nil) 13690 13697 (face font-lock-builtin-face fontified nil) 13697 13733 (fontified nil) 13733 13737 (face font-lock-keyword-face fontified nil) 13737 13781 (fontified nil) 13781 13784 (face font-lock-comment-delimiter-face fontified nil) 13784 13841 (face font-lock-comment-face fontified nil) 13841 13892 (fontified nil) 13892 13895 (face font-lock-comment-delimiter-face fontified nil) 13895 13970 (face font-lock-comment-face fontified nil) 13970 13975 (fontified nil) 13975 13981 (face font-lock-keyword-face fontified nil) 13981 13997 (fontified nil) 13997 14002 (face font-lock-warning-face fontified nil) 14002 14003 (fontified nil) 14003 14121 (face font-lock-string-face fontified nil) 14121 14143 (fontified nil) 14143 14146 (face font-lock-comment-delimiter-face fontified nil) 14146 14191 (face font-lock-comment-face fontified nil) 14191 14195 (fontified nil) 14195 14198 (face font-lock-comment-delimiter-face fontified nil) 14198 14282 (face font-lock-comment-face fontified nil) 14282 14286 (fontified nil) 14286 14289 (face font-lock-comment-delimiter-face fontified nil) 14289 14379 (face font-lock-comment-face fontified nil) 14379 14384 (fontified nil) 14384 14387 (face font-lock-keyword-face fontified nil) 14387 14391 (fontified nil) 14391 14434 (fontified nil) 14434 14513 (fontified nil) 14513 14516 (face font-lock-comment-delimiter-face fontified nil) 14516 14577 (face font-lock-comment-face fontified nil) 14577 14606 (fontified nil) 14606 14660 (fontified nil) 14660 14678 (fontified nil) 14678 14695 (fontified nil) 14695 14783 (face font-lock-string-face fontified nil) 14783 14786 (fontified nil) 14786 14789 (face font-lock-comment-delimiter-face fontified nil) 14789 14892 (face font-lock-comment-face fontified nil) 14892 14895 (fontified nil) 14895 14897 (face font-lock-keyword-face fontified nil) 14897 14933 (fontified nil) 14933 14936 (face font-lock-comment-delimiter-face fontified nil) 14936 15016 (face font-lock-comment-face fontified nil) 15016 15022 (fontified nil) 15022 15025 (face font-lock-comment-delimiter-face fontified nil) 15025 15125 (face font-lock-comment-face fontified nil) 15125 15163 (fontified nil) 15163 15169 (face font-lock-keyword-face fontified nil) 15169 15207 (fontified nil) 15207 15210 (face font-lock-comment-delimiter-face fontified nil) 15210 15267 (face font-lock-comment-face fontified nil) 15267 15293 (fontified nil) 15293 15294 (fontified nil rear-nonsticky nil)) . 10365) (undo-tree-id2 . -15294) (undo-tree-id3 . -13160) (undo-tree-id4 . -15294) (undo-tree-id5 . -8155) (nil fontified t 10380 . 10383) (nil fontified t 10409 . 10410) (nil fontified t 10421 . 10423) (nil fontified t 10450 . 10452) (nil fontified t 10532 . 10534) (nil fontified t 10574 . 10576) (nil fontified t 10621 . 10623) (nil fontified t 10658 . 10660) (nil fontified t 10726 . 10728) (nil fontified t 10762 . 10764) (nil fontified t 10822 . 10824) (nil fontified t 10857 . 10859) (nil fontified t 10931 . 10933) (nil fontified t 10968 . 10970) (nil fontified t 11013 . 11015) (nil fontified t 11062 . 11067) (nil fontified t 11126 . 11127) (nil fontified t 11182 . 11183) (nil fontified t 11256 . 11257) (nil fontified t 11316 . 11317) (nil fontified t 11391 . 11395) (nil fontified t 11421 . 11424) (nil fontified t 11427 . 11454) (nil fontified t 11501 . 11510) (nil fontified t 11585 . 11588) (nil fontified t 11591 . 11660) (nil fontified t 11663 . 11740) (nil fontified t 11743 . 11777) (nil fontified t 11779 . 11802) (nil fontified t 11804 . 11834) (nil fontified t 11834 . 11835) (nil fontified t 11852 . 11858) (nil fontified t 11898 . 11900) (nil fontified t 11994 . 11996) (nil fontified t 11999 . 12056) (nil fontified t 12080 . 12085) (nil fontified t 12089 . 12128) (nil fontified t 12143 . 12168) (nil fontified t 12204 . 12242) (nil fontified t 12267 . 12274) (nil fontified t 12289 . 12317) (nil fontified t 12343 . 12345) (nil fontified t 12367 . 12369) (nil fontified t 12395 . 12397) (nil fontified t 12436 . 12438) (nil fontified t 12470 . 12478) (nil fontified t 12542 . 12545) (nil fontified t 12561 . 12565) (nil fontified t 12575 . 12580) (nil fontified t 12645 . 12649) (nil fontified t 12661 . 12669) (nil fontified t 12672 . 12716) (nil fontified t 12737 . 12781) (nil fontified t 12798 . 12808) (nil fontified t 12849 . 12873) (nil fontified t 12914 . 12921) (nil fontified t 12933 . 12945) (nil fontified t 12965 . 12969) (nil fontified t 12976 . 13006) (nil fontified t 13028 . 13072) (nil fontified t 13085 . 13142) (nil fontified t 13164 . 13241) (nil fontified t 13314 . 13317) (nil fontified t 13319 . 13368) (nil fontified t 13437 . 13438) (nil fontified t 13438 . 13441) (nil fontified t 13446 . 13493) (nil fontified t 13507 . 13515) (nil fontified t 13592 . 13601) (nil fontified t 13643 . 13645) (nil fontified t 13657 . 13691) (nil fontified t 13704 . 13749) (nil fontified t 13749 . 13821) (nil fontified t 13916 . 13933) (nil fontified t 13946 . 14012) (nil fontified t 14045 . 14179) (nil fontified t 14190 . 14220) (nil fontified t 14234 . 14302) (nil fontified t 14335 . 14416) (nil fontified t 14449 . 14452) (nil fontified t 14458 . 14501) (nil fontified t 14510 . 14517) (nil fontified t 14527 . 14549) (nil fontified t 14562 . 14568) (nil fontified t 14596 . 14616) (nil fontified t 14635 . 14668) (nil fontified t 14696 . 14766) (nil fontified t 14817 . 14829) (nil fontified t 14834 . 14868) (nil fontified t 14893 . 14938) (nil fontified nil 14938 . 14998) (nil fontified nil 15002 . 15043) (nil fontified nil 15066 . 15073) (nil fontified nil 15100 . 15108) (nil fontified nil 15113 . 15149) (nil fontified nil 15210 . 15249) (nil fontified nil 15255 . 15269) (nil fontified nil 15291 . 15364) (nil fontified nil 15371 . 15377) (nil fontified nil 15388 . 15436) (nil fontified nil 15469 . 15614) (nil fontified nil 15640 . 15653) (nil fontified nil 15660 . 15707) (nil fontified nil 15729 . 15799) (nil fontified nil 15832 . 15914) (nil fontified nil 15919 . 15958) (nil fontified nil 15967 . 15997) (nil fontified nil 16011 . 16107) (nil fontified nil 16123 . 16137) (nil fontified nil 16166 . 16167) (nil fontified nil 16192 . 16254) (nil fontified nil 16279 . 16372) (nil fontified nil 16391 . 16434) (nil fontified nil 16438 . 16497) (nil fontified nil 16511 . 16546) (nil fontified nil 16573 . 16574) (nil fontified nil 16595 . 16683) (nil fontified nil 16711 . 16748) (nil fontified nil 16782 . 16789) (nil fontified nil 16815 . 16830) (nil fontified nil 16871 . 16878) (nil fontified nil 16883 . 16949) (nil fontified nil 16979 . 16999) (nil fontified nil 17029 . 17051) (nil fontified nil 17055 . 17071) (nil fontified nil 17109 . 17115) (nil fontified nil 17138 . 17147) (nil fontified nil 17163 . 17225) (nil fontified nil 17269 . 17276) (nil fontified nil 17283 . 17296) (nil fontified nil 17304 . 17325) (nil fontified nil 17413 . 17456) (nil fontified nil 17471 . 17484) (nil fontified nil 17488 . 17526) (nil fontified nil 17526 . 17527) (nil fontified nil 17549 . 17558) (nil fontified nil 17591 . 17593) (nil fontified nil 17636 . 17638) (nil fontified nil 17676 . 17715) (nil fontified nil 17762 . 17780) (nil fontified nil 17814 . 17823) (nil fontified nil 17860 . 17887) (nil fontified nil 17962 . 17972) (nil fontified nil 17997 . 18011) (nil fontified nil 18031 . 18069) (nil fontified nil 18089 . 18122) (nil fontified nil 18167 . 18253) (nil fontified nil 18261 . 18297) (nil fontified nil 18334 . 18341) (nil fontified nil 18349 . 18387) (nil fontified nil 18387 . 18388) (nil fontified nil 18397 . 18471) (nil fontified nil 18500 . 18514) (nil fontified nil 18520 . 18552) (nil fontified nil 18601 . 18639) (nil fontified nil 18652 . 18667) (nil fontified nil 18684 . 18694) (nil fontified nil 18757 . 18804) (nil fontified nil 18824 . 18879) (nil fontified nil 18896 . 18909) (nil fontified nil 18970 . 19088) (nil fontified nil 19101 . 19111) (nil fontified nil 19125 . 19294) (nil fontified nil 19311 . 19418) (nil fontified nil 19470 . 19485) (nil fontified nil 19560 . 19580) (nil fontified nil 19580 . 19618) (nil fontified nil 19643 . 19652) (nil fontified nil 19685 . 19686) (nil fontified nil 19730 . 19732) (nil fontified nil 19770 . 19833) (nil fontified nil 19844 . 19876) (nil fontified nil 19931 . 19942) (nil fontified nil 19946 . 19989) (nil fontified nil 19994 . 20009) (nil fontified nil 20014 . 20069) (nil fontified nil 20076 . 20141) (nil fontified nil 20198 . 20255) (nil fontified nil 20278 . 20279) (nil fontified nil 20297 . 20361) (nil fontified nil 20379 . 20384) (nil fontified nil 20404 . 20437) (nil fontified nil 20463 . 20513) (nil fontified nil 20517 . 20594) (nil fontified nil 20598 . 20648) (nil fontified nil 20728 . 20729) (nil fontified nil 20766 . 20794) (nil fontified nil 20875 . 20876) (nil fontified nil 20939 . 20949) (nil fontified nil 20957 . 20972) (nil fontified nil 20984 . 20995) (nil fontified nil 21010 . 21027) (nil fontified nil 21049 . 21062) (nil fontified nil 21085 . 21146) (nil fontified nil 21187 . 21188) (nil fontified nil 21226 . 21227) (nil fontified nil 21279 . 21281) (nil fontified nil 21318 . 21371) (nil fontified nil 21408 . 21465) (nil fontified nil 21503 . 21551) (nil fontified nil 21606 . 21608) (nil fontified nil 21647 . 21695) (nil fontified nil 21740 . 21780) (nil fontified nil 21816 . 21821) (nil fontified nil 21889 . 21892) (nil fontified nil 21936 . 21965) (nil fontified nil 21987 . 21998) (nil fontified nil 22043 . 22045) (nil fontified nil 22071 . 22118) (nil fontified nil 22144 . 22205) (nil fontified nil 22240 . 22282) (nil fontified nil 22282 . 22306) (nil fontified nil 22334 . 22445) (nil fontified nil 22490 . 22564) (nil fontified nil 22608 . 22641) (nil fontified nil 22669 . 22821) (nil fontified nil 22856 . 22903) (nil fontified nil 22974 . 23060) (nil fontified nil 23108 . 23127) (nil fontified nil 23127 . 23157) (nil fontified nil 23192 . 23256) (nil fontified nil 23295 . 23302) (nil fontified nil 23352 . 23372) (nil fontified nil 23376 . 23525) (nil fontified t 23564 . 23571) (nil fontified t 23653 . 23654) (nil fontified t 23662 . 23748) (nil fontified t 23782 . 23810) (nil fontified t 25575 . 25632) (nil fontified t 25572 . 25575) (nil fontified t 25534 . 25572) (nil fontified t 25528 . 25534) (nil fontified t 25490 . 25528) (nil fontified t 25390 . 25490) (nil fontified t 25387 . 25390) (nil fontified t 25381 . 25387) (nil fontified t 25301 . 25381) (nil fontified t 25298 . 25301) (nil fontified t 25262 . 25298) (nil fontified t 25260 . 25262) (nil fontified t 25257 . 25260) (nil fontified t 25154 . 25257) (nil fontified t 25151 . 25154) (nil fontified t 25148 . 25151) (nil fontified t 25060 . 25148) (nil fontified t 25043 . 25060) (nil fontified t 25025 . 25043) (nil fontified t 24971 . 25025) (nil fontified t 24942 . 24971) (nil fontified t 24881 . 24942) (nil fontified t 24878 . 24881) (nil fontified t 24799 . 24878) (nil fontified t 24756 . 24799) (nil fontified t 24752 . 24756) (nil fontified t 24749 . 24752) (nil fontified t 24744 . 24749) (nil fontified t 24654 . 24744) (nil fontified t 24651 . 24654) (nil fontified t 24647 . 24651) (nil fontified t 24563 . 24647) (nil fontified t 24560 . 24563) (nil fontified t 24556 . 24560) (nil fontified t 24511 . 24556) (nil fontified t 24508 . 24511) (nil fontified t 24486 . 24508) (nil fontified t 24368 . 24486) (nil fontified t 24367 . 24368) (nil fontified t 24362 . 24367) (nil fontified t 24346 . 24362) (nil fontified t 24340 . 24346) (nil fontified t 24335 . 24340) (nil fontified t 24260 . 24335) (nil fontified t 24257 . 24260) (nil fontified t 24206 . 24257) (nil fontified t 24149 . 24206) (nil fontified t 24146 . 24149) (nil fontified t 24102 . 24146) (nil fontified t 24098 . 24102) (nil fontified t 24062 . 24098) (nil fontified t 24055 . 24062) (nil fontified t 24054 . 24055) (nil fontified t 24046 . 24054) (nil fontified t 24045 . 24046) (nil fontified t 24036 . 24045) (nil fontified t 24035 . 24036) (nil fontified t 24026 . 24035) (nil fontified t 24025 . 24026) (nil fontified t 24017 . 24025) (nil fontified t 23945 . 24017) (nil fontified t 23829 . 23945) (nil fontified t 23825 . 23829) (nil fontified t 23810 . 23825) (nil rear-nonsticky t 25658 . 25659)) (27082 28578 978063 164000) 0 nil])
-([nil nil ((12877 . 12878)) nil (27082 28605 208802 270000) 0 nil])
-nil
-([nil nil ((12878 . 12879)) nil (27082 28605 208801 700000) 0 nil])
-([nil nil ((12879 . 12881)) nil (27082 28605 208801 20000) 0 nil])
-([nil nil ((15408 . 15410)) nil (27082 28605 208799 550000) 0 nil])
-([nil nil ((15410 . 15411)) nil (27082 28605 208795 100000) 0 nil])
-([nil nil ((11218 . 11231) (t 27082 28605 213688 648000)) nil (27082 29609 825684 995000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 11287 . 11288) (nil fontified nil 11271 . 11288) (nil fontified nil 11241 . 11271) (nil fontified nil 11231 . 11241) (11231 . 11288)) nil (27082 29609 825684 35000) 0 nil])
-([nil nil ((#("DB" 0 2 (face font-lock-string-face fontified t)) . -11245) (undo-tree-id46 . -2) (undo-tree-id47 . -1) (undo-tree-id48 . -1) (undo-tree-id49 . -1) (undo-tree-id50 . -1) (undo-tree-id51 . -1) (undo-tree-id52 . -1) (undo-tree-id53 . -2) (undo-tree-id54 . -2) (undo-tree-id55 . -1) (undo-tree-id56 . -1) (undo-tree-id57 . -1) (undo-tree-id58 . -1) (undo-tree-id59 . -1) (undo-tree-id60 . -1) (undo-tree-id61 . -2) (undo-tree-id62 . -2) (undo-tree-id63 . -2) (undo-tree-id64 . -2) 11247) nil (27082 29609 825682 285000) 0 nil])
-([nil nil ((11245 . 11247)) nil (27082 29609 825670 235000) 0 nil])
-([nil nil ((#("Retry" 0 5 (face font-lock-string-face fontified t)) . -11249) (undo-tree-id35 . -5) (undo-tree-id36 . -1) (undo-tree-id37 . -1) (undo-tree-id38 . -1) (undo-tree-id39 . -1) (undo-tree-id40 . -1) (undo-tree-id41 . -1) (undo-tree-id42 . -5) (undo-tree-id43 . -5) (undo-tree-id44 . -5) (undo-tree-id45 . -5) 11254) nil (27082 29609 825669 75000) 0 nil])
-([nil nil ((11249 . 11252)) nil (27082 29609 825661 485000) 0 nil])
-([nil nil ((11252 . 11253)) nil (27082 29609 825660 905000) 0 nil])
-([nil nil ((#(" " 0 1 (face font-lock-string-face fontified t)) . -11252) (undo-tree-id34 . -1) 11253) nil (27082 29609 825660 125000) 0 nil])
-([nil nil ((11254 . 11264)) nil (27082 29609 825658 695000) 0 nil])
-([nil nil ((#("X" 0 1 (face font-lock-string-face fontified t)) . 11264)) nil (27082 29609 825658 5000) 0 nil])
-([nil nil ((#(" (~A/~A)..." 0 11 (face font-lock-string-face fontified t)) . -11264) (undo-tree-id31 . -11) (undo-tree-id32 . -1) (undo-tree-id33 . -1) 11275) nil (27082 29609 825656 735000) 0 nil])
-([nil nil ((#("attempt retries" 0 15 (fontified t)) . -11268) (undo-tree-id24 . -15) (undo-tree-id25 . -15) (undo-tree-id26 . -15) (undo-tree-id27 . -15) (undo-tree-id28 . -15) (undo-tree-id29 . -15) (undo-tree-id30 . -15) 11283) nil (27082 29609 825652 505000) 0 nil])
-([nil nil ((#(" " 0 1 (fontified t)) . -11267) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) (undo-tree-id12 . -1) (undo-tree-id13 . -1) (undo-tree-id14 . -1) (undo-tree-id15 . -1) (undo-tree-id16 . -1) (undo-tree-id17 . -1) (undo-tree-id18 . -1) (undo-tree-id19 . -1) (undo-tree-id20 . -1) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) 11268) nil (27082 29609 825544 565000) 0 nil])
-([nil nil ((#("(format t \"~&[TX] New Transaction~%\")" 0 10 (fontified t) 10 36 (face font-lock-string-face fontified t) 36 37 (rear-nonsticky t fontified t)) . 11231) (undo-tree-id87 . -36) (t 27082 29609 829157 877000)) nil (27082 30037 152627 626000) 0 nil])
-([nil nil ((#("	" 0 1 (fontified t)) . 11218) (#("	" 0 1 (fontified t)) . 11218) (#("	" 0 1 (fontified t)) . 11218) (#("
-" 0 1 (fontified t)) . 11218)) nil (27082 30037 152625 896000) 0 nil])
+          (values affected ret))))))" 0 217 (face font-lock-comment-face fontified t) 217 253 (face font-lock-comment-face fontified t) 253 1753 (face font-lock-comment-face fontified t) 1753 1767 (face font-lock-comment-face fontified t) 1767 2089 (face font-lock-comment-face fontified t)) . -8910) (undo-tree-id34 . -2089) (undo-tree-id35 . -1140) 10999) nil (27164 23269 195055 0) 0 nil])
 ([nil nil ((#("
-" 0 1 (fontified t)) . 11227) (undo-tree-id85 . -1) (undo-tree-id86 . -1)) nil (27082 30037 152624 566000) 0 nil])
-([nil nil ((#("		       " 0 9 (fontified nil)) . 11218) (undo-tree-id65 . -9) (undo-tree-id66 . -9) (undo-tree-id67 . -9) (undo-tree-id68 . -9) (undo-tree-id69 . -9) (undo-tree-id70 . -9) (undo-tree-id71 . -9) (undo-tree-id72 . -9) (undo-tree-id73 . -9) (undo-tree-id74 . -9) (undo-tree-id75 . -9) (undo-tree-id76 . -9) (undo-tree-id77 . -9) (undo-tree-id78 . -9) (undo-tree-id79 . -9) (undo-tree-id80 . -9) (undo-tree-id81 . -9) (undo-tree-id82 . -9) (undo-tree-id83 . -9) (undo-tree-id84 . -9) (11227 . 11228)) nil (27082 30037 152621 106000) 0 nil])
-([nil nil ((10514 . 10517)) nil (27082 30037 152595 676000) 0 nil])
-([nil nil ((nil fontified nil 10553 . 10554) (nil fontified nil 10527 . 10553) (nil fontified nil 10517 . 10527) (10517 . 10554)) nil (27082 30037 152591 476000) 0 nil])
-([nil nil ((7161 . 7162) (t 27082 30037 151176 113000)) nil (27082 37606 525055 929000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 8912 . 8913) (nil fontified nil 7162 . 8913) (7162 . 8913)) nil (27082 37606 525054 959000) 0 nil])
-([nil nil ((8914 . 8915)) nil (27082 37606 525054 19000) 0 nil])
-([nil nil ((8915 . 8917)) nil (27082 37606 525053 259000) 0 nil])
-([nil nil ((11008 . 11010)) nil (27082 37606 525051 759000) 0 nil])
-([nil nil ((11010 . 11011)) nil (27082 37606 525047 449000) 0 nil])
-([nil current ((#("        " 0 8 (fontified t)) . -822) 883 (t 27082 37606 527543 51000)) nil (27133 42086 84014 519000) 0 nil])
+#|
+
+|#
+" 0 1 (fontified t) 1 3 (face font-lock-comment-delimiter-face fontified t) 3 4 (face font-lock-comment-face fontified t) 4 5 (face font-lock-comment-face fontified t) 5 7 (face font-lock-comment-delimiter-face fontified t) 7 8 (fontified t)) . 8906) (undo-tree-id33 . -8)) nil (27164 23269 195054 0) 0 nil])
+([nil nil ((13139 . 13141)) nil (27164 23269 195053 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 15083 . 15084) (nil fontified nil 13141 . 15084) (13141 . 15084)) nil (27164 23269 195052 0) 0 nil])
+([nil nil ((1019 . 1024)) nil (27164 23269 195052 0) 0 nil])
+([nil nil ((1024 . 1025)) nil (27164 23269 195051 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1051 . 1052) (nil fontified nil 1025 . 1052) (1025 . 1052)) nil (27164 23269 195050 0) 0 nil])
+([nil nil ((#("(defun db-network-error-p (condition)
+  \"Détecte les erreurs réseau PostgreSQL typiques : socket morte, timeout,
+connexion fermée côté serveur, coupure réseau, NAT expiré, etc.\"
+  (let ((msg (string-downcase (princ-to-string condition))))
+    (or (search \"couldn't write\" msg)
+        (search \"couldn't read\" msg)
+        (search \"socket\" msg)
+        (search \"broken pipe\" msg)
+        (search \"connection reset\" msg)
+        (search \"connection refused\" msg)
+        (search \"connection timed out\" msg)
+        (search \"server closed the connection\" msg)
+        (search \"terminating connection\" msg)
+        (search \"end of file\" msg)
+        (search \"eof\" msg)
+        (search \"nom réseau\" msg)
+        (search \"n’est plus disponible\" msg)
+        (search \"n'est plus disponible\" msg))))" 0 1 (fontified t) 1 6 (fontified t face font-lock-keyword-face) 6 7 (fontified t) 7 25 (fontified t face font-lock-function-name-face) 25 40 (fontified t) 40 113 (fontified t face font-lock-doc-face) 113 177 (face font-lock-doc-face fontified t) 177 181 (fontified t) 181 184 (face font-lock-keyword-face fontified t) 184 255 (fontified t) 255 271 (face font-lock-string-face fontified t) 271 293 (fontified t) 293 308 (face font-lock-string-face fontified t) 308 330 (fontified t) 330 338 (face font-lock-string-face fontified t) 338 360 (fontified t) 360 373 (face font-lock-string-face fontified t) 373 395 (fontified t) 395 413 (face font-lock-string-face fontified t) 413 435 (fontified t) 435 455 (face font-lock-string-face fontified t) 455 477 (fontified t) 477 499 (face font-lock-string-face fontified t) 499 521 (fontified t) 521 551 (face font-lock-string-face fontified t) 551 573 (fontified t) 573 597 (face font-lock-string-face fontified t) 597 619 (fontified t) 619 632 (face font-lock-string-face fontified t) 632 654 (fontified t) 654 659 (face font-lock-string-face fontified t) 659 681 (fontified t) 681 693 (face font-lock-string-face fontified t) 693 715 (fontified t) 715 738 (face font-lock-string-face fontified t) 738 760 (fontified t) 760 783 (face font-lock-string-face fontified t) 783 791 (fontified t)) . 13174) (undo-tree-id32 . -791) 13965) nil (27164 23269 195050 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -13172) (undo-tree-id28 . -1) (undo-tree-id29 . -1) (#("
+" 0 1 (fontified t)) . -13173) (undo-tree-id30 . -1) (undo-tree-id31 . -1) 13174) nil (27164 23269 195048 0) 0 nil])
+([nil nil ((13619 . 13620)) nil (27164 23269 195046 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -13618) (undo-tree-id21 . -1) (undo-tree-id22 . -1) (undo-tree-id23 . -1) (undo-tree-id24 . -1) (#("*" 0 1 (fontified t)) . -13619) (undo-tree-id25 . -1) (undo-tree-id26 . -1) (undo-tree-id27 . -1) 13620) nil (27164 23269 195045 0) 0 nil])
+([nil nil ((57 . 58)) nil (27164 23269 195040 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 69 . 70) (nil fontified nil 58 . 70) (58 . 70)) nil (27164 23269 195039 0) 0 nil])
+([nil nil ((#("(defun reset-current-db-connection ()
+  \"Force l'abandon de la connexion Postmodern courante et du cache de prepared plans.
+
+Important avec une BD distante : une connexion TCP peut rester référencée
+côté Lisp alors qu'elle est déjà morte côté réseau.
+\"
+  (ignore-errors
+    (when (find-package :lumen.data.prepare)
+      (funcall (find-symbol \"RESET-PREPARE-CACHE\" :lumen.data.prepare))))
+
+  (ignore-errors
+    (postmodern:disconnect-toplevel))
+  t)
+
+(defun run-db-with-reconnect (thunk &key (retries 3) (sleep-ms 500))
+  \"Exécute THUNK avec reconnexion automatique si la connexion DB est morte.\"
+  (loop for attempt from 0 do
+    (handler-case
+        (let ((values (multiple-value-list (funcall thunk))))
+          (return-from run-db-with-reconnect
+            (values-list values)))
+
+      (error (e)
+        (if (and (< attempt retries)
+                 (db-network-error-p e))
+            (progn
+              (format t \"~&[DB] Connexion PostgreSQL morte. Reconnexion (~A/~A) : ~A~%\"
+                      (1+ attempt) retries e)
+              (reset-current-db-connection)
+              (sleep (/ sleep-ms 1000.0)))
+            (error e))))))
+" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 34 (face font-lock-function-name-face fontified t) 34 40 (fontified t) 40 252 (face font-lock-doc-face fontified t) 252 256 (fontified t) 256 269 (face font-lock-keyword-face fontified t) 269 275 (fontified t) 275 279 (face font-lock-keyword-face fontified t) 279 294 (fontified t) 294 313 (face font-lock-builtin-face fontified t) 313 343 (fontified t) 343 364 (face font-lock-string-face fontified t) 364 365 (fontified t) 365 384 (face font-lock-builtin-face fontified t) 384 393 (fontified t) 393 406 (face font-lock-keyword-face fontified t) 406 407 (fontified t) 407 444 (fontified t) 444 445 (fontified t) 445 451 (fontified t) 451 452 (fontified t) 452 457 (face font-lock-keyword-face fontified t) 457 458 (fontified t) 458 479 (face font-lock-function-name-face fontified t) 479 487 (fontified t) 487 491 (face font-lock-type-face fontified t) 491 522 (fontified t) 522 596 (face font-lock-doc-face fontified t) 596 600 (fontified t) 600 604 (face font-lock-keyword-face fontified t) 604 632 (fontified t) 632 644 (face font-lock-keyword-face fontified t) 644 654 (fontified t) 654 657 (face font-lock-keyword-face fontified t) 657 706 (fontified t) 706 707 (fontified t) 707 718 (fontified t) 718 729 (face font-lock-keyword-face fontified t) 729 795 (fontified t) 795 800 (face font-lock-warning-face fontified t) 800 814 (fontified t) 814 816 (face font-lock-keyword-face fontified t) 816 841 (fontified t) 841 842 (fontified t) 842 896 (fontified t) 896 901 (face font-lock-keyword-face fontified t) 901 926 (fontified t) 926 989 (face font-lock-string-face fontified t) 989 1136 (fontified t) 1136 1141 (face font-lock-warning-face fontified t) 1141 1148 (fontified t) 1148 1149 (fontified t rear-nonsticky t) 1149 1150 (fontified t)) . 13187) (undo-tree-id12 . -469) (undo-tree-id13 . -444) (undo-tree-id14 . -449) (undo-tree-id15 . -449) (undo-tree-id16 . -479) (undo-tree-id17 . -1150) (undo-tree-id18 . -445) (undo-tree-id19 . -479) (undo-tree-id20 . -458) 14337) nil (27164 23269 195038 0) 0 nil])
+([nil nil ((#("
+" 0 1 (fontified t)) . -13186) (undo-tree-id0 . -1) (undo-tree-id1 . -1) (undo-tree-id2 . -1) (undo-tree-id3 . -1) (undo-tree-id4 . -1) (undo-tree-id5 . -1) (undo-tree-id6 . -1) (undo-tree-id7 . -1) (undo-tree-id8 . -1) (undo-tree-id9 . -1) (undo-tree-id10 . -1) (undo-tree-id11 . -1) 13187) nil (27164 23269 195031 0) 0 nil])
+([nil nil ((4745 . 4746) (t 27164 23269 0 0)) nil (27164 26789 317891 0) 0 nil])
+([nil nil ((4746 . 4747)) nil (27164 26789 317891 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 5430 . 5431) (nil fontified nil 4747 . 5431) (4747 . 5431)) nil (27164 26789 317890 0) 0 nil])
+([nil nil ((#("
+" 0 1 (rear-nonsticky t fontified t)) . -5430) (undo-tree-id4 . -1) 5431) nil (27164 26789 317889 0) 0 nil])
+([nil nil ((#("(defun %checkout-connection (pool)
+  ;; On trace l'acquisition de connexion
+  (lumen.core.trace:with-tracing (\"DB:AcquireConn\" :pool-size (length (pool-available-conns pool)))
+  (let ((conn nil))
+    (bt:with-lock-held ((pool-lock pool))
+      (setf conn (pop (pool-available-conns pool))))
+    (if conn
+        (if (postmodern:connected-p conn)
+            conn
+            (progn (ignore-errors (postmodern:disconnect conn))
+                   (%create-connection (pool-config pool))))
+        (%create-connection (pool-config pool))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 27 (face font-lock-function-name-face fontified t) 27 37 (fontified t) 37 40 (face font-lock-comment-delimiter-face fontified t) 40 76 (face font-lock-comment-face fontified t) 76 79 (fontified t) 79 108 (face font-lock-keyword-face fontified t) 108 110 (fontified t) 110 126 (face font-lock-string-face fontified t) 126 127 (fontified t) 127 137 (face font-lock-builtin-face fontified t) 137 179 (fontified t) 179 182 (face font-lock-keyword-face fontified t) 182 201 (fontified t) 201 218 (face font-lock-keyword-face fontified t) 218 296 (fontified t) 296 298 (face font-lock-keyword-face fontified t) 298 313 (fontified t) 313 315 (face font-lock-keyword-face fontified t) 315 376 (fontified t) 376 381 (face font-lock-keyword-face fontified t) 381 383 (fontified t) 383 396 (face font-lock-keyword-face fontified t) 396 539 (fontified t)) . -5432) (undo-tree-id3 . -539) 5971) nil (27164 26789 317888 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6057 . 6058) (nil fontified nil 5432 . 6058) (5432 . 6058)) nil (27164 26789 317887 0) 0 nil])
+([nil nil ((#("(defun %checkin-connection (pool conn)
+  (when (and pool conn (postmodern:connected-p conn))
+    (bt:with-lock-held ((pool-lock pool))
+      (push conn (pool-available-conns pool)))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 26 (face font-lock-function-name-face fontified t) 26 42 (fontified t) 42 46 (face font-lock-keyword-face fontified t) 46 98 (fontified t) 98 115 (face font-lock-keyword-face fontified t) 115 183 (fontified t)) . -6060) (undo-tree-id2 . -183) 6243) nil (27164 26789 317887 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 6315 . 6316) (nil fontified nil 6060 . 6316) (6060 . 6316)) nil (27164 26789 317886 0) 0 nil])
+([nil nil ((#("(defun call-with-conn (thunk &key (cfg (or lumen.core.context:*current-db-config* (lumen.data.config:db-config))))
+  (if *in-connection*
+      (funcall thunk)
+      (if lumen.core.context:*db-pool*
+          (let ((pool lumen.core.context:*db-pool*))
+            (bt:wait-on-semaphore (pool-semaphore pool))
+            (let ((conn nil))
+              (unwind-protect
+                   (progn
+                     (setf conn (%checkout-connection pool))
+                     (let ((postmodern:*database* conn) (*in-connection* t))
+                       (funcall thunk)))
+                (if conn (%checkin-connection pool conn) nil)
+                (bt:signal-semaphore (pool-semaphore pool)))))
+          (let ((conn (%create-connection cfg)))
+            (unwind-protect
+                 (let ((postmodern:*database* conn) (*in-connection* t))
+                   (funcall thunk))
+              (ignore-errors (postmodern:disconnect conn)))))))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 21 (face font-lock-function-name-face fontified t) 21 29 (fontified t) 29 33 (face font-lock-type-face fontified t) 33 118 (fontified t) 118 120 (face font-lock-keyword-face fontified t) 120 166 (fontified t) 166 168 (face font-lock-keyword-face fontified t) 168 209 (fontified t) 209 212 (face font-lock-keyword-face fontified t) 212 321 (fontified t) 321 324 (face font-lock-keyword-face fontified t) 324 353 (fontified t) 353 367 (face font-lock-keyword-face fontified t) 367 388 (fontified t) 388 393 (face font-lock-keyword-face fontified t) 393 477 (fontified t) 477 480 (face font-lock-keyword-face fontified t) 480 569 (fontified t) 569 573 (fontified t) 573 590 (fontified t) 590 592 (face font-lock-keyword-face fontified t) 592 709 (fontified t) 709 712 (face font-lock-keyword-face fontified t) 712 760 (fontified t) 760 773 (face font-lock-keyword-face fontified t) 773 774 (face font-lock-keyword-face fontified t) 774 775 (fontified t) 775 793 (fontified t) 793 796 (face font-lock-keyword-face fontified t) 796 899 (fontified t) 899 912 (face font-lock-keyword-face fontified t) 912 947 (fontified t)) . -6318) (undo-tree-id1 . -947) 7265) nil (27164 26789 317885 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 8481 . 8482) (nil fontified nil 6318 . 8482) (6318 . 8482)) nil (27164 26789 317883 0) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -8404) (#(" " 0 1 (fontified t)) . -8273) (#(" " 0 1 (fontified t)) . -7444) (6410 . 6415) (#("                                " 0 32 (fontified t)) . 6410) (6352 . 6362) (#("                       " 0 23 (fontified t)) . 6352) 6318) nil (27164 26789 317882 0) 0 nil])
+([nil nil ((#("(let* ((err (second result))
+                                (is-app (typep err 'lumen.core.error:application-error))
+                                (mapped (unless is-app (lumen.data.errors:map-db-error err))))
+                           
+                           (when is-app (error err))
+                           
+                           (if (and mapped 
+                                    (< attempt retries) 
+                                    (lumen.data.errors:retryable-db-error-p mapped))
+                               (progn
+                                 (incf attempt)
+                                 (format t \"~&[DB] Retry TX (~A/~A)...~%\" attempt retries)
+                                 (sleep (/ (max 50 sleep-ms) 1000.0))
+                                 ;; 3. L'état de Postmodern est propre (niveau décrémenté par l'unwind-protect)
+                                 ;; On peut relancer la boucle en toute sécurité.
+                                 (retry-loop))
+                               
+                               (error (or mapped err))))" 0 1 (fontified t) 1 5 (face font-lock-keyword-face fontified t) 5 75 (fontified t) 75 118 (fontified t) 118 159 (fontified t) 159 165 (face font-lock-keyword-face fontified t) 165 269 (fontified t) 269 273 (face font-lock-keyword-face fontified t) 273 282 (fontified t) 282 287 (face font-lock-warning-face fontified t) 287 350 (fontified t) 350 352 (face font-lock-keyword-face fontified t) 352 540 (fontified t) 540 545 (face font-lock-keyword-face fontified t) 545 637 (fontified t) 637 667 (face font-lock-string-face fontified t) 667 707 (fontified t) 707 755 (fontified t) 755 788 (fontified t) 788 791 (face font-lock-comment-delimiter-face fontified t) 791 867 (face font-lock-comment-face fontified t) 867 900 (fontified t) 900 903 (face font-lock-comment-delimiter-face fontified t) 903 949 (face font-lock-comment-face fontified t) 949 1060 (fontified t) 1060 1065 (face font-lock-warning-face fontified t) 1065 1084 (fontified t)) . -13519) (undo-tree-id0 . -1084) 14603) nil (27164 26789 317881 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 14259 . 14260) (nil fontified nil 13519 . 14260) (13519 . 14260)) nil (27164 26789 317870 0) 0 nil])
+([nil current ((14173 . 14183) (#("      " 0 6 (fontified t)) . 14173) (14153 . 14158) (#("        " 0 8 (fontified t)) . 14153) (14111 . 14116) (#("        " 0 8 (fontified t)) . 14111) (14048 . 14053) (#("        " 0 8 (fontified t)) . 14048) (14028 . 14033) (#("        " 0 8 (fontified t)) . 14028) (14011 . 14021) (#("      " 0 6 (fontified t)) . 14011) (13950 . 13960) (#("                    " 0 20 (fontified t)) . 13950) (13933 . 13938) (#("               " 0 15 (fontified t)) . 13933) (13910 . 13918) (#("           " 0 11 (fontified t)) . 13910) (13875 . 13881) (#("  " 0 2 (fontified t)) . 13875) (13835 . 13843) (#("    " 0 4 (fontified t)) . 13835) (13760 . 13768) (#("    " 0 4 (fontified t)) . 13760) (13737 . 13743) (#("  " 0 2 (fontified t)) . 13737) (13715 . 13723) (#("    " 0 4 (fontified t)) . 13715) (13696 . 13702) (#("  " 0 2 (fontified t)) . 13696) (13648 . 13655) (#("                 " 0 17 (fontified t)) . 13648) (13621 . 13625) (#("       " 0 7 (fontified t)) . 13621) (13579 . 13583) (#("       " 0 7 (fontified t)) . 13579) (13518 . 13522) (#("       " 0 7 (fontified t)) . 13518) (13266 . 13267) (13222 . 13223) (13123 . 13124) (13044 . 13045) (12984 . 12990) (#("                                               " 0 47 (fontified t)) . 12984) (12943 . 12944) (12863 . 12864) (12762 . 12763) (12677 . 12678) (12592 . 12593) (12545 . 12546) (12497 . 12498) 12083) nil (27164 26789 317864 0) 0 nil])
 nil

@@ -1,7 +1,7 @@
 (in-package :cl)
 
 (defpackage :lumen.core.scheduler
-  (:use :cl)
+  (:use :cl :lumen.utils)
   (:export :defjob :enqueue :schedule-cron :start-scheduler :stop-scheduler
            :*default-queue* :job-context))
 
@@ -99,17 +99,22 @@
                         (/ (- (get-internal-real-time) t0) 1000.0)))
             
             (error (e)
-              (format t "~&[SCHEDULER] Error on job ~A: ~A~%" (job-name job) e)
-              ;; Retry Logic basique
-              (if (< (job-attempts job) (job-max-retries job))
-                  (progn
-                    (format t "~&[SCHEDULER] Retrying job ~A...~%" (job-id job))
-                    (sleep 1) ;; Backoff simple
-                    ;; On remet dans la queue
-                    (bt:with-lock-held ((job-queue-lock *default-queue*))
-                      (vector-push-extend job (job-queue-items *default-queue*)))
-                    (bt:signal-semaphore (job-queue-sem *default-queue*)))
-                  (format t "~&[SCHEDULER] Job ~A abandoned.~%" (job-id job))))))))))
+	      (format t "~&[SCHEDULER] Error on job ~A: ~A~%" (job-name job) e)
+
+	      (when (and (fboundp 'db-network-error-p)
+			 (db-network-error-p e))
+		(format t "~&[SCHEDULER] DB network error detected. Reset current DB connection.~%")
+		(ignore-errors
+		 (reset-current-db-connection)))
+
+	      (if (< (job-attempts job) (job-max-retries job))
+		  (progn
+		    (format t "~&[SCHEDULER] Retrying job ~A...~%" (job-id job))
+		    (sleep (min 10 (expt 2 (job-attempts job))))
+		    (bt:with-lock-held ((job-queue-lock *default-queue*))
+		      (vector-push-extend job (job-queue-items *default-queue*)))
+		    (bt:signal-semaphore (job-queue-sem *default-queue*)))
+		  (format t "~&[SCHEDULER] Job ~A abandoned.~%" (job-id job))))))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 4. LE CRON (Planificateur)

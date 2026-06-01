@@ -1,7 +1,7 @@
 (in-package :cl)
 
 (defpackage :lumen.data.db
-  (:use :cl)
+  (:use :cl :lumen.utils)
   (:import-from :postmodern 
    :connect-toplevel :disconnect-toplevel :with-connection :execute :connected-p)
   (:import-from :cl-postgres :exec-query)
@@ -20,7 +20,8 @@
            :with-conn :ensure-connection :with-rollback
    :*connection-mode* :with-statement-timeout :run-in-transaction
            :*default-statement-timeout-ms* :*slow-query-ms*
-	   :db-session-middleware :connection-per-request-middleware :with-db-app))
+	   :db-session-middleware :connection-per-request-middleware :with-db-app
+	   :reset-current-db-connection))
 
 (in-package :lumen.data.db)
 
@@ -125,43 +126,126 @@
 ;;; --- CONNECTION MANAGEMENT (Inchangé) ---
 (defvar *in-connection* nil)
 
+(defun %connection-live-p (conn)
+  "Vérifie réellement qu'une connexion PostgreSQL peut recevoir une requête."
+  (and conn
+       (ignore-errors
+         (postmodern:connected-p conn))
+       (handler-case
+           (progn
+             (cl-postgres:exec-query conn "SELECT 1")
+             t)
+         (error ()
+           nil))))
+
+(defun %discard-connection (conn)
+  "Ferme définitivement une connexion et invalide les caches préparés."
+  (ignore-errors
+    (postmodern:disconnect conn))
+
+  ;; Les prepared statements sont liés à une session PostgreSQL.
+  ;; Si la connexion est jetée, on évite de réutiliser des plans invalides.
+  (ignore-errors
+    (reset-prepare-cache))
+
+  nil)
+
 (defun %checkout-connection (pool)
-  ;; On trace l'acquisition de connexion
-  (lumen.core.trace:with-tracing ("DB:AcquireConn" :pool-size (length (pool-available-conns pool)))
-  (let ((conn nil))
-    (bt:with-lock-held ((pool-lock pool))
-      (setf conn (pop (pool-available-conns pool))))
-    (if conn
-        (if (postmodern:connected-p conn)
-            conn
-            (progn (ignore-errors (postmodern:disconnect conn))
-                   (%create-connection (pool-config pool))))
-        (%create-connection (pool-config pool))))))
+  (lumen.core.trace:with-tracing
+      ("DB:AcquireConn" :pool-size (length (pool-available-conns pool)))
+
+    (let ((conn nil))
+      (bt:with-lock-held ((pool-lock pool))
+        (setf conn (pop (pool-available-conns pool))))
+
+      (cond
+        ;; Connexion existante réellement vivante.
+        ((%connection-live-p conn)
+         conn)
+
+        ;; Connexion existante mais morte.
+        (conn
+         (%discard-connection conn)
+         (%create-connection (pool-config pool)))
+
+        ;; Pas de connexion disponible.
+        (t
+         (%create-connection (pool-config pool)))))))
 
 (defun %checkin-connection (pool conn)
-  (when (and pool conn (postmodern:connected-p conn))
-    (bt:with-lock-held ((pool-lock pool))
-      (push conn (pool-available-conns pool)))))
+  (cond
+    ((null conn)
+     nil)
 
-(defun call-with-conn (thunk &key (cfg (or lumen.core.context:*current-db-config* (lumen.data.config:db-config))))
+    ((%connection-live-p conn)
+     (bt:with-lock-held ((pool-lock pool))
+       (push conn (pool-available-conns pool)))
+     t)
+
+    (t
+     (%discard-connection conn)
+     nil)))
+
+(defun call-with-conn (thunk &key
+			       (cfg (or lumen.core.context:*current-db-config*
+					(lumen.data.config:db-config))))
   (if *in-connection*
       (funcall thunk)
+
       (if lumen.core.context:*db-pool*
+
+          ;; Mode poolé
           (let ((pool lumen.core.context:*db-pool*))
             (bt:wait-on-semaphore (pool-semaphore pool))
-            (let ((conn nil))
+            (let ((conn nil)
+                  (discard-conn nil))
               (unwind-protect
-                   (progn
-                     (setf conn (%checkout-connection pool))
-                     (let ((postmodern:*database* conn) (*in-connection* t))
-                       (funcall thunk)))
-                (if conn (%checkin-connection pool conn) nil)
+                   (handler-case
+                       (progn
+                         (setf conn (%checkout-connection pool))
+                         (let ((postmodern:*database* conn)
+                               (*in-connection* t))
+                           (funcall thunk)))
+
+                     (error (e)
+                       ;; Si la connexion a cassé, elle ne doit pas retourner dans le pool.
+                       (when (db-network-error-p e)
+                         (format t "~&[DB] Connexion cassée pendant requête. Discard pool conn: ~A~%" e)
+                         (setf discard-conn t)
+                         (ignore-errors
+                          (reset-prepare-cache)))
+
+                       (error e)))
+
+                ;; Cleanup
+                (cond
+                  (discard-conn
+                   (%discard-connection conn))
+
+                  (conn
+                   (%checkin-connection pool conn)))
+
                 (bt:signal-semaphore (pool-semaphore pool)))))
-          (let ((conn (%create-connection cfg)))
+
+          ;; Mode non poolé
+          (let ((conn nil))
             (unwind-protect
-                 (let ((postmodern:*database* conn) (*in-connection* t))
-                   (funcall thunk))
-              (ignore-errors (postmodern:disconnect conn)))))))
+                 (handler-case
+                     (progn
+                       (setf conn (%create-connection cfg))
+                       (let ((postmodern:*database* conn)
+                             (*in-connection* t))
+                         (funcall thunk)))
+
+                   (error (e)
+                     (when (db-network-error-p e)
+                       (ignore-errors
+                        (reset-prepare-cache)))
+                     (error e)))
+
+              (when conn
+                (ignore-errors
+                 (postmodern:disconnect conn))))))))
 
 (defmacro ensure-connection (&body body)
   `(call-with-conn (lambda () ,@body)))
@@ -222,58 +306,6 @@
           
           (values affected ret))))))
 
-#|
-(defun exec (sql &rest params)
-  "Execute INSERT/UPDATE/DELETE."
-
-  (lumen.core.trace:with-tracing ("DB:Exec" 
-                                  :sql (subseq sql 0 (min 100 (length sql)))
-                                  :params-count (length params))
-    (format t "~&[EXEC] SQL: ~A~%" sql)
-  
-    (let* ((kpos (position-if (lambda (x)
-				(and (keywordp x)
-                                     (not (member x '(:null :default) :test #'eq))))
-                              params))
-           (args (if kpos (subseq params 0 kpos) params))
-           (opts (if kpos (subseq params kpos) '()))
-           (timeout-ms (getf opts :timeout-ms (or *default-statement-timeout-ms* nil)))
-           (t0 (get-internal-real-time)))
-
-      ;;(format t "~&EXEC:ARGS: ~A~%" args)
-      (format t "~&[EXEC] OPTS: ~A~%" opts)
-      ;;(format t "~&[EXEC] ARGS: ~A~%" args)
-
-      ;; On utilise unwind-protect ou simplement rien pour laisser l'erreur passer
-      (with-statement-timeout (timeout-ms)
-	(let* ((lower (string-downcase sql))
-               (has-returning (search "returning" lower))
-               affected ret)
-          (if has-returning
-              ;; RETURNING
-              (let* ((fn  (get-prepared-plan sql :format :alist))
-                     (row (apply fn args)))
-		(setf affected (if row 1 0)
-                      ret row))
-            
-              ;; NO RETURNING
-              (let* ((fn (get-prepared-plan sql :format :none))
-                     (n  (or (apply fn args) 0)))
-		(setf affected n
-                      ret nil)))
-            
-          ;; Métriques
-          (let ((elapsed-ms (* 1000.0 (/ (- (get-internal-real-time) t0)
-					 cl:internal-time-units-per-second))))
-            (record-query-latency sql elapsed-ms (or affected 0))
-            (when (and *slow-query-ms* (>= elapsed-ms *slow-query-ms*))
-              (lumen.data.metrics:record-slow-query
-               sql elapsed-ms :params args :affected affected)))
-	
-          (format t "~&[EXEC DEBUG] SQL executed.~%Affected: ~A~%Ret: ~A~%" affected  ret)    
-          (values affected ret))))))
-|#
-
 (defun query-a (sql &rest params)
   "Execute SELECT. Return alist."
   (lumen.core.trace:with-tracing ("DB:Query" 
@@ -311,92 +343,48 @@
       (block txn-block
         (labels ((retry-loop ()
                    (let ((result              
-                          (ensure-connection
-                            (handler-case
-                                ;; 1. On délègue TOUT le cycle de vie à Postmodern.
-                                ;; En cas d'erreur, unwind-protect fera le ROLLBACK
-                                ;; et remettra *transaction-level* à son état précédent proprement.
-                                (let ((vals (multiple-value-list 
-                                             (postmodern:with-logical-transaction ()
-                                               (funcall thunk)))))
-                                  (list :ok vals))
+                           (ensure-connection
+                             (handler-case
+                                 ;; 1. On délègue TOUT le cycle de vie à Postmodern.
+                                 ;; En cas d'erreur, unwind-protect fera le ROLLBACK
+                                 ;; et remettra *transaction-level* à son état précédent proprement.
+                                 (let ((vals (multiple-value-list 
+                                              (postmodern:with-logical-transaction ()
+						(funcall thunk)))))
+                                   (list :ok vals))
                               
-                              ;; 2. On attrape l'erreur APRÈS que Postmodern ait nettoyé son état
-                              (error (c)
-                                (list :error c))))))
+                               ;; 2. On attrape l'erreur APRÈS que Postmodern ait nettoyé son état
+                               (error (c)
+                                 (list :error c))))))
                      
                      (if (eq (first result) :ok)
                          (return-from txn-block (values-list (second result)))
                          
                          (let* ((err (second result))
-                                (is-app (typep err 'lumen.core.error:application-error))
-                                (mapped (unless is-app (lumen.data.errors:map-db-error err))))
-                           
-                           (when is-app (error err))
-                           
-                           (if (and mapped 
-                                    (< attempt retries) 
-                                    (lumen.data.errors:retryable-db-error-p mapped))
-                               (progn
-                                 (incf attempt)
-                                 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
-                                 (sleep (/ (max 50 sleep-ms) 1000.0))
-                                 ;; 3. L'état de Postmodern est propre (niveau décrémenté par l'unwind-protect)
-                                 ;; On peut relancer la boucle en toute sécurité.
-                                 (retry-loop))
-                               
-                               (error (or mapped err))))))))
-          (retry-loop))))))
+				(is-app (typep err 'lumen.core.error:application-error))
+				(is-network (db-network-error-p err))
+				(mapped (unless is-app
+					  (lumen.data.errors:map-db-error err))))
 
-#|
-(defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  "Transaction avec flux de contrôle explicite et support des valeurs multiples."
-  (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
-    (let ((attempt 0))
-      (block txn-block
-        (labels ((retry-loop ()
-                   ;; 1. Exécution
-                   (let ((result			   
-                          (ensure-connection
-                            (handler-case
-                                (progn
-                                  (%raw-exec "BEGIN")
-                                  ;; --- CHANGEMENT 1 : Capture de TOUTES les valeurs ---
-                                  ;; On transforme (values a b) en (list a b) pour le stocker
-                                  (let ((vals (multiple-value-list (funcall thunk))))
-                                    (%raw-exec "COMMIT")
-                                    ;; On retourne la liste dans notre wrapper interne
-                                    (list :ok vals)))
-                              
-                              (error (c)
-                                (ignore-errors (%raw-exec "ROLLBACK"))
-                                (list :error c))))))
-                   
-                   ;; 2. Analyse
-                   (if (eq (first result) :ok)
-                       ;; --- CHANGEMENT 2 : Restitution des valeurs ---
-                       ;; On transforme (list a b) en (values a b) pour sortir du bloc
-                       (return-from txn-block (values-list (second result)))
-                       
-                       (let* ((err (second result))
-                              (is-app (typep err 'lumen.core.error:application-error))
-                              (mapped (unless is-app (lumen.data.errors:map-db-error err))))
-                         
-                         (when is-app (error err))
-                         
-                         (if (and mapped 
-                                  (< attempt retries) 
-                                  (lumen.data.errors:retryable-db-error-p mapped))
-                             (progn
-                               (incf attempt)
-                               (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
-                               (sleep (/ (max 50 sleep-ms) 1000.0))
-                               (retry-loop)) ;; Appel récursif sûr
-                             
-                             (error (or mapped err))))))))
-          
+			   (when is-app
+			     (error err))
+
+			   (when is-network
+			     (format t "~&[TX] DB network error. Reset before retry: ~A~%" err)
+			     (reset-current-db-connection))
+
+			   (if (and (< attempt retries)
+				    (or is-network
+					(and mapped
+					     (lumen.data.errors:retryable-db-error-p mapped))))
+			       (progn
+				 (incf attempt)
+				 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
+				 (sleep (/ (max 50 sleep-ms) 1000.0))
+				 (retry-loop))
+
+			       (error (or mapped err))))))))
           (retry-loop))))))
-|#
 
 (defmacro with-tx ((&key retries) &body body)
   `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))

@@ -2,10 +2,11 @@
 
 (defpackage :lumen.http.session
   (:use :cl :alexandria)
-  (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)
+  (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)  
   (:import-from :lumen.core.http :request :response :resp-body :resp-status
    :resp-headers :respond-500 :respond-404 :req-query :ctx-get :ctx-set!)
-  (:import-from :lumen.utils :str-prefix-p :ensure-header :alist-set :hmac-sha256)
+  (:import-from :lumen.utils :str-prefix-p :ensure-header :alist-set :hmac-sha256
+		:db-network-error-p :reset-current-db-connection :run-db-with-reconnect)
   (:import-from :ironclad :mac-digest :make-hmac)
   (:import-from :lumen.core.scheduler :defjob)
   (:export :session-id :session-data :session-get :session-set! :session-del!
@@ -125,49 +126,75 @@
     (lumen.core.http:ctx-set! req :session alist) alist))
 
 ;; --- GARBAGE COLLECTOR ---
-#|
-(defun gc-sessions ()
-  "Nettoie les sessions expirées (à appeler via un cron ou un timer)."
-  (lumen.data.db:ensure-connection
-    (let ((now (get-universal-time)))
-      (pomo:query "DELETE FROM sessions WHERE expires_at < $1" now))))
-|#
-
 (defun gc-sessions (app-name)
-  "Nettoie les sessions expirées pour l'application spécifiée (avec fallback)."
-  
+  "Nettoie les sessions expirées pour l'application spécifiée.
+
+Version robuste pour BD distante : si la socket PostgreSQL est morte,
+on ferme la connexion courante, on rouvre, puis on retente.
+"
   (format t "~&[Session GC] Worker réveillé pour l'app: ~S~%" app-name)
-  
-  ;; 1. On sécurise la clé (Fallback sur :default si introuvable)
-  (let* ((actual-app-name 
-          (if (lumen.data.db::get-db-context app-name)
-              app-name
-              (progn
-                (format t "~&[Session GC] App ~S non trouvée dans le registre DB. Fallback sur :DEFAULT.~%" app-name)
-                :default))))
-    
-    ;; 2. On bind le contexte avec la bonne clé
+
+  (let* ((actual-app-name
+           (if (lumen.data.db::get-db-context app-name)
+               app-name
+               (progn
+                 (format t "~&[Session GC] App ~S non trouvée dans le registre DB. Fallback sur :DEFAULT.~%"
+                         app-name)
+                 :default))))
+
     (lumen.data.db:with-db-app (actual-app-name)
-      
-      ;; -- LIGNE DE DEBUG -- (À retirer quand ça marchera)
-      (format t "~&[Session GC] Config DB injectée dans le thread: ~S~%" 
+
+      (format t "~&[Session GC] Config DB injectée dans le thread: ~S~%"
               (list :user (getf lumen.core.context:*current-db-config* :user)
-                    :has-password (not (null (getf lumen.core.context:*current-db-config* :password)))))
-      
-      ;; 3. Exécution de la requête
-      (lumen.data.db:ensure-connection
-        (let ((now (get-universal-time)))
-          (let ((affected (lumen.data.db:exec "DELETE FROM sessions WHERE expires_at < $1" now)))
-            ;; exec renvoie multiple values, le nombre affecté est la première
-            (values affected)))))))
+                    :has-password
+                    (not (null (getf lumen.core.context:*current-db-config*
+                                      :password)))))
+
+      (handler-case
+          (run-db-with-reconnect
+           (lambda ()
+             (lumen.data.db:run-in-transaction
+              (lambda ()
+                (let* ((now (get-universal-time))
+                       (affected
+                         (lumen.data.db:exec
+                          "DELETE FROM sessions WHERE expires_at < $1"
+                          now)))
+                  affected))
+              :retries 1
+              :sleep-ms 100))
+           :retries 3
+           :sleep-ms 500)
+
+        (error (e)
+          ;; Pour le GC de sessions, on ne veut pas casser l'app.
+          ;; Si la BD distante est indisponible quelques secondes,
+          ;; le prochain passage cron nettoiera.
+          (if (db-network-error-p e)
+              (progn
+                (format t "~&[Session GC] DB indisponible après retries. Nettoyage reporté : ~A~%"
+                        e)
+                (reset-current-db-connection)
+                0)
+              (error e)))))))
 
 ;;; Scheduling du GC
 (lumen.core.scheduler:defjob session-gc (payload)
-  ;; Le payload contient maintenant le nom de l'app planificatrice
-  (let ((app-name (if payload payload :default))) 
-    (let ((count (gc-sessions app-name)))
-      (when (and count (plusp count))
-        (format t "~&[Session GC:~A] Cleaned ~A expired sessions.~%" app-name count)))))
+  (let ((app-name (if payload payload :default)))
+    (handler-case
+        (let ((count (gc-sessions app-name)))
+          (when (and count (plusp count))
+            (format t "~&[Session GC:~A] Cleaned ~A expired sessions.~%"
+                    app-name count)))
+
+      (error (e)
+        (if (db-network-error-p e)
+            (progn
+              (format t "~&[Session GC:~A] Erreur réseau DB ignorée pour ce passage : ~A~%"
+                      app-name e)
+              (reset-current-db-connection)
+              nil)
+            (error e))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; SESSION MIDDLEWARE (Cookie Signed)

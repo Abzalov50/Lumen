@@ -33,7 +33,8 @@
    :now-year :now-month :now-day :pad-left
 
    ;; Logging
-   :*log-level* :*silent-workflows* :*log-colors-p* :log-msg :with-logged-exec))
+   :*log-level* :*silent-workflows* :*log-colors-p* :log-msg :with-logged-exec
+   :db-network-error-p :reset-current-db-connection :run-db-with-reconnect))
 
 (in-package :lumen.utils)
 
@@ -651,4 +652,3 @@ Retourne la nouvelle plist."
         ((atom tree) tree)
         (t (cons (subst-null-with-nil (car tree))
                  (subst-null-with-nil (cdr tree))))))
-

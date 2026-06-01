@@ -353,6 +353,7 @@
 ;; ============================================================================
 ;; LA MACRO ASYNCHRONE
 ;; ============================================================================
+#+linux
 (defmacro define-proxy-module-async (module-name host path-prefix target-url)
   (let* ((methods '(:GET :POST :PUT :DELETE :PATCH))
          (paths (if (string= path-prefix "/")

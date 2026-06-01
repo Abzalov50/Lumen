@@ -5,7 +5,7 @@
   (:import-from :lumen.core.context :*current-app*)
   (:import-from :lumen.core.pipeline :middleware :handle :defmiddleware)
   (:import-from :lumen.utils :-> :->> :str-prefix-p :ensure-header :parse-http-date
-		:format-http-date)
+		:format-http-date :db-network-error-p :reset-current-db-connection :run-db-with-reconnect)
   (:import-from :lumen.core.mime :guess-content-type)
   (:import-from :lumen.core.jwt :*jwt-secret* :jwt-encode :jwt-decode)
   (:import-from :lumen.core.ratelimit :allow?)
@@ -945,96 +945,107 @@
 ;;; ---------------------------------------------------------------------------
 ;;; 21. REQUEST TIMEOUT MIDDLEWARE
 ;;; ---------------------------------------------------------------------------
-#|
 (defmiddleware timeout-middleware
     ((ms :initarg :ms :initform 5000))
     (req next)
-  
-  (let* ((lock (bt:make-lock "rt-lock"))
-         (cv   (bt:make-condition-variable))
-         (resp nil)
-         (done nil)
-         (parent-ctx (lumen.core.trace:current-context))
-         
-         ;; --- 1. CAPTURE DANS LE THREAD PARENT ---
-         ;; On sauvegarde la valeur actuelle de la variable dynamique
-         (current-req lumen.core.http:*request*)
-	 (current-app lumen.core.context::*current-app*)
-	 (current-db-cfg lumen.core.context::*current-db-config*)
-	 (current-db-pool lumen.core.context::*db-pool*))
-    
-    (bt:make-thread
-     (lambda ()
-       ;; --- 2. RESTAURATION DANS LE THREAD ENFANT ---
-       ;; On ré-injecte la valeur pour que tout le code imbriqué (htmx-request-p, etc.) la voie
-       (let ((lumen.core.http:*request* current-req)
-	     (lumen.core.context:*current-app* current-app)
-	     (lumen.core.context::*current-db-config* current-db-cfg)
-	     (lumen.core.context::*db-pool* current-db-pool))
-         
-         (lumen.core.trace:with-propagated-context parent-ctx
-           (let ((r (funcall next req)))
-             (bt:with-lock-held (lock)
-               (setf resp r done t)
-               (bt:condition-notify cv)))))))
-    
-    ;; Le reste du code d'attente (bt:condition-wait) reste identique...
-    (bt:with-lock-held (lock)
-      (unless done
-        (unless (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))
-          (return-from handle 
-            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)))))
-    resp))
-|#
 
-(defmiddleware timeout-middleware
-    ((ms :initarg :ms :initform 5000))
-    (req next)
-  
   (let* ((lock (bt:make-lock "rt-lock"))
          (cv   (bt:make-condition-variable))
          (resp nil)
          (done nil)
+         (timeout-reached nil)
+
          (parent-ctx (lumen.core.trace:current-context))
          (current-req lumen.core.http:*request*)
          (current-app lumen.core.context::*current-app*)
          (current-db-cfg lumen.core.context::*current-db-config*)
          (current-db-pool lumen.core.context::*db-pool*))
-    
+
     (bt:make-thread
      (lambda ()
        (let ((lumen.core.http:*request* current-req)
              (lumen.core.context:*current-app* current-app)
              (lumen.core.context::*current-db-config* current-db-cfg)
              (lumen.core.context::*db-pool* current-db-pool))
-         
+
          (lumen.core.trace:with-propagated-context parent-ctx
+
            (unwind-protect
-               (handler-case
-                   (setf resp (funcall next req))
-                 (lumen.core.http:http-halt (c)
-                   (setf resp (lumen.core.http:halt-response c)))
-                 (error (e)
-                   (format t "~&[MW TIMEOUT] CRASH INTERNE : ~A~%" e)
-                   (setf resp (lumen.core.http:respond-500 (format nil "Erreur: ~A" e)))))
-             (bt:with-lock-held (lock)
-               (setf done t)
-               (bt:condition-notify cv)))))))
-    
-    ;; --- LA CORRECTION ANTI-RÉVEIL SPONTANÉ ---
-    (bt:with-lock-held (lock)
-      (let ((timeout-reached nil))
+                (handler-case
+                    (setf resp (funcall next req))
+
+                  (lumen.core.http:http-halt (c)
+                    (setf resp (lumen.core.http:halt-response c)))
+
+                  (error (e)
+                    (format t "~&[MW TIMEOUT] CRASH INTERNE : ~A~%" e)
+
+                    (when (db-network-error-p e)
+                      (format t "~&[MW TIMEOUT] DB network error. Reset connection.~%")
+                      (ignore-errors
+                        (reset-current-db-connection)))
+
+                    (setf resp
+                          (if (db-network-error-p e)
+                              (lumen.core.http:respond-json
+                               '((:error . ((:type . "database_unavailable")
+                                            (:message . "Connexion à la base de données indisponible. Réessayez."))))
+                               :status 503)
+
+                              (lumen.core.http:respond-500
+                               (format nil "Erreur: ~A" e))))))
+
+             ;; -------------------------------------------------
+             ;; Cleanup du worker, exécuté même si FUNCALL NEXT
+             ;; signale une erreur.
+             ;; -------------------------------------------------
+             (let ((timed-out-p nil))
+
+               ;; On lit timeout-reached sous lock pour éviter une race condition.
+               ;; On marque aussi done = T pour réveiller le thread principal
+               ;; s'il attend encore.
+               (bt:with-lock-held (lock)
+                 (setf timed-out-p timeout-reached)
+                 (setf done t)
+                 (bt:condition-notify cv))
+
+               ;; Important : on ne reset pas la DB pendant qu'on tient le lock.
+               ;; Sinon on peut bloquer inutilement le thread principal.
+               (when timed-out-p
+                 (format t "~&[MW TIMEOUT] Worker terminé après timeout HTTP. Reset DB connection du thread worker.~%")
+                 (ignore-errors
+                   (reset-current-db-connection))))))))
+     :name "lumen-request-timeout-worker")
+
+    ;; ---------------------------------------------------------
+    ;; Thread principal : attend le worker ou retourne 504.
+    ;; ---------------------------------------------------------
+    (let ((response nil))
+      (bt:with-lock-held (lock)
         (loop until done
-              do (let ((signaled (bt:condition-wait cv lock :timeout (/ (slot-value mw 'ms) 1000.0))))
-                   (unless signaled
-                     ;; Le timeout est VRAIMENT expiré
+              do (let ((signaled
+                         (bt:condition-wait
+                          cv
+                          lock
+                          :timeout (/ (slot-value mw 'ms) 1000.0))))
+                   ;; Si condition-wait retourne NIL, c'est un timeout réel.
+                   ;; Mais on vérifie aussi DONE, car le worker a pu finir
+                   ;; exactement au même moment.
+                   (unless (or signaled done)
                      (setf timeout-reached t)
-                     (return)))) ;; On force la sortie du loop
-        
-        (if timeout-reached
-            (lumen.core.http:respond-json '((:error . ((:type . "timeout") (:message . "gateway timeout")))) :status 504)
-            ;; Succès : done = T, et resp contient ENFIN l'objet valide !
-            resp)))))
+                     (return))))
+
+        (setf response
+              (if timeout-reached
+                  (lumen.core.http:respond-json
+                   '((:error . ((:type . "timeout")
+                                (:message . "gateway timeout"))))
+                   :status 504)
+
+                  ;; Succès : done = T, resp contient la réponse.
+                  resp)))
+
+      response)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 22. MAX BODY SIZE MIDDLEWARE
