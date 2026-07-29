@@ -137,6 +137,7 @@
       :components
       ((:file "util")
        (:file "package")       
+       (:file "session-tests")
        ;;(:file "middleware-tests")
        (:file "util-tests")
        (:file "config-tests")

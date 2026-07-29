@@ -50,17 +50,19 @@
 
 (defun %create-connection (cfg)
   (handler-case
-      (postmodern:connect 
+      (postmodern:connect
        (getf cfg :database)
        (getf cfg :user)
        (getf cfg :password)
        (or (getf cfg :host) "localhost")
        :port (or (getf cfg :port) 5432)
-       :use-ssl (case (getf cfg :sslmode) (:require :yes) (t :no))
-       :pooled-p t)
-    (error (c)
-      (format t "~&[DB] Fatal: Failed to create connection: ~A~%" c)
-      (error c))))
+       :use-ssl (case (getf cfg :sslmode)
+                  (:require :yes)
+                  (t :no))
+       :pooled-p nil)
+    (error (condition)
+      (format t "~&[DB] Échec de création de connexion : ~A~%" condition)
+      (error condition))))
 
 ;; helper pour récupérer le couple pool/config
 (defun get-db-context (name)
@@ -126,17 +128,39 @@
 ;;; --- CONNECTION MANAGEMENT (Inchangé) ---
 (defvar *in-connection* nil)
 
-(defun %connection-live-p (conn)
-  "Vérifie réellement qu'une connexion PostgreSQL peut recevoir une requête."
+(defun %connection-open-p (conn)
+  "Contrôle l'état local de CONN sans effectuer d'aller-retour réseau."
+
   (and conn
-       (ignore-errors
-         (postmodern:connected-p conn))
-       (handler-case
-           (progn
-             (cl-postgres:exec-query conn "SELECT 1")
-             t)
-         (error ()
-           nil))))
+       (not
+        (null
+         (ignore-errors
+           (postmodern:connected-p conn))))))
+
+(defun %connection-live-p (conn)
+  "Vérifie que CONN peut réellement échanger avec PostgreSQL.
+
+CONNECTED-P ne reflète que l'état local de l'objet et ne détecte pas toujours
+une socket distante expirée. Le SELECT 1 est exécuté uniquement lors de la
+réutilisation d'une connexion déjà présente dans le pool."
+
+  (and
+   (%connection-open-p conn)
+
+   (handler-case
+       (progn
+         (cl-postgres:exec-query
+          conn
+          "SELECT 1")
+
+         t)
+
+     (error (condition)
+       (format t
+               "~&[DB] Connexion du pool périmée : ~A~%"
+               condition)
+
+       nil))))
 
 (defun %discard-connection (conn)
   "Ferme définitivement une connexion et invalide les caches préparés."
@@ -177,7 +201,7 @@
     ((null conn)
      nil)
 
-    ((%connection-live-p conn)
+    ((%connection-open-p conn)
      (bt:with-lock-held ((pool-lock pool))
        (push conn (pool-available-conns pool)))
      t)
@@ -336,55 +360,120 @@
 ;;; TRANSACTION MANAGEMENT (BLOCK/LABELS - SAFE FLOW)
 ;;; ----------------------------------------------------------------------------
 (defun run-in-transaction (thunk &key (retries 0) (sleep-ms 50))
-  "Transaction gérée par Postmodern avec support des retries et du dynamic binding."
-  (format t "~&[TX] New Transaction~%")
-  (lumen.core.trace:with-tracing ("DB:Transaction" :retries-max retries)
-    (let ((attempt 0))
-      (block txn-block
-        (labels ((retry-loop ()
-                   (let ((result              
-                           (ensure-connection
-                             (handler-case
-                                 ;; 1. On délègue TOUT le cycle de vie à Postmodern.
-                                 ;; En cas d'erreur, unwind-protect fera le ROLLBACK
-                                 ;; et remettra *transaction-level* à son état précédent proprement.
-                                 (let ((vals (multiple-value-list 
-                                              (postmodern:with-logical-transaction ()
-						(funcall thunk)))))
-                                   (list :ok vals))
-                              
-                               ;; 2. On attrape l'erreur APRÈS que Postmodern ait nettoyé son état
-                               (error (c)
-                                 (list :error c))))))
-                     
-                     (if (eq (first result) :ok)
-                         (return-from txn-block (values-list (second result)))
-                         
-                         (let* ((err (second result))
-				(is-app (typep err 'lumen.core.error:application-error))
-				(is-network (db-network-error-p err))
-				(mapped (unless is-app
-					  (lumen.data.errors:map-db-error err))))
+  "Exécute THUNK dans une transaction.
 
-			   (when is-app
-			     (error err))
+Lorsqu'une transaction Lumen est déjà active dans le thread courant,
+elle est réutilisée sans créer de transaction logique ni de SAVEPOINT
+supplémentaire.
 
-			   (when is-network
-			     (format t "~&[TX] DB network error. Reset before retry: ~A~%" err)
-			     (reset-current-db-connection))
+Les retries sont uniquement gérés par la transaction extérieure."
+  (if *in-transaction*
 
-			   (if (and (< attempt retries)
-				    (or is-network
-					(and mapped
-					     (lumen.data.errors:retryable-db-error-p mapped))))
-			       (progn
-				 (incf attempt)
-				 (format t "~&[DB] Retry TX (~A/~A)...~%" attempt retries)
-				 (sleep (/ (max 50 sleep-ms) 1000.0))
-				 (retry-loop))
+      ;; Transaction déjà active : on réutilise son contexte.
+      (let ((*tx-depth* (1+ *tx-depth*)))
+        (format t
+                "~&[TX] Reuse current transaction (depth: ~D)~%"
+                *tx-depth*)
+        (funcall thunk))
 
-			       (error (or mapped err))))))))
-          (retry-loop))))))
+      ;; Transaction racine.
+      (progn
+        (format t "~&[TX] New Transaction~%")
+
+        (lumen.core.trace:with-tracing
+            ("DB:Transaction" :retries-max retries)
+
+          (let ((attempt 0))
+
+            (block transaction-block
+
+              (labels
+                  ((execute-attempt ()
+                     (let
+                         ((result
+                            (ensure-connection
+
+                              (handler-case
+
+                                  (let
+                                      ((values
+                                         (multiple-value-list
+
+                                          ;; Ces bindings signalent aux éventuels
+                                          ;; appels imbriqués qu'une transaction
+                                          ;; Lumen est déjà active.
+                                          (let ((*in-transaction* t)
+                                                (*tx-depth* 1))
+
+                                            (postmodern:with-logical-transaction ()
+                                              (funcall thunk))))))
+
+                                    (list :ok values))
+
+                                (error (condition)
+                                  (list :error condition))))))
+
+                       (if (eq (first result) :ok)
+
+                           (return-from transaction-block
+                             (values-list (second result)))
+
+                           (let* ((condition
+                                    (second result))
+
+                                  (application-error-p
+                                    (typep
+                                     condition
+                                     'lumen.core.error:application-error))
+
+                                  (network-error-p
+                                    (db-network-error-p condition))
+
+                                  (mapped-error
+                                    (unless application-error-p
+                                      (lumen.data.errors:map-db-error
+                                       condition))))
+
+                             (when application-error-p
+                               (error condition))
+
+                             (when network-error-p
+                               (format t
+                                       "~&[TX] DB network error. Reset before retry: ~A~%"
+                                       condition)
+
+                               (reset-current-db-connection))
+
+                             (if
+                              (and
+                               (< attempt retries)
+
+                               (or
+                                network-error-p
+
+                                (and
+                                 mapped-error
+                                 (lumen.data.errors:retryable-db-error-p
+                                  mapped-error))))
+
+                              (progn
+                                (incf attempt)
+
+                                (format t
+                                        "~&[DB] Retry TX (~D/~D)...~%"
+                                        attempt
+                                        retries)
+
+                                (sleep
+                                 (/ (max 50 sleep-ms)
+                                    1000.0))
+
+                                (execute-attempt))
+
+                              (error
+                               (or mapped-error condition))))))))
+
+                (execute-attempt))))))))
 
 (defmacro with-tx ((&key retries) &body body)
   `(run-in-transaction (lambda () ,@body) :retries ,(or retries 0)))

@@ -11,6 +11,10 @@
            :tenant-id-by-code
            :tenant-id-for-host
    :tenant-code-by-id
+   :clear-tenant-host-cache
+:invalidate-tenant-host-cache
+	   :tenant-host-cache-stats
+	   :*tenant-host-cache-ttl-seconds*
    :tenant-middleware :tenant-auto))
 
 (in-package :lumen.data.tenant)
@@ -42,6 +46,246 @@
   (setf (gethash key *tenant-cache*)
         (make-%cache-entry :value val :expires-at (+ (%now-ms) (max 1 ttl-ms))))
   val)
+
+(defstruct tenant-host-cache-entry
+  tenant-id
+  expires-at)
+
+(defparameter *tenant-host-cache*
+  (make-hash-table :test #'equal))
+
+(defparameter *tenant-host-cache-lock*
+  (bordeaux-threads:make-lock
+   "tenant-host-cache"))
+
+(defparameter *tenant-host-cache-ttl-seconds*
+  300)
+
+(defvar *tenant-host-cache-hits* 0)
+(defvar *tenant-host-cache-misses* 0)
+
+(defun %tenant-cache-now ()
+  (/ (get-internal-real-time)
+     internal-time-units-per-second))
+
+(defparameter *tenant-host-negative-cache-ttl-seconds*
+  30)
+
+(defvar *tenant-host-cache-hits* 0)
+(defvar *tenant-host-cache-misses* 0)
+
+(defun %tenant-cache-now ()
+  (/ (get-internal-real-time)
+     internal-time-units-per-second))
+
+(defun %tenant-host-cache-get (host)
+  "Retourne deux valeurs : TENANT-ID et FOUND-P."
+  (let ((now (%tenant-cache-now)))
+
+    (bordeaux-threads:with-lock-held
+        (*tenant-host-cache-lock*)
+
+      (let ((entry
+              (gethash host
+                       *tenant-host-cache*)))
+
+        (cond
+          ((null entry)
+           (incf *tenant-host-cache-misses*)
+           (values nil nil))
+
+          ((<=
+            (tenant-host-cache-entry-expires-at entry)
+            now)
+
+           (remhash host
+                    *tenant-host-cache*)
+
+           (incf *tenant-host-cache-misses*)
+
+           (values nil nil))
+
+          (t
+           (incf *tenant-host-cache-hits*)
+
+           (values
+            (tenant-host-cache-entry-tenant-id entry)
+            t)))))))
+
+(defun %tenant-host-cache-put (host tenant-id)
+  (let ((entry
+          (make-tenant-host-cache-entry
+           :tenant-id tenant-id
+           :expires-at
+           (+ (%tenant-cache-now)
+              *tenant-host-cache-ttl-seconds*))))
+
+    (bordeaux-threads:with-lock-held
+        (*tenant-host-cache-lock*)
+
+      (setf
+       (gethash host *tenant-host-cache*)
+       entry)))
+
+  tenant-id)
+
+(defun normalize-tenant-host (host)
+  "Normalise un nom d'hôte avant son utilisation comme clé de cache."
+  (let* ((raw
+           (string-downcase
+            (string-trim
+             '(#\Space #\Tab #\Newline #\Return)
+             (or host ""))))
+
+         ;; Retire le port d'un host IPv4 ou DNS :
+         ;; lvh.me:8515 devient lvh.me.
+         (without-port
+           (cond
+             ;; Les adresses IPv6 entre crochets sont conservées.
+             ((and (plusp (length raw))
+                   (char= (char raw 0) #\[))
+              (let ((closing-bracket
+                      (position #\] raw)))
+                (if closing-bracket
+                    (subseq raw
+                            0
+                            (1+ closing-bracket))
+                    raw)))
+
+             (t
+              (let ((colon
+                      (position #\: raw :from-end t)))
+                (if colon
+                    (subseq raw 0 colon)
+                    raw)))))
+
+         ;; Un FQDN avec un point final doit être équivalent
+         ;; à sa forme sans point final.
+         (normalized
+           (string-right-trim
+            '(#\.)
+            without-port)))
+
+    normalized))
+
+(defun clear-tenant-host-cache ()
+  "Vide entièrement le cache de résolution des tenants."
+  (bordeaux-threads:with-lock-held
+      (*tenant-host-cache-lock*)
+
+    (clrhash *tenant-host-cache*)
+
+    (setf *tenant-host-cache-hits* 0
+          *tenant-host-cache-misses* 0))
+
+  t)
+
+(defun invalidate-tenant-host-cache (host)
+  "Supprime du cache l'entrée correspondant à HOST."
+  (let ((key
+          (normalize-tenant-host host)))
+
+    (bordeaux-threads:with-lock-held
+        (*tenant-host-cache-lock*)
+
+      (remhash key *tenant-host-cache*)))
+
+  t)
+
+(defun tenant-host-cache-stats ()
+  "Retourne les statistiques courantes du cache."
+  (bordeaux-threads:with-lock-held
+      (*tenant-host-cache-lock*)
+
+    (list
+     :entries
+     (hash-table-count *tenant-host-cache*)
+
+     :hits
+     *tenant-host-cache-hits*
+
+     :misses
+     *tenant-host-cache-misses*)))
+
+(defun %cached-tenant-id (host)
+  "Retourne deux valeurs : le tenant et la présence d'une entrée valide."
+  (let ((now
+          (%tenant-cache-now)))
+
+    (bordeaux-threads:with-lock-held
+        (*tenant-host-cache-lock*)
+
+      (let ((entry
+              (gethash host
+                       *tenant-host-cache*)))
+
+        (cond
+          ((null entry)
+           (incf *tenant-host-cache-misses*)
+           (values nil nil))
+
+          ((<=
+            (tenant-host-cache-entry-expires-at entry)
+            now)
+
+           (remhash host
+                    *tenant-host-cache*)
+
+           (incf *tenant-host-cache-misses*)
+
+           (values nil nil))
+
+          (t
+           (incf *tenant-host-cache-hits*)
+
+           ;; TENANT-ID peut être NIL dans le cadre
+           ;; d'une entrée négative.
+           (values
+            (tenant-host-cache-entry-tenant-id entry)
+            t)))))))
+
+(defun %cache-tenant-id (host tenant-id)
+  (let* ((ttl
+           (if tenant-id
+               *tenant-host-cache-ttl-seconds*
+               *tenant-host-negative-cache-ttl-seconds*))
+
+         (entry
+           (make-tenant-host-cache-entry
+            :tenant-id tenant-id
+            :expires-at
+            (+ (%tenant-cache-now)
+               ttl))))
+
+    (bordeaux-threads:with-lock-held
+        (*tenant-host-cache-lock*)
+
+      (setf
+       (gethash host *tenant-host-cache*)
+       entry)))
+
+  tenant-id)
+
+(defun resolve-tenant-id-cached (host resolver)
+  "Résout HOST en utilisant le cache puis RESOLVER en cas de cache miss.
+
+RESOLVER reçoit le host normalisé et doit retourner le tenant-id ou NIL."
+  (let ((normalized-host
+          (normalize-tenant-host host)))
+
+    (when (zerop (length normalized-host))
+      (return-from resolve-tenant-id-cached nil))
+
+    (multiple-value-bind (tenant-id found-p)
+        (%cached-tenant-id normalized-host)
+
+      (if found-p
+          tenant-id
+
+          (%cache-tenant-id
+           normalized-host
+           (funcall resolver
+                    normalized-host))))))
 
 ;;;; -----------------------------------------------------------------------------
 ;;;; Normalisation host
@@ -102,6 +346,7 @@
               (when row
                 (%cache-put key (cdr (assoc :code row))))))))))
 
+#|
 (defun tenant-id-for-host (host)
   "SELECT t.id FROM tenant_domains d JOIN tenants t ON t.id=d.tenant_id WHERE d.host=$1 LIMIT 1."
   (let ((h (normalize-host host)))
@@ -117,6 +362,61 @@
                    (when (and row (first row))
                      (%cache-put key (or (cdr (assoc :tenant_id (first row)))
 					 (cdr (assoc :tenant-id (first row)))))))))))))
+|#
+
+(defun tenant-id-for-host (host)
+  "Retourne le tenant associé à HOST avec un cache global de cinq minutes."
+  (let ((normalized-host
+          (normalize-host host)))
+
+    (when normalized-host
+
+      (multiple-value-bind (cached-tenant-id found-p)
+          (%tenant-host-cache-get normalized-host)
+
+        (if found-p
+
+            (progn
+              (format t
+                      "~&[TENANT CACHE] HIT host=~A tenant=~A~%"
+                      normalized-host
+                      cached-tenant-id)
+
+              cached-tenant-id)
+
+            (progn
+              (format t
+                      "~&[TENANT CACHE] MISS host=~A~%"
+                      normalized-host)
+
+              (ensure-connection
+                (let* ((rows
+                         (select*
+                          :tenant_domains
+                          :filters
+                          (list '= :host normalized-host)
+                          :select
+                          '(:tenant_id)
+                          :limit 1))
+
+                       (row
+                         (first rows))
+
+                       (tenant-id
+                         (and row
+                              (or
+                               (cdr
+                                (assoc :tenant_id row))
+
+                               (cdr
+                                (assoc :tenant-id row))))))
+
+                  (when tenant-id
+                    (%tenant-host-cache-put
+                     normalized-host
+                     tenant-id))
+
+                  tenant-id))))))))
 
 ;;;; -----------------------------------------------------------------------------
 ;;;; TENANT FROM HOST MIDDLEWARE

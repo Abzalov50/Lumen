@@ -104,7 +104,8 @@ Règles :
 ;;; -------------------------------
 ;;; .env loader (KEY=val, lignes vides & #comment ignorées)
 ;;; -------------------------------
-(defun %trim (s) (string-trim '(#\Return #\Newline #\Tab) s))
+(defun %trim (s)
+  (string-trim '(#\Space #\Return #\Newline #\Tab) s))
 
 (defun %strip-quotes (s)
   (if (and (>= (length s) 2)
@@ -115,26 +116,32 @@ Règles :
       (subseq s 1 (1- (length s)))
       s))
 
-(defun cfg-load-env (path &key (override nil))
-  "Charge un fichier .env KEY=VAL. Si OVERRIDE=T, remplace les valeurs existantes de *cfg-file*."
-  (print "IN CFG LOAD")
-  ;;(print path)
-  ;;(print override)
-  (clrhash *cfg-file*)
-  ;;(print *cfg-file*)
+(defun cfg-load-env (path &key (override nil) (clear nil))
+  "Charge un fichier .env.
+
+CLEAR=T vide préalablement la couche fichier.
+OVERRIDE=T remplace les valeurs déjà chargées."
+  (when clear
+    (clrhash *cfg-file*))
+
   (when (probe-file path)
     (with-open-file (in path :direction :input :external-format :utf-8)
-      (loop for line = (read-line in nil nil)
-            while line do
-              (let ((l (%trim line)))
-                (unless (or (string= l "") (char= (char l 0) #\#))
-                  (let* ((pos (position #\= l))
-                         (k (and pos (%trim (subseq l 0 pos))))
-                         (v (and pos (%strip-quotes (%trim (subseq l (1+ pos)))))))
-                    (when k
-                      (let ((kk (%kw k)))
-                        (when (or override (null (%get *cfg-file* kk)))
-                          (%put! *cfg-file* kk v))))))))))
+      (loop for raw-line = (read-line in nil nil)
+            while raw-line
+            for line = (%trim raw-line)
+            unless (or (string= line "")
+                       (char= (char line 0) #\#))
+              do
+                 (let ((position (position #\= line)))
+                   (when position
+                     (let* ((key (%trim (subseq line 0 position)))
+                            (value (%strip-quotes
+                                    (%trim (subseq line (1+ position)))))
+                            (normalized-key (%kw key)))
+                       (when (and (plusp (length key))
+                                  (or override
+                                      (null (%get *cfg-file* normalized-key))))
+                         (%put! *cfg-file* normalized-key value))))))))
   t)
 
 ;;; -------------------------------

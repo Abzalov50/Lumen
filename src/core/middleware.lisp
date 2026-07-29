@@ -1083,6 +1083,7 @@
 (defun %user-agent (req)
   (or (cdr (assoc "user-agent" (lumen.core.http:req-headers req) :test #'string-equal)) ""))
 
+#|
 (defmiddleware context-middleware
     ((audit-enabled-p :initarg :audit-enabled-p :initform t)
      (generate-request-id-p :initarg :generate-request-id-p :initform nil)) ;; Souvent géré par request-id-middleware
@@ -1111,6 +1112,349 @@
     (lumen.core.http:ctx-set! req :audit? audit-enabled-p)
     
     (funcall next req)))
+|#
+
+;;; ============================================================
+;;; Helpers de normalisation du contexte d'authentification
+;;; ============================================================
+
+(defun %normalized-context-key (key)
+  "Normalise une clé issue d'un JWT, d'une alist, d'une plist
+ou d'une table de hachage.
+
+Exemples :
+  :tenant-id   -> \"tenant-id\"
+  \"tenant_id\" -> \"tenant-id\"
+  :*user--id*  -> \"user-id\""
+  (when key
+    (let* ((raw
+             (string-downcase
+              (string-trim
+               '(#\*)
+               (princ-to-string key))))
+
+           (with-dashes
+             (substitute #\- #\_ raw)))
+
+      (cl-ppcre:regex-replace-all
+       "-+"
+       with-dashes
+       "-"))))
+
+
+(defun %mapping-value (mapping normalized-key)
+  "Recherche NORMALIZED-KEY dans MAPPING.
+
+MAPPING peut être :
+- une alist ;
+- une plist ;
+- une hash-table.
+
+La comparaison des clés est normalisée et insensible :
+- à la casse ;
+- aux tirets bas ;
+- aux doubles tirets ;
+- aux astérisques ajoutés par certains décodeurs JSON."
+  (cond
+    ((null mapping)
+     nil)
+
+    ((hash-table-p mapping)
+     (block found
+       (maphash
+        (lambda (key value)
+          (when (string=
+                 (%normalized-context-key key)
+                 normalized-key)
+            (return-from found value)))
+        mapping)
+       nil))
+
+    ;; Alist
+    ((and (listp mapping)
+          (every #'consp mapping))
+     (loop
+       for entry in mapping
+       for key = (car entry)
+       when (string=
+             (%normalized-context-key key)
+             normalized-key)
+         do (return (cdr entry))))
+
+    ;; Plist
+    ((listp mapping)
+     (loop
+       for (key value) on mapping by #'cddr
+       when (string=
+             (%normalized-context-key key)
+             normalized-key)
+         do (return value)))
+
+    (t
+     nil)))
+
+
+(defun %jwt-claim (jwt &rest candidate-keys)
+  "Retourne le premier claim JWT trouvé parmi CANDIDATE-KEYS."
+  (loop
+    for key in candidate-keys
+    for normalized-key = (%normalized-context-key key)
+    for value = (%mapping-value jwt normalized-key)
+    when value
+      do (return value)))
+
+
+(defun %same-context-id-p (left right)
+  "Compare deux identifiants de contexte sous forme normalisée."
+  (and left
+       right
+       (string-equal
+        (string-trim
+         '(#\Space #\Tab #\Newline #\Return)
+         (princ-to-string left))
+        (string-trim
+         '(#\Space #\Tab #\Newline #\Return)
+         (princ-to-string right)))))
+
+
+(defun %ctx-set-aliases! (req value &rest keys)
+  "Enregistre VALUE sous plusieurs clés de contexte."
+  (when value
+    (dolist (key keys)
+      (lumen.core.http:ctx-set! req key value)))
+  value)
+
+
+;;; ============================================================
+;;; Middleware de construction du contexte
+;;; ============================================================
+
+(defmiddleware context-middleware
+    ((audit-enabled-p
+      :initarg :audit-enabled-p
+      :initform t)
+
+     (generate-request-id-p
+      :initarg :generate-request-id-p
+      :initform nil))
+
+    (req next)
+
+  (with-slots (audit-enabled-p generate-request-id-p) mw
+
+    ;; ----------------------------------------------------------
+    ;; 1. Request ID de secours
+    ;; ----------------------------------------------------------
+
+    (when (and generate-request-id-p
+               (null
+                (lumen.core.http:ctx-get
+                 req
+                 :request-id)))
+
+      (lumen.core.http:ctx-set!
+       req
+       :request-id
+       (make-request-id)))
+
+    ;; ----------------------------------------------------------
+    ;; 2. Informations techniques de la requête
+    ;; ----------------------------------------------------------
+
+    (lumen.core.http:ctx-set!
+     req
+     :ip
+     (%peer-ip req))
+
+    (lumen.core.http:ctx-set!
+     req
+     :ua
+     (%user-agent req))
+
+    ;; ----------------------------------------------------------
+    ;; 3. Lecture du contexte déjà alimenté par les middlewares
+    ;; ----------------------------------------------------------
+
+    (let* ((jwt
+             (lumen.core.http:ctx-get req :jwt))
+
+           ;; Contexte pouvant déjà provenir :
+           ;; - du tenant-middleware ;
+           ;; - de la session ;
+           ;; - d'un ancien middleware d'authentification.
+           (existing-tenant-id
+             (or
+              (lumen.core.http:ctx-get req :tenant-id)
+              (lumen.core.http:ctx-get req :tenant)))
+
+           (existing-actor-id
+             (or
+              (lumen.core.http:ctx-get req :actor-id)
+              (lumen.core.http:ctx-get req :user-id)))
+
+           (existing-role
+             (or
+              (lumen.core.http:ctx-get req :user-role)
+              (lumen.core.http:ctx-get req :role)))
+
+           (existing-scopes
+             (or
+              (lumen.core.http:ctx-get req :user-scopes)
+              (lumen.core.http:ctx-get req :scopes)))
+
+           ;; ---------------------------------------------------
+           ;; Claims JWT
+           ;; ---------------------------------------------------
+
+           (jwt-tenant-id
+             (%jwt-claim
+              jwt
+              :tenant-id
+              :tenant))
+
+           (jwt-actor-id
+             (%jwt-claim
+              jwt
+              :sub
+              :user-id
+              :actor-id))
+
+           (jwt-role
+             (%jwt-claim
+              jwt
+              :role
+              :user-role))
+
+           (jwt-scopes
+             (%jwt-claim
+              jwt
+              :scopes
+              :scope
+              :user-scopes))
+
+           ;; ---------------------------------------------------
+           ;; Détection des incohérences de sécurité
+           ;; ---------------------------------------------------
+
+           (tenant-conflict-p
+             (and existing-tenant-id
+                  jwt-tenant-id
+                  (not
+                   (%same-context-id-p
+                    existing-tenant-id
+                    jwt-tenant-id))))
+
+           (actor-conflict-p
+             (and existing-actor-id
+                  jwt-actor-id
+                  (not
+                   (%same-context-id-p
+                    existing-actor-id
+                    jwt-actor-id))))
+
+           ;; ---------------------------------------------------
+           ;; Valeurs finales
+           ;; ---------------------------------------------------
+
+           (tenant-id
+             (or
+              existing-tenant-id
+              jwt-tenant-id))
+
+           (actor-id
+             (or
+              jwt-actor-id
+              existing-actor-id))
+
+           (role
+             (or
+              jwt-role
+              existing-role))
+
+           (scopes
+             (lumen.core.http:normalize-scopes
+              (or
+               jwt-scopes
+               existing-scopes))))
+
+      ;; Le flag d'audit est toujours posé, y compris en cas
+      ;; de rejet ultérieur de la requête.
+      (lumen.core.http:ctx-set!
+       req
+       :audit?
+       audit-enabled-p)
+
+      (cond
+        ;; ------------------------------------------------------
+        ;; Le tenant du JWT ne correspond pas au tenant résolu
+        ;; depuis le host ou la session.
+        ;; ------------------------------------------------------
+
+        (tenant-conflict-p
+         (format
+          *error-output*
+          "~&[CONTEXT] Tenant conflict. Request ID: ~A~%"
+          (lumen.core.http:ctx-get req :request-id))
+
+         (lumen.core.http:respond-403
+          "Le tenant du jeton ne correspond pas au tenant de la requête."))
+
+        ;; ------------------------------------------------------
+        ;; L'identité du JWT ne correspond pas à celle déjà
+        ;; associée à la session.
+        ;; ------------------------------------------------------
+
+        (actor-conflict-p
+         (format
+          *error-output*
+          "~&[CONTEXT] Actor conflict. Request ID: ~A~%"
+          (lumen.core.http:ctx-get req :request-id))
+
+         (lumen.core.http:respond-401
+          "Le contexte d’authentification est incohérent."))
+
+        ;; ------------------------------------------------------
+        ;; Contexte valide
+        ;; ------------------------------------------------------
+
+        (t
+         ;; Tenant :
+         ;; - clé canonique : :tenant-id
+         ;; - ancienne clé : :tenant
+         (%ctx-set-aliases!
+          req
+          tenant-id
+          :tenant-id
+          :tenant)
+
+         ;; Utilisateur :
+         ;; - clé canonique repository/audit : :actor-id
+         ;; - clé historique auth : :user-id
+         (%ctx-set-aliases!
+          req
+          actor-id
+          :actor-id
+          :user-id)
+
+         ;; Rôle :
+         ;; - clé canonique HTTP : :user-role
+         ;; - clé historique repository : :role
+         (%ctx-set-aliases!
+          req
+          role
+          :user-role
+          :role)
+
+         ;; Scopes :
+         ;; - clé canonique HTTP : :user-scopes
+         ;; - clé historique repository : :scopes
+         (%ctx-set-aliases!
+          req
+          scopes
+          :user-scopes
+          :scopes)
+
+         (funcall next req))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 24. ACCESS LOG JSON MIDDLEWARE

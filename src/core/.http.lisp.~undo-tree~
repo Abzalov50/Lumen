@@ -1,14 +1,4 @@
 (undo-tree-save-format-version . 1)
-"411cf265fd8e5fdbf16346b6debcfe0a226b017a"
-[nil nil nil nil (27058 3131 552682 485000) 0 nil]
-([nil nil ((21123 . 21126) (t 27045 40770 33390 271000)) nil (27058 3131 552681 545000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 21172 . 21173) (nil fontified nil 21171 . 21173) (nil fontified nil 21166 . 21171) (nil fontified nil 21126 . 21166) (21126 . 21173)) nil (27058 3131 552680 275000) 0 nil])
-([nil nil ((21131 . 21135)) nil (27058 3131 552678 985000) 0 nil])
-([nil nil ((21175 . 21177)) nil (27058 3131 552677 545000) 0 nil])
-([nil nil ((21177 . 21179)) nil (27058 3131 552672 765000) 0 nil])
-([nil nil ((21568 . 21569) (t 27058 3131 548911 305000)) nil (27058 3140 784640 947000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 21576 . 21577) (nil fontified nil 21569 . 21577) (21569 . 21577)) nil (27058 3140 784640 137000) 0 nil])
-([nil nil ((21577 . 21578)) nil (27058 3140 784638 957000) 0 nil])
-([nil nil ((nil rear-nonsticky nil 21585 . 21586) (nil fontified nil 21578 . 21586) (21578 . 21586)) nil (27058 3140 784637 467000) 0 nil])
-([nil current ((21586 . 21587)) nil (27058 3140 784632 137000) 0 nil])
+"879f6b09f8b61df616888011abe7bb72361afba8"
+[nil current nil nil (27238 7092 924764 0) 0 nil]
 nil

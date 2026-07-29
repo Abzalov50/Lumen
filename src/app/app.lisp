@@ -126,11 +126,17 @@
 
   ;; Lumen cherche le nom du pool DB dans la config de l'app.
   ;; Si l'application ne spécifie rien, Lumen utilise :DEFAULT par convention.
-  (let ((db-pool-name (getf (app-config app) :db-pool :default)))
-    (format t "~&[APP] Scheduler 1 & 2...~%")
-    ;; On planifie le GC de session toutes les heures (3600s)
-    (lumen.core.scheduler:schedule-cron 'lumen.http.session:session-gc 3600 db-pool-name)
-    (lumen.core.scheduler:enqueue 'lumen.http.session:session-gc db-pool-name))
+  (let ((db-pool-name
+          (getf (app-config app) :db-pool :default)))
+
+    (format t "~&[APP] Planification du nettoyage des sessions.~%")
+
+    ;; Nettoyage périodique uniquement.
+    ;; Aucun lancement immédiat au démarrage.
+    (lumen.core.scheduler:schedule-cron
+     'lumen.http.session:session-gc
+     3600
+     db-pool-name))
     
   ;; 3. CRÉATION DU HANDLER
   (let ((handler-fn 
@@ -171,24 +177,60 @@
     (lumen.core.scheduler:schedule-cron :sys-gc-temp-files (* 24 3600) nil)
       
     ;; 4. Démarrage du serveur
-    (let ((ssl-enabled (getf (app-config app) :ssl nil))
-          (ssl-port    (getf (app-config app) :ssl-port 8443))
-          (cert-file   (getf (app-config app) :cert-file nil))
-          (key-file    (getf (app-config app) :key-file nil)))
-      
-      (setf (app-listeners app)
-            (lumen.core.server:start 
-             :port (app-port app)
-             :handler handler-fn
-             ;; --- NOUVEAUX PARAMÈTRES INJECTÉS ---
-             :ssl ssl-enabled
-             :ssl-port ssl-port
-             :cert-file cert-file
-             :key-file key-file))))
-  
-  ;; Même punition ici, on lit (app-config app) directement
-  (format t "~&[APP] ~A started on port ~A (SSL: ~A).~%" 
-          (app-name app) (app-port app) (if (getf (app-config app) :ssl nil) "ON" "OFF")) 
+    (let* ((ssl-requested-p
+             (getf
+              (app-config app)
+              :ssl
+              nil))
+
+	   (ssl-port
+             (getf
+              (app-config app)
+              :ssl-port
+              8443))
+
+	   (cert-file
+             (getf
+              (app-config app)
+              :cert-file
+              nil))
+
+	   (key-file
+             (getf
+              (app-config app)
+              :key-file
+              nil))
+
+	   ;; HTTPS n'est activé que si les deux fichiers sont fournis.
+	   (ssl-enabled
+             (and ssl-requested-p
+		  cert-file
+		  key-file)))
+
+      (when (and ssl-requested-p
+		 (not ssl-enabled))
+
+	(format *error-output*
+		"~&[SSL] HTTPS désactivé : certificat ou clé privée manquant.~%"))
+
+      (setf
+       (app-listeners app)
+
+       (lumen.core.server:start
+	:port (app-port app)
+	:handler handler-fn
+	:ssl ssl-enabled
+	:ssl-port ssl-port
+	:cert-file cert-file
+	:key-file key-file))
+
+      (format t
+              "~&[APP] ~A started on port ~A (SSL: ~A).~%"
+              (app-name app)
+              (app-port app)
+              (if ssl-enabled
+		  "ON"
+		  "OFF"))))
   )
 
 (defun reload! (app)

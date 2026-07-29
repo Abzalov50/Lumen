@@ -244,9 +244,6 @@
     (when (member "PATCH" methods :test #'string=) (pushnew "PUT" methods :test #'string=))
     (when (member "PUT" methods :test #'string=) (pushnew "PATCH" methods :test #'string=))
     (when methods (pushnew "OPTIONS" methods :test #'string=))
-    (print "IN ALLOWAD METHODS")
-    (print path)
-    (print methods)
     (sort (copy-list methods) #'string<)))
 
 (defun respond-options (router path)

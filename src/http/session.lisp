@@ -13,14 +13,104 @@
    :verify-signed-sid :make-session-id :store-get :store-put! :store-del!
 	   :sign-sid :rand-bytes :*session-ttl* :*session-cookie* :*secure-cookie*
    :*session-store* :session-gc :session-middleware :csrf-middleware
-   :auth-middleware :auth-required :roles-allowed))
+   :auth-middleware :auth-required :roles-allowed
+	   :clear-session-read-cache
+	   :*session-read-cache-ttl-seconds*
+:session-read-cache-stats))
 
 (in-package :lumen.http.session)
 
 (defparameter *session-cookie* "lumen.sid")
-(defparameter *session-ttl*    3600) ; secondes
+(defparameter *session-ttl*    300) ; secondes
 (defparameter *secure-cookie*  nil)  ; mettre T en prod (HTTPS)
 (defparameter *session-store*  (make-hash-table :test #'equal)) ; id -> (alist :data … :exp …)
+
+(defstruct session-cache-entry
+  data
+  expires-at)
+
+(defparameter *session-read-cache*
+  (make-hash-table :test #'equal))
+
+(defparameter *session-read-cache-lock*
+  (bt:make-lock "lumen-session-read-cache"))
+
+(defparameter *session-read-cache-ttl-seconds*
+  300)
+
+(defun %session-cache-get (sid)
+  "Retourne les données de session et FOUND-P.
+
+L'expiration en cache ne dépasse jamais l'expiration autoritative en base."
+  (let ((now (%session-cache-now)))
+
+    (bt:with-lock-held (*session-read-cache-lock*)
+      (let ((entry
+              (gethash sid *session-read-cache*)))
+
+        (cond
+          ((null entry)
+           (incf *session-cache-misses*)
+           (values nil nil))
+
+          ((<=
+            (session-cache-entry-expires-at entry)
+            now)
+
+           (remhash sid *session-read-cache*)
+           (incf *session-cache-misses*)
+
+           (values nil nil))
+
+          (t
+           (incf *session-cache-hits*)
+
+           (values
+            (copy-tree
+             (session-cache-entry-data entry))
+            t)))))))
+
+(defun %session-cache-put (sid data &optional session-expires-at)
+  (bt:with-lock-held (*session-read-cache-lock*)
+    (setf
+     (gethash sid *session-read-cache*)
+     (make-session-cache-entry
+      :data (copy-tree data)
+      :expires-at
+      (min (+ (%session-cache-now)
+              *session-read-cache-ttl-seconds*)
+           (or session-expires-at
+               most-positive-fixnum)))))
+
+  data)
+
+(defun %session-cache-delete (sid)
+  (bt:with-lock-held (*session-read-cache-lock*)
+    (remhash sid *session-read-cache*))
+
+  t)
+
+(defun clear-session-read-cache ()
+  (bt:with-lock-held (*session-read-cache-lock*)
+    (clrhash *session-read-cache*)
+    (setf *session-cache-hits* 0
+          *session-cache-misses* 0))
+
+  t)
+
+(defun session-read-cache-stats ()
+  (bt:with-lock-held (*session-read-cache-lock*)
+    (list
+     :entries (hash-table-count *session-read-cache*)
+     :hits *session-cache-hits*
+     :misses *session-cache-misses*
+     :ttl-seconds *session-read-cache-ttl-seconds*)))
+
+(defvar *session-cache-hits* 0)
+(defvar *session-cache-misses* 0)
+
+(defun %session-cache-now ()
+  (get-universal-time))
 
 (defun hex (u8)
   (with-output-to-string (s)
@@ -39,41 +129,93 @@
 
 ;; --- STORE SQL (Postmodern) ---
 (defun store-put! (sid data ttl)
-  "Sauvegarde la session en base (Upsert)."
-  (let ((exp (+ (get-universal-time) (or ttl *session-ttl*)))
-        ;; On sérialise l'alist Lisp en JSON String pour le stockage
-        (json-data (cl-json:encode-json-to-string data)))
-    
+  "Sauvegarde la session en base et actualise le cache mémoire."
+  (let ((exp
+          (+ (get-universal-time)
+             (or ttl *session-ttl*)))
+
+        (json-data
+          (cl-json:encode-json-to-string data)))
+
     (lumen.data.db:ensure-connection
-      (pomo:query 
-       "INSERT INTO sessions (id, data, expires_at) 
+      (pomo:query
+       "INSERT INTO sessions (id, data, expires_at)
         VALUES ($1, $2::jsonb, $3)
-        ON CONFLICT (id) 
-        DO UPDATE SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at"
-       sid 
-       json-data 
-       exp))))
+        ON CONFLICT (id)
+        DO UPDATE SET
+          data = EXCLUDED.data,
+          expires_at = EXCLUDED.expires_at"
+       sid
+       json-data
+       exp))
+
+    (%session-cache-put sid data exp)
+
+    data))
 
 (defun store-get (sid)
-  "Récupère la session si elle n'est pas expirée."
-  (lumen.data.db:ensure-connection
-    (let* ((now (get-universal-time))
-           ;; On cherche l'ID et on vérifie que la date d'expiration est future
-           (raw-data (pomo:query 
-                      "SELECT data FROM sessions WHERE id = $1 AND expires_at > $2"
-                      sid 
-                      now
-		      :single)))
-      
-      (when raw-data
-	(if (stringp raw-data)
-            (cl-json:decode-json-from-string raw-data)
-            raw-data)))))
+  "Récupère une session depuis le cache ou PostgreSQL.
+
+Retourne deux valeurs :
+- les données ;
+- T lorsque la session existe."
+  (multiple-value-bind (cached-data cached-p)
+      (%session-cache-get sid)
+
+    (when cached-p
+      (format t "~&[SESSION CACHE] HIT SID: ~A~%" sid)
+      (return-from store-get
+        (values cached-data t)))
+
+    (format t "~&[SESSION CACHE] MISS SID: ~A~%" sid)
+
+    (lumen.data.db:ensure-connection
+      (let* ((now
+               (get-universal-time))
+
+             (row
+               (first
+                (pomo:query
+                 "SELECT data, expires_at
+                   FROM sessions
+                  WHERE id = $1
+                    AND expires_at > $2"
+                 sid
+                 now
+                 :alists)))
+
+             (raw-data
+               (and row
+                    (cdr (assoc :data row))))
+
+             (expires-at
+               (and row
+                    (cdr (assoc :expires-at row)))))
+
+        (if raw-data
+            (let ((data
+                    (if (stringp raw-data)
+                        (cl-json:decode-json-from-string raw-data)
+                        raw-data)))
+
+              (%session-cache-put sid data expires-at)
+
+              (values
+               (copy-tree data)
+               t))
+
+            (values nil nil))))))
 
 (defun store-del! (sid)
-  "Supprime la session."
+  "Supprime la session de PostgreSQL et du cache."
+  (%session-cache-delete sid)
+
   (lumen.data.db:ensure-connection
-    (pomo:query "DELETE FROM sessions WHERE id = $1" sid)))
+    (pomo:query
+     "DELETE FROM sessions WHERE id = $1"
+     sid))
+
+  t)
 
 ;; ---------- cookie signé ----------
 (defun sign-sid (sid secret)
@@ -94,35 +236,53 @@
 (defun session-id (req) (lumen.core.http:ctx-get req :session-id))
 (defun session-data (req) (lumen.core.http:ctx-get req :session))
 
+(defun %normalized-session-key (value)
+  (typecase value
+    (null nil)
+    (string (string-downcase value))
+    (symbol (string-downcase (symbol-name value)))
+    (t nil)))
+
 (defun session-get (req key)
-  "Récupère une valeur de session de manière insensible à la casse et au type (String/Symbol)."
-  (let* ((target-key (string key)) ;; On convertit ce qu'on cherche en string
-         (data (session-data req)))
-    ;;(print target-key)
-    ;;(print data)
-    (cdr (assoc target-key data 
-                :test (lambda (target candidate)
-                        ;; STRING-EQUAL est insensible à la casse (UID == uid)
-                        ;; STRING convertit les Symboles en Strings automatiquement
-                        (string-equal target (string candidate)))))))
+  "Récupère une valeur de session sans échouer sur une alist historique mal formée."
+  (let ((target-key (%normalized-session-key key)))
+    (when target-key
+      (dolist (entry (session-data req))
+        (when (consp entry)
+          (let ((candidate (%normalized-session-key (car entry))))
+            (when (and candidate (string= target-key candidate))
+              (return (cdr entry)))))))))
 
 (defun session-set! (req key value)
   "Définit une valeur en session en forçant la clé en String minuscule."
-  (let* ((k (string-downcase (string key))) ;; On normalise la nouvelle clé
+  (let* ((k (or (%normalized-session-key key)
+                (error "La clé de session doit être une chaîne ou un symbole.")))
          (old (session-data req))
-         (clean (remove k old 
-                        ;; CORRECTION ICI : on prend le (car x) pour avoir la clé
-                        :key (lambda (x) (string-downcase (string (car x)))) 
-                        :test #'equal))
-         ;; On ajoute la nouvelle paire (String . Valeur)
+         (clean
+           (loop for entry in old
+                 when (and (consp entry)
+                           (let ((candidate
+                                   (%normalized-session-key (car entry))))
+                             (and candidate
+                                  (not (string= k candidate)))))
+                   collect entry))
          (new (acons k value clean)))
-    ;;(format t "~&[SESSION-SET!] OLD: ~A~%NEW: ~A~%" old new)
-    
     (lumen.core.http:ctx-set! req :session new)
     new))
 
 (defun session-del! (req key &key (test #'eq))
-  (let ((alist (remove key (session-data req) :key #'car :test test)))
+  "Supprime KEY de façon idempotente, insensible à la casse et au type."
+  (declare (ignore test))
+  (let* ((target-key (%normalized-session-key key))
+         (alist
+           (loop for entry in (session-data req)
+                 when (and (consp entry)
+                           (let ((candidate
+                                   (%normalized-session-key (car entry))))
+                             (and candidate
+                                  (or (null target-key)
+                                      (not (string= target-key candidate))))))
+                   collect entry)))
     (lumen.core.http:ctx-set! req :session alist) alist))
 
 ;; --- GARBAGE COLLECTOR ---
@@ -200,7 +360,7 @@ on ferme la connexion courante, on rouvre, puis on retente.
 ;;; SESSION MIDDLEWARE (Cookie Signed)
 ;;; ---------------------------------------------------------------------------
 (defmiddleware session-middleware
-    ((secret :initarg :secret :initform nil) ;; Requis
+    ((secret :initarg :secret :initform nil)
      (ttl :initarg :ttl :initform (* 24 3600))
      (cookie-domain :initarg :cookie-domain :initform nil)
      (cookie-name :initarg :cookie-name :initform "lumen_sid")
@@ -208,54 +368,117 @@ on ferme la connexion courante, on rouvre, puis on retente.
      (secure :initarg :secure :initform nil)
      (path :initarg :path :initform "/"))
     (req next)
-  
-  (with-slots (secret ttl cookie-domain cookie-name http-only secure path) mw
-    (assert (and secret (plusp (length secret))) () "session-middleware: :secret is required.")
-    
-    ;; 1. Lecture
-    (let* ((raw (or (cdr (assoc cookie-name (lumen.core.http:req-cookies req) :test #'string=)) ""))
-           (sid (and (> (length raw) 0) (verify-signed-sid raw secret)))
-           (data (and sid (store-get sid))))
-      
-      (unless sid
-        (setf sid (make-session-id))
-        (setf data '()))
-      
-      ;; Injection Context
-      (lumen.core.http:ctx-set! req :session-id sid)
-      (lumen.core.http:ctx-set! req :session data)
-      
-      ;; 2. Exécution
-      (let ((resp (funcall next req)))
-        
-        ;; 3. Persistance
-        (let ((sid* (session-id req))
-              (dat* (session-data req)))
-	  (format t "~&[SESSION SAVE] SID: ~A | DATA: ~A~%" sid* dat*)
-          (store-put! sid* dat* ttl)
 
-	  ;; --- AJOUT ICI : Headers Anti-Cache ---
-        ;; On force le navigateur à ne pas utiliser le cache si un utilisateur est connecté
-        ;; ou pour éviter le problème du 304 au login.
-        
-        (let ((headers (lumen.core.http:resp-headers resp)))
-           ;; On ajoute Vary: Cookie
-           (setf headers (lumen.utils:ensure-header headers "Vary" "Cookie"))
-           ;; On ajoute Cache-Control
-           (setf headers (lumen.utils:ensure-header headers "Cache-Control" "no-store, no-cache, must-revalidate, max-age=0"))
-           ;; On met à jour la réponse
-           (setf (lumen.core.http:resp-headers resp) headers))
-          
-          ;; Cookie Refresh
-          (lumen.core.http:add-set-cookie 
-           resp 
-           (lumen.core.http:format-set-cookie
-	    cookie-name
-	    (sign-sid sid* secret)
-	    :domain cookie-domain             
-            
-            :path path :http-only http-only :secure secure :max-age ttl)))
-        resp))))
+  (with-slots
+      (secret ttl cookie-domain cookie-name http-only secure path)
+      mw
+
+    (assert
+     (and secret
+          (plusp (length secret)))
+     ()
+     "session-middleware: :secret is required.")
+
+    (let* ((raw
+             (or
+              (cdr
+               (assoc
+                cookie-name
+                (lumen.core.http:req-cookies req)
+                :test #'string=))
+              ""))
+
+           (verified-sid
+             (and
+              (plusp (length raw))
+              (verify-signed-sid raw secret))))
+
+      (multiple-value-bind (loaded-data session-found-p)
+          (if verified-sid
+              (store-get verified-sid)
+              (values nil nil))
+
+        ;; Un cookie signé dont la session n'existe plus en base
+        ;; ne doit pas être réutilisé.
+        (let* ((sid
+                 (if session-found-p
+                     verified-sid
+                     (make-session-id)))
+
+               (data
+                 (if session-found-p
+                     loaded-data
+                     '()))
+
+               ;; Copie indépendante permettant de détecter les
+               ;; mutations destructives de l'alist.
+               (initial-data
+                 (copy-tree data)))
+
+          ;; Injection dans le contexte de la requête.
+          (lumen.core.http:ctx-set! req :session-id sid)
+          (lumen.core.http:ctx-set! req :session data)
+
+          ;; Exécution de la suite de la pile.
+          (let ((resp (funcall next req)))
+ 
+            (let* ((sid* (session-id req))
+                   (dat* (session-data req))
+                   (sid-changed-p (not (equal sid sid*)))
+                   (data-changed-p (not (equal initial-data dat*)))
+                   (save-required-p
+		     (or
+		      (not session-found-p)
+		      sid-changed-p
+		      data-changed-p)))
+
+              ;; On écrit uniquement lorsque la route a réellement
+              ;; créé ou modifié la session.
+              (when save-required-p
+                (store-put! sid* dat* ttl)
+
+                ;; Ne jamais journaliser les données complètes
+                ;; de session.
+                (format t
+                        "~&[SESSION SAVE] SID: ~A | NEW: ~A | DATA-CHANGED: ~A~%"
+                        sid*
+                        (not session-found-p)
+                        data-changed-p)
+
+                ;; Le cookie n'est renouvelé que lorsque la session
+                ;; est effectivement sauvegardée.
+                (lumen.core.http:add-set-cookie
+                 resp
+                 (lumen.core.http:format-set-cookie
+                  cookie-name
+                  (sign-sid sid* secret)
+                  :domain cookie-domain
+                  :path path
+                  :http-only http-only
+                  :secure secure
+                  :max-age ttl)))
+
+              ;; Les pages dépendant de la session ne doivent pas être
+              ;; partagées entre plusieurs cookies par un cache HTTP.
+              (let ((headers (lumen.core.http:resp-headers resp)))
+
+                (setf headers
+                      (lumen.utils:ensure-header
+                       headers
+                       "Vary"
+                       "Cookie"))
+
+                (setf headers
+                      (lumen.utils:ensure-header
+                       headers
+                       "Cache-Control"
+                       "no-store, no-cache, must-revalidate, max-age=0"))
+
+                (setf
+                 (lumen.core.http:resp-headers resp)
+                 headers))
+
+              resp)))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; 16. CSRF MIDDLEWARE

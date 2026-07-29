@@ -22,21 +22,28 @@
 ;;; 2. Gestion des Assets (Remplacement de vos %tag-js/css)
 
 (defun render-core-assets ()
-  ;; CSS
+  "Rend uniquement les dépendances front communes à Lumen.
+
+Les feuilles de style et scripts propres à une application doivent être
+déclarés dans le layout de cette application."
   (with-html
-    (:link :rel "stylesheet" :href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css")
-    (:link :rel "stylesheet" :href "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css")
-    ;; HTMX (Le moteur du RAD)
-    (:script :src "https://unpkg.com/htmx.org@1.9.10" :defer t)
-    ;; Extension HTMX pour JSON (optionnel mais utile)
-    (:script :src "https://unpkg.com/htmx.org/dist/ext/json-enc.js" :defer t)
-    (:link :rel "stylesheet" :href (lumen.app.app:app-path "/assets/css/style.css"))))
+    (:link :rel "stylesheet"
+           :href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css")
+
+    (:link :rel "stylesheet"
+           :href "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css")
+
+    (:script :src "https://unpkg.com/htmx.org@1.9.10"
+             :defer t)
+
+    (:script :src "https://unpkg.com/htmx.org/dist/ext/json-enc.js"
+             :defer t)))
 
 (defun render-core-js ()
-  ;; CSS
+  "Rend uniquement les scripts communs à Lumen."
   (with-html
-    (:script :src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
-    (:script :src (lumen.app.app:app-path "/assets/js/app.js"))))
+    (:script
+     :src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")))
 
 ;;; 3. Layout Master
 ;;; Cette macro est magique : elle gère le "Full page" vs "Partial"

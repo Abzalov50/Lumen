@@ -1,5 +1,5 @@
 (undo-tree-save-format-version . 1)
-"427aaaaf794e62270d69a7efa56eed74af26a94a"
+"ef28451270411671ff4f96c277f1b93329b44c05"
 [nil nil nil nil (26801 56058 557199 0) 0 nil]
 ([nil nil ((nil rear-nonsticky nil 6295 . 6296) (nil fontified nil 1 . 6296) (1 . 6296) (t . -1)) nil (26801 56058 557198 0) 0 nil])
 ([nil nil ((2096 . 2098)) nil (26801 56058 557197 0) 0 nil])
@@ -255,5 +255,29 @@
 ([nil nil ((nil rear-nonsticky nil 719 . 720) (nil fontified nil 538 . 720) (538 . 720)) nil (27026 52283 416892 0) 0 nil])
 ([nil nil ((406 . 407) (t 27026 52283 0 0)) nil (27026 53220 916043 0) 0 nil])
 ([nil nil ((407 . 408)) nil (27026 53220 916042 0) 0 nil])
-([nil current ((nil rear-nonsticky nil 416 . 417) (nil fontified nil 408 . 417) (408 . 417)) nil (27026 53220 916038 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 416 . 417) (nil fontified nil 408 . 417) (408 . 417)) nil (27026 53220 916038 0) 0 nil])
+([nil nil ((#("(defun %trim (s) (string-trim '(#\\Return #\\Newline #\\Tab) s))" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 12 (face font-lock-function-name-face fontified t) 12 61 (fontified t)) . -4206) (undo-tree-id2 . -61) 4267 (t 27164 21358 0 0)) nil (27238 1531 867109 0) 0 nil])
+([nil nil ((nil rear-nonsticky nil 4276 . 4277) (nil fontified nil 4206 . 4277) (4206 . 4277)) nil (27238 1531 867107 0) 0 nil])
+([nil nil ((#("(defun cfg-load-env (path &key (override nil))
+  \"Charge un fichier .env KEY=VAL. Si OVERRIDE=T, remplace les valeurs existantes de *cfg-file*.\"
+  (print \"IN CFG LOAD\")
+  ;;(print path)
+  ;;(print override)
+  (clrhash *cfg-file*)
+  ;;(print *cfg-file*)
+  (when (probe-file path)
+    (with-open-file (in path :direction :input :external-format :utf-8)
+      (loop for line = (read-line in nil nil)
+            while line do
+              (let ((l (%trim line)))
+                (unless (or (string= l \"\") (char= (char l 0) #\\#))
+                  (let* ((pos (position #\\= l))
+                         (k (and pos (%trim (subseq l 0 pos))))
+                         (v (and pos (%strip-quotes (%trim (subseq l (1+ pos)))))))
+                    (when k
+                      (let ((kk (%kw k)))
+                        (when (or override (null (%get *cfg-file* kk)))
+                          (%put! *cfg-file* kk v))))))))))
+  t)" 0 1 (fontified t) 1 6 (face font-lock-keyword-face fontified t) 6 7 (fontified t) 7 13 (face font-lock-function-name-face fontified t) 13 19 (face font-lock-function-name-face fontified t) 19 26 (fontified t) 26 30 (face font-lock-type-face fontified t) 30 47 (fontified t) 47 49 (fontified t) 49 144 (face font-lock-doc-face fontified t) 144 154 (fontified t) 154 167 (face font-lock-string-face fontified t) 167 171 (fontified t) 171 173 (face font-lock-comment-delimiter-face fontified t) 173 186 (face font-lock-comment-face fontified t) 186 188 (fontified t) 188 190 (face font-lock-comment-delimiter-face fontified t) 190 207 (face font-lock-comment-face fontified t) 207 232 (fontified t) 232 234 (face font-lock-comment-delimiter-face fontified t) 234 253 (face font-lock-comment-face fontified t) 253 256 (fontified t) 256 260 (face font-lock-keyword-face fontified t) 260 284 (fontified t) 284 298 (face font-lock-keyword-face fontified t) 298 308 (fontified t) 308 318 (face font-lock-builtin-face fontified t) 318 319 (fontified t) 319 325 (face font-lock-builtin-face fontified t) 325 326 (fontified t) 326 342 (face font-lock-builtin-face fontified t) 342 343 (fontified t) 343 349 (face font-lock-builtin-face fontified t) 349 358 (fontified t) 358 362 (face font-lock-keyword-face fontified t) 362 438 (fontified t) 438 441 (face font-lock-keyword-face fontified t) 441 478 (fontified t) 478 484 (face font-lock-keyword-face fontified t) 484 500 (fontified t) 500 502 (face font-lock-string-face fontified t) 502 547 (fontified t) 547 551 (face font-lock-keyword-face fontified t) 551 745 (fontified t) 745 749 (face font-lock-keyword-face fontified t) 749 775 (fontified t) 775 778 (face font-lock-keyword-face fontified t) 778 819 (fontified t) 819 823 (face font-lock-keyword-face fontified t) 823 929 (fontified t)) . -4583) (undo-tree-id0 . -929) (undo-tree-id1 . -145) 5512) nil (27238 1531 867105 0) 0 nil])
+([nil current ((nil rear-nonsticky nil 5721 . 5722) (nil fontified nil 4583 . 5722) (4583 . 5722)) nil (27238 1531 867086 0) 0 nil])
 nil

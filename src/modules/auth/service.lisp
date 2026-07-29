@@ -116,18 +116,48 @@
         nil)))
 
 (defun verify-credentials (email password tenant-id)
-  "Vérifie les identifiants et retourne l'utilisateur (sans générer de token)."
-  (lumen.data.db:ensure-connection
-    (let* ((tenant (pomo:query "SELECT id FROM tenants WHERE id = $1" tenant-id :single))
-           (user   (and tenant 
-                        (pomo:query "SELECT * FROM users WHERE email = $1 AND tenant_id = $2 AND is_active = 'true'" 
-                                    email tenant-id :alist))))
-      
-      (cond
-        ((null tenant) (values nil "Organisation inconnue"))
-        ((null user)   (values nil "Utilisateur inconnu"))
-        ((%verify-password password user) (values user nil)) ;; Succès
-        (t (values nil "Mot de passe incorrect"))))))
+  "Vérifie les identifiants dans le tenant courant."
+  (let ((normalized-email
+          (string-downcase
+           (string-trim '(#\Space #\Tab #\Newline #\Return)
+                        (or email "")))))
+
+    (lumen.data.db:ensure-connection
+      (let* ((tenant
+               (pomo:query
+                "SELECT id
+                   FROM tenants
+                  WHERE id = $1::uuid
+                    AND status = 'active'
+                  LIMIT 1"
+                tenant-id
+                :single))
+
+             (user
+               (and tenant
+                    (pomo:query
+                     "SELECT *
+                        FROM users
+                       WHERE tenant_id = $1::uuid
+                         AND lower(trim(email)) = $2
+                         AND is_active = true
+                       LIMIT 1"
+                     tenant-id
+                     normalized-email
+                     :alist))))
+
+        (cond
+          ((null tenant)
+           (values nil "Organisation inconnue ou inactive."))
+
+          ((null user)
+           (values nil "Adresse e-mail ou mot de passe incorrect."))
+
+          ((%verify-password password user)
+           (values user nil))
+
+          (t
+           (values nil "Adresse e-mail ou mot de passe incorrect.")))))))
 
 (defun authenticate-for-api (email password tenant-id)
   "Utilisée pour les clients mobiles/externes : Retourne un TOKEN."
