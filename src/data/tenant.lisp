@@ -64,10 +64,6 @@
 (defvar *tenant-host-cache-hits* 0)
 (defvar *tenant-host-cache-misses* 0)
 
-(defun %tenant-cache-now ()
-  (/ (get-internal-real-time)
-     internal-time-units-per-second))
-
 (defparameter *tenant-host-negative-cache-ttl-seconds*
   30)
 
