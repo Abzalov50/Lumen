@@ -74,10 +74,6 @@
 (defvar *tenant-host-cache-hits* 0)
 (defvar *tenant-host-cache-misses* 0)
 
-(defun %tenant-cache-now ()
-  (/ (get-internal-real-time)
-     internal-time-units-per-second))
-
 (defun %tenant-host-cache-get (host)
   "Retourne deux valeurs : TENANT-ID et FOUND-P."
   (let ((now (%tenant-cache-now)))
