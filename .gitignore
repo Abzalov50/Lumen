@@ -149,4 +149,4 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 ./static/files/client_hta_postpay_abj.json
-./static/files/client_hta_postpay_abj.js
+./static/files/client_hta_postpay_abj.js*.~undo-tree~
