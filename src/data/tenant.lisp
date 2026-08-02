@@ -37,6 +37,10 @@
 (defun %now-ms ()
   (round (* 1000.0 (/ (get-internal-real-time) internal-time-units-per-second))))
 
+(defun %tenant-cache-now ()
+  "Retourne l’instant courant en secondes pour les TTL du cache tenant."
+  (get-universal-time))
+
 (defun %cache-get (key)
   (let* ((e (gethash key *tenant-cache*)))
     (when (and e (<= (%now-ms) (%cache-entry-expires-at e)))
@@ -357,58 +361,37 @@ RESOLVER reçoit le host normalisé et doit retourner le tenant-id ou NIL."
 |#
 
 (defun tenant-id-for-host (host)
-  "Retourne le tenant associé à HOST avec un cache global de cinq minutes."
-  (let ((normalized-host
-          (normalize-host host)))
+  "Retourne le tenant associé à HOST avec cache positif et négatif."
+  (resolve-tenant-id-cached
+   host
+   (lambda (normalized-host)
+     (format
+      t
+      "~&[TENANT DB] Recherche host=~A~%"
+      normalized-host)
 
-    (when normalized-host
+     (ensure-connection
+       (let* ((row
+                (query-1a
+                 "SELECT tenant_id
+                    FROM public.tenant_domains
+                   WHERE lower(host) = lower($1)
+                   LIMIT 1"
+                 normalized-host))
 
-      (multiple-value-bind (cached-tenant-id found-p)
-          (%tenant-host-cache-get normalized-host)
+              (tenant-id
+                (and row
+                     (or
+                      (cdr (assoc :tenant_id row))
+                      (cdr (assoc :tenant-id row))))))
 
-        (if found-p
+         (format
+          t
+          "~&[TENANT DB] host=~A tenant=~A~%"
+          normalized-host
+          tenant-id)
 
-            (progn
-              (format t
-                      "~&[TENANT CACHE] HIT host=~A tenant=~A~%"
-                      normalized-host
-                      cached-tenant-id)
-
-              cached-tenant-id)
-
-            (progn
-              (format t
-                      "~&[TENANT CACHE] MISS host=~A~%"
-                      normalized-host)
-
-              (ensure-connection
-                (let* ((rows
-                         (select*
-                          :tenant_domains
-                          :filters
-                          (list '= :host normalized-host)
-                          :select
-                          '(:tenant_id)
-                          :limit 1))
-
-                       (row
-                         (first rows))
-
-                       (tenant-id
-                         (and row
-                              (or
-                               (cdr
-                                (assoc :tenant_id row))
-
-                               (cdr
-                                (assoc :tenant-id row))))))
-
-                  (when tenant-id
-                    (%tenant-host-cache-put
-                     normalized-host
-                     tenant-id))
-
-                  tenant-id))))))))
+         tenant-id)))))
 
 ;;;; -----------------------------------------------------------------------------
 ;;;; TENANT FROM HOST MIDDLEWARE
@@ -444,7 +427,17 @@ RESOLVER reçoit le host normalisé et doit retourner le tenant-id ou NIL."
       (let* ((host-raw (%host-header req))
              (host (%normalize-host host-raw))
              ;; On utilise funcall pour permettre l'injection de mock en test
-             (tid (and host (handler-case (funcall resolver-fn host) (error () nil))))
+	     (tid
+	       (and host
+		    (handler-case
+			(funcall resolver-fn host)
+		      (error (condition)
+			(format
+			 *error-output*
+			 "~&[MW TENANT ERROR] host=~A error=~A~%"
+			 host
+			 condition)
+			nil))))             
              (code (and tid (tenant-code-by-id tid))))
         
         (multiple-value-bind (tid2 code2)
