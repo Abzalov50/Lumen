@@ -599,15 +599,68 @@ on ferme la connexion courante, on rouvre, puis on retente.
 
           ;; CAS B : Authentifié via JWT (API externe, Mobile)
           ((and jwt-token secret)
-           (multiple-value-bind (payload ok) 
-               (ignore-errors (lumen.core.jwt:jwt-decode jwt-token :secret secret :verify t :leeway leeway))
-             (when ok
-               (lumen.core.http:ctx-set! req :user-id (cdr (assoc :sub payload)))
-               (lumen.core.http:ctx-set! req :user-role (cdr (assoc :role payload)))
-               (lumen.core.http:ctx-set! req :user-scopes (cdr (assoc :scopes payload)))
-               ;; Tenant
-               (let ((tid (or (cdr (assoc :tenant-id payload)) (cdr (assoc :tenant payload)))))
-		 (when tid (lumen.core.http:ctx-set! req :tenant-id tid))))))))
+
+	   (multiple-value-bind
+		 (payload ok)
+
+	       (ignore-errors
+		(lumen.core.jwt:jwt-decode
+		 jwt-token
+		 :secret secret
+		 :verify t
+		 :leeway leeway))
+
+	     (when ok
+	       ;; Le payload complet reste disponible pour les middlewares
+	       ;; génériques et les applications qui exploitent des claims
+	       ;; complémentaires.
+	       (lumen.core.http:ctx-set!
+		req
+		:jwt
+		payload)
+
+	       (lumen.core.http:ctx-set!
+		req
+		:user-id
+		(cdr
+		 (assoc :sub payload)))
+
+	       (lumen.core.http:ctx-set!
+		req
+		:user-role
+		(cdr
+		 (assoc :role payload)))
+
+	       (lumen.core.http:ctx-set!
+		req
+		:user-scopes
+		(cdr
+		 (assoc :scopes payload)))
+
+	       ;; Ne pas écraser un tenant déjà résolu depuis le host.
+	       ;; context-middleware pourra ainsi détecter une divergence
+	       ;; entre le tenant du domaine et celui du JWT.
+	       (let ((tid
+		       (or
+			(cdr
+			 (assoc :tenant-id payload))
+
+			(cdr
+			 (assoc :tenant payload)))))
+
+		 (when
+		     (and
+		      tid
+
+		      (null
+		       (lumen.core.http:ctx-get
+			req
+			:tenant-id)))
+
+		   (lumen.core.http:ctx-set!
+		    req
+		    :tenant-id
+		    tid))))))))
 
       ;; ---------------------------------------------------------
       ;; 2. LOGIQUE D'AUTORISATION (Inchangée)
